@@ -18,6 +18,7 @@ import {
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
 import { createFalling } from './falling.js';
+import { createCrowds } from './crowds.js';
 import { isSideClip } from './obstacles.js';
 import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked } from './storage.js';
 
@@ -80,6 +81,16 @@ const falling = createFalling(scene, track, {
   },
   smash: (kind, z) => audio.smash(player.object.position.z - z),
 });
+// People fleeing across the Forum. Bumping into someone is a stumble in his
+// lane; it never ends the run or counts towards the surge.
+const crowds = createCrowds(scene, kit);
+function onBump() {
+  if (player.inStumbleGrace) return;
+  player.stumble();
+  audio.stumble();
+  shake = Math.max(shake, STUMBLE.cameraShake * 0.5);
+}
+
 // What falling.js needs to know about the player each frame.
 const fallingTarget = { position: player.object.position, hitbox: player.hitbox, shieldRaised: false, velocityZ: 0 };
 player.settle(); // stand idle on the start screen
@@ -192,6 +203,7 @@ function turn(way) {
   turnFrom = turnYaw + angle; // a turn during a turn carries on from where the camera is
   turnTime = 0;
   falling.reset(); // anything still falling was over the old street
+  crowds.reset();
 }
 
 // Each frame while running: take a queued turn on the centre line, carry
@@ -342,6 +354,7 @@ function restart() {
   track.reset(mode === 'escape' ? JOURNEY.length : null);
   surge.reset();
   falling.reset();
+  crowds.reset();
   setAshFade(0);
   shake = 0;
 }
@@ -474,6 +487,7 @@ renderer.setAnimationLoop((timestamp) => {
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     updateDistance(currentDistance());
     updateDistrict();
+    crowds.update(dt, currentDistance(), currentSpeed(), (d) => track.districtAt(d) === 'forum', player.hitbox, onBump);
     // Statues: some topple in the later phases (see statues.js).
     const statueSpeed = currentSpeed();
     track.statues.update(

@@ -154,6 +154,8 @@ function planForum(random, { temple = 0, gate = null } = {}) {
   }
   if (gate === 'in') placements.push({ piece: 'Forum_Gate', x: 0, z: 0.7, angle: 0 });
   if (gate === 'out') placements.push({ piece: 'Forum_Gate', x: 0, z: L - 0.7, angle: Math.PI });
+  // Where a statue or column that may topple can stand (statues.js).
+  placements.free = [-1, 1].flatMap((side) => [4, 10, 16, 22].map((z) => ({ side, z })));
   return placements;
 }
 
@@ -268,7 +270,15 @@ export function createTrack(scene, kit) {
 
   // Build the layouts once.
   const random = seeded(2024);
-  const build = (plan) => ({ near: mergeLayout(kit.near, plan, kit.far), far: mergeLayout(kit.far, plan), free: plan.free ?? [] });
+  // near and far: one geometry per material. shadow: the far version all in
+  // one geometry (the shadow map only needs the shape), so a chunk's shadow
+  // is a single draw call.
+  const build = (plan) => {
+    const far = mergeLayout(kit.far, plan);
+    const shadow = mergeGeometries([...far.values()]);
+    shadow.computeBoundingSphere();
+    return { near: mergeLayout(kit.near, plan, kit.far), far, shadow, free: plan.free ?? [] };
+  };
   const layouts = Array.from({ length: KIT.layouts }, () => build(planLayout(random)));
   const junctionLayouts = { T: build(planJunction('T', random)), X: build(planJunction('X', random)) };
   // From the finish chunk on, the street opens out: road only, no houses.
@@ -289,17 +299,12 @@ export function createTrack(scene, kit) {
   function createSlot(slot) {
     const root = new THREE.Group();
     const lods = {};
-    for (const lod of ['near', 'far', 'shadow']) {
+    for (const lod of ['near', 'far']) {
       const group = new THREE.Group();
       group.userData.meshes = new Map(
         materials.map((material) => {
           const mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
-          if (lod === 'shadow') {
-            mesh.castShadow = true;
-            mesh.layers.set(SHADOW_LAYER); // drawn into the shadow map only
-          } else {
-            mesh.receiveShadow = true;
-          }
+          mesh.receiveShadow = true;
           group.add(mesh);
           return [material, mesh];
         }),
@@ -307,6 +312,14 @@ export function createTrack(scene, kit) {
       root.add(group);
       lods[lod] = group;
     }
+    // The shadow caster: one mesh, drawn into the shadow map only.
+    const shadow = new THREE.Mesh(new THREE.BufferGeometry(), materials[0]);
+    shadow.castShadow = true;
+    shadow.layers.set(SHADOW_LAYER);
+    lods.shadow = new THREE.Group();
+    lods.shadow.add(shadow);
+    lods.shadow.userData.mesh = shadow;
+    root.add(lods.shadow);
     root.visible = false;
     world.add(root);
     // A chunk: where it starts (world-group space), its heading, how far
@@ -352,18 +365,19 @@ export function createTrack(scene, kit) {
     chunk.root.visible = true;
     const layout =
       kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : district === 'forum' ? forumLayout(distance, run) : layouts[Math.floor(Math.random() * layouts.length)];
-    for (const lod of ['near', 'far', 'shadow']) {
+    for (const lod of ['near', 'far']) {
       for (const [material, mesh] of chunk.lods[lod].userData.meshes) {
-        const geometry = layout[lod === 'near' ? 'near' : 'far'].get(material);
+        const geometry = layout[lod].get(material);
         mesh.visible = Boolean(geometry);
         if (geometry) mesh.geometry = geometry;
       }
     }
+    chunk.lods.shadow.userData.mesh.geometry = layout.shadow;
     // Game-orientation frame of the chunk: its start, turned to its heading.
     chunk.matrix.makeRotationAxis(up, angleOf(heading)).setPosition(position);
     // A statue, if one is due here. One that may topple keeps the road
     // around where it would land clear of obstacle rows.
-    const toppler = kind === 'street' || kind === 'T' || kind === 'X' ? statues.place(chunk, layout.free) : null;
+    const toppler = kind === 'street' || kind === 'T' || kind === 'X' || kind === 'forum' ? statues.place(chunk, layout.free) : null;
     // Rows of obstacles: none in junctions and side streets (they start
     // after them), none on the run-up to a junction, none by a toppler.
     const clear = [[nextJunction - TURNS.clearBefore * speedAt(nextJunction) * MAX_SPEED_MULTIPLIER, nextJunction + L]];

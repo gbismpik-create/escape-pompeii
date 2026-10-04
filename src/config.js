@@ -485,10 +485,30 @@ export const STATUES = {
   clearance: 0.7, // seconds of running kept free of obstacle rows around it
   // The fallen figure's hitbox, in the statue's frame (z: out towards the road).
   fallen: { halfWidth: 0.3, height: 0.55, from: 0.6, to: 2.6 },
+  // In the Forum: more statues, standing right by the lanes (forumX), and
+  // free-standing columns further out (column.x) that fall across a lane.
+  forumSpacing: [40, 70], // metres between them in the Forum
+  forumToppleChance: 0.5,
+  forumX: 4.2,
+  column: { chance: 0.5, x: 7.3, fallen: { halfWidth: 0.4, height: 0.8, from: 0.3, to: 6.4 }, lieHeight: 0.3 },
   shadowDarkness: 0.18,
   wobble: 0.06, // radians: the statue rocks on its pedestal while the shadow shows
   pedestalHeight: 1.1, // the figure stands this high
   types: ['Statue_Apollo', 'Statue_Emperor', 'Statue_Faun', 'Statue_Notable'], // pieces in the street kit
+};
+
+// People fleeing across the Forum (crowds.js): small groups run from one
+// side of the square to the other. Bumping into someone makes the runner
+// stumble; it never ends the run or counts towards the surge.
+export const CROWDS = {
+  spacing: [3, 5], // seconds of running between groups
+  groupSize: [2, 4],
+  speed: 3.5, // m/s across the square
+  startX: 11, // they set off from beside the colonnades
+  leadTime: 3.4, // seconds before the runner reaches their crossing that they set off
+  hitbox: { halfWidth: 0.25, height: 1.7, halfDepth: 0.2 },
+  stride: 2.6, // steps per second
+  tunicColors: [0xb5452f, 0xd8c9a8, 0x6f7f5a, 0x8a6a45, 0x5d6f8a, 0xc49a3c, 0x9c8f86],
 };
 
 export const STREET = {

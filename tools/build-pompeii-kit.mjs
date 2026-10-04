@@ -1010,6 +1010,14 @@ function rubble(P, cx, cz, w, h, n) {
     pieces.push(P);
   }
 
+  // ---- a free-standing honorific column on its plinth (it can topple across the square)
+  {
+    const P = new Piece('Forum_Column');
+    P.add(block(1.1, 0.4, 1.1, 0.02), 'stone', { colorFn: travFn, noise: 0.06 });
+    column(0, 0.4, 0, 6.0, 0.38).forEach((g) => P.add(g, 'stone', { colorFn: travFn, noise: 0.05 }));
+    pieces.push(P);
+  }
+
   // ---- entrance arch across the way in (at z = 0), with walls out to the colonnades
   {
     const P = new Piece('Forum_Gate');
@@ -1026,6 +1034,44 @@ function rubble(P, cx, cz, w, h, n) {
     P.add(xf(new THREE.ExtrudeGeometry(arch, { depth: 1.4, bevelEnabled: false, curveSegments: 24 }), [0, 6.2, -0.7]), 'stone', { colorFn: travFn, noise: 0.05 });
     P.add(xf(block(11.6, 1.6, 1.6, 0.03), [0, 9.8, 0]), 'stone', { colorFn: travFn, noise: 0.05 });
     P.add(xf(block(5, 0.9, 0.04, 0.01), [0, 10.15, 0.8]), 'stone', { color: travDk });
+    pieces.push(P);
+  }
+}
+
+// ================================================================== PEOPLE (fleeing crowds in the Forum)
+// Simple, respectful figures: a body in a knee-length tunic with a belt and a
+// bundle on the back (pale, so each person can be tinted a different colour),
+// a head with hair, and a leg and an arm that swing (each its own piece,
+// hung from the hip / shoulder at its origin, pointing down).
+{
+  const skin = C(0xc08a63), hair = C(0x3a2a1e), cloth = C(0xf2ede4), leather = COL.woodDk;
+  const lathed = (pts, segs = 10) => lathe(pts, segs);
+  {
+    const P = new Piece('Person_Body');
+    // tunic: shoulders down to the knees, belted at the waist
+    P.add(xf(lathed([[0, 1.46], [0.12, 1.45], [0.19, 1.38], [0.17, 1.2], [0.15, 1.02], [0.2, 0.75], [0.22, 0.55], [0, 0.55]], 12), [0, 0, 0], [0, 0, 0], [1, 1, 0.75]), 'cloth', { color: cloth, noise: 0.08 });
+    P.add(xf(new THREE.TorusGeometry(0.155, 0.02, 4, 14), [0, 1.03, 0], [Math.PI / 2, 0, 0], [1, 0.75, 1]), 'cloth', { color: leather });
+    // a bundle tied on the back
+    P.add(xf(new THREE.SphereGeometry(0.16, 8, 6), [0, 1.25, -0.2], [0, 0, 0], [1.1, 0.8, 0.7]), 'cloth', { color: C(0xcdbf9c), noise: 0.12 });
+    pieces.push(P);
+  }
+  {
+    const P = new Piece('Person_Head');
+    P.add(xf(new THREE.CylinderGeometry(0.045, 0.05, 0.12, 8), [0, 1.5, 0]), 'cloth', { color: skin });
+    P.add(xf(new THREE.SphereGeometry(0.1, 10, 8), [0, 1.62, 0.01], [0, 0, 0], [0.9, 1.1, 1]), 'cloth', { color: skin, noise: 0.05 });
+    P.add(xf(new THREE.SphereGeometry(0.105, 10, 6, 0, TAU, 0, Math.PI * 0.55), [0, 1.63, -0.01], [-0.3, 0, 0]), 'cloth', { color: hair });
+    pieces.push(P);
+  }
+  {
+    const P = new Piece('Person_Leg');
+    P.add(xf(new THREE.CylinderGeometry(0.065, 0.045, 0.85, 8), [0, -0.43, 0]), 'cloth', { color: skin, noise: 0.05 });
+    P.add(xf(block(0.09, 0.06, 0.22, 0.02), [0, -0.9, 0.05]), 'cloth', { color: leather }); // sandal and foot
+    pieces.push(P);
+  }
+  {
+    const P = new Piece('Person_Arm');
+    P.add(xf(new THREE.CylinderGeometry(0.045, 0.035, 0.6, 8), [0, -0.3, 0]), 'cloth', { color: skin, noise: 0.05 });
+    P.add(xf(new THREE.SphereGeometry(0.045, 6, 5), [0, -0.62, 0]), 'cloth', { color: skin });
     pieces.push(P);
   }
 }
