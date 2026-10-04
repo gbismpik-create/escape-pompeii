@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { LIGHTS, SKY, VESUVIUS, GRAPHICS } from './config.js';
+import { LIGHTS, GRAPHICS } from './config.js';
 import { createPhaseState, updatePhaseState } from './phases.js';
-import { createVesuvius } from './vesuvius.js';
+import { createBackdrop } from './backdrop.js';
 import { createAsh } from './ash.js';
 import { SHADOW_LAYER } from './track.js';
 import { isLowEnd } from './device.js';
@@ -12,40 +12,6 @@ const FOG_REACH = 2.2;
 const viewDistance = () => (isLowEnd() ? GRAPHICS.viewDistance.low : GRAPHICS.viewDistance.high);
 
 // Sky, fog, lights, falling ash and Vesuvius, all driven by the eruption phase.
-
-// A big sphere around the camera, painted on the inside with a gradient
-// from the horizon colour up to the top colour. Drawn first, behind everything.
-function createSkyDome() {
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      topColor: { value: new THREE.Color() },
-      horizonColor: { value: new THREE.Color() },
-    },
-    vertexShader: /* glsl */ `
-      varying vec3 vDirection;
-      void main() {
-        vDirection = normalize(position);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform vec3 topColor;
-      uniform vec3 horizonColor;
-      varying vec3 vDirection;
-      void main() {
-        float up = pow(max(vDirection.y, 0.0), 0.5);
-        gl_FragColor = vec4(mix(horizonColor, topColor, up), 1.0);
-        #include <colorspace_fragment>
-      }
-    `,
-    side: THREE.BackSide, // we're inside the sphere
-    depthWrite: false,
-  });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(SKY.radius, 24, 12), material);
-  mesh.renderOrder = -1;
-  mesh.frustumCulled = false;
-  return mesh;
-}
 
 export function createEnvironment(scene, renderer) {
   const phase = createPhaseState();
@@ -60,8 +26,7 @@ export function createEnvironment(scene, renderer) {
   const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
 
-  const sky = createSkyDome();
-  scene.add(sky);
+  const backdrop = createBackdrop(); // sky, Vesuvius, eruption column
 
   // Exponential fog: thickens smoothly with distance, set by one density value.
   scene.fog = new THREE.FogExp2(0xffffff, 0.01);
@@ -85,13 +50,20 @@ export function createEnvironment(scene, renderer) {
   const glow = new THREE.DirectionalLight(LIGHTS.glow.color, 0);
   scene.add(glow, glow.target);
 
-  const vesuvius = createVesuvius();
-  scene.add(vesuvius.mesh);
-  const angle = THREE.MathUtils.degToRad(VESUVIUS.angle);
 
   return {
     phase,
     envMap,
+
+    // Adds Vesuvius and the eruption column once the street kit has loaded.
+    addVolcano(kit) {
+      backdrop.addVolcano(kit);
+    },
+
+    // Draws the sky and the volcano; the caller then draws the town on top.
+    renderBackdrop(renderer) {
+      backdrop.render(renderer);
+    },
 
     // How far the camera can see through the fog (metres).
     get fogDistance() {
@@ -101,10 +73,6 @@ export function createEnvironment(scene, renderer) {
     update(runTime, playerPosition, camera) {
       updatePhaseState(phase, runTime);
       const p = playerPosition;
-
-      sky.position.copy(camera.position);
-      sky.material.uniforms.topColor.value.copy(phase.skyTop);
-      sky.material.uniforms.horizonColor.value.copy(phase.skyHorizon);
 
       scene.fog.color.copy(phase.skyHorizon);
       // At least thick enough to hide the end of the drawn street.
@@ -127,13 +95,7 @@ export function createEnvironment(scene, renderer) {
       glow.position.set(g.x, g.y, p.z + g.z);
       glow.target.position.set(0, 0, p.z);
 
-      // Vesuvius keeps its place on the horizon as the player runs.
-      vesuvius.mesh.position.set(
-        Math.sin(angle) * VESUVIUS.distance,
-        -4,
-        p.z - Math.cos(angle) * VESUVIUS.distance,
-      );
-      vesuvius.setHaze(phase.skyHorizon, phase.distantHaze);
+      backdrop.update(phase, camera, { hemi, sun }, runTime);
     },
   };
 }

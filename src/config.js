@@ -161,7 +161,7 @@ export const INPUT = {
 export const CAMERA = {
   fov: 60,
   near: 0.1,
-  far: 600, // just beyond the sky dome
+  far: 260, // the town only; far things are drawn by the backdrop (backdrop.js)
   // Position relative to the player: behind (+z) and above (+y).
   offset: { x: 0, y: 3.2, z: 5.2 },
   // The point the camera looks at, relative to the player (ahead = -z).
@@ -219,6 +219,8 @@ export const PHASES = {
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 1, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.2, // the earthquake/eruption rumble (see AUDIO)
+      columnScale: 0.16, // size of the eruption column (1 = the kit's full 2.7 km)
+      fireGlow: 0, // fires on Vesuvius's slopes (0–1)
       tension: { drone: 0, heartbeat: 0, high: 0 }, // music layers (see AUDIO)
     },
     {
@@ -233,13 +235,15 @@ export const PHASES = {
       hemiGround: 0x4a4038,
       hemiIntensity: 0.7,
       glowIntensity: 0,
-      distantHaze: 0.7,
+      distantHaze: 0.5,
       ashRate: 1,
       ashColor: 0x8c857c,
       speedMultiplier: 1.07,
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.45, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.5, // the earthquake/eruption rumble (see AUDIO)
+      columnScale: 0.3, // size of the eruption column (1 = the kit's full 2.7 km)
+      fireGlow: 0.55, // fires on Vesuvius's slopes (0–1)
       tension: { drone: 0.7, heartbeat: 0.45, high: 0.15 }, // music layers (see AUDIO)
     },
     {
@@ -254,13 +258,15 @@ export const PHASES = {
       hemiGround: 0x6e2c14, // red light bouncing up from the ground
       hemiIntensity: 0.6,
       glowIntensity: 1.8,
-      distantHaze: 0.85,
+      distantHaze: 0.55,
       ashRate: 1,
       ashColor: 0x6e5146,
       speedMultiplier: 1.15,
       surgeVisibility: 1, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.3, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.9, // the earthquake/eruption rumble (see AUDIO)
+      columnScale: 0.24, // size of the eruption column (1 = the kit's full 2.7 km)
+      fireGlow: 1, // fires on Vesuvius's slopes (0–1)
       tension: { drone: 1, heartbeat: 1, high: 0.75 }, // music layers (see AUDIO)
     },
   ],
@@ -309,25 +315,22 @@ export const DEBUG = {
   phaseKey: true,
 };
 
-export const SKY = {
-  radius: 450, // the sky dome follows the camera at this distance
-};
-
-// Vesuvius on the horizon. The town's harbour lies west and the volcano to
-// the north, so while fleeing it sits ahead and to the right. It is placed
-// just right of the street's vanishing point so the camera (even on an
-// upright phone) sees it in the gap of sky above the street.
-export const VESUVIUS = {
+// Far away: the sky, Vesuvius and its eruption column (from the street
+// kit), drawn in their own pass (see backdrop.js). The town's harbour lies
+// west and the volcano to the north, so while fleeing it sits ahead and to
+// the right; at 9° it stays in view even on an upright phone.
+export const BACKDROP = {
+  near: 10, // the backdrop camera's range (metres)
+  far: 6000,
+  skyRadius: 5000,
   angle: 9, // degrees right of straight ahead
-  distance: 420,
-  height: 40,
-  baseRadius: 130,
-  // The eruption column and its "umbrella pine" cloud (Pliny's words).
-  // Far shorter than the real 30 km, so it fits on screen.
-  plumeHeight: 85,
+  distance: 2000,
+  baseY: -15, // sinks the mountain's foot just below the horizon
+  columnBase: 395, // the eruption column starts at the crater
+  firePatches: 10, // glowing streaks on the slopes (Pliny's "sheets of fire")
+  fireColor: 0xff7a2a,
+  fireSize: 60, // metres (each glow, seen from 2 km)
 };
-
-
 export const TRACK = {
   chunkLength: 30, // metres: one Road_30m from the kit
   chunksAhead: 6, // how many chunks exist in front of the player (6 × 30 = 180 m view)

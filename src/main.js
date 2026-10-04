@@ -25,6 +25,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDERER.maxPixelRatio));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.autoClear = false; // we clear by hand between the two render passes
 
 // Scene
 const scene = new THREE.Scene();
@@ -59,6 +60,7 @@ setupSettings(audio.levels, {
 setLoading(true);
 const [kit, character] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap)]);
 const track = createTrack(scene, kit);
+environment.addVolcano(kit);
 setLoading(false);
 const player = createPlayer(scene, character);
 const surge = createSurge(scene);
@@ -233,5 +235,9 @@ renderer.setAnimationLoop((timestamp) => {
 
   updateFollowers();
 
+  // Two passes: the far backdrop first, then the town over it (backdrop.js).
+  renderer.clear();
+  environment.renderBackdrop(renderer);
+  renderer.clearDepth();
   renderer.render(scene, camera);
 });
