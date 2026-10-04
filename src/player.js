@@ -23,6 +23,7 @@ export function createPlayer(scene) {
   let feetY = 0; // height of the player's feet above the ground
   let velocityY = 0;
   let slideTimeLeft = 0;
+  let slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
 
   const isGrounded = () => feetY <= 0;
 
@@ -41,8 +42,12 @@ export function createPlayer(scene) {
       }
 
       if (action === 'down') {
-        if (isGrounded()) slideTimeLeft = PLAYER.slideDuration;
-        else velocityY = Math.min(velocityY, -PLAYER.fastFallSpeed);
+        if (isGrounded()) {
+          slideTimeLeft = PLAYER.slideDuration;
+        } else {
+          velocityY = Math.min(velocityY, -PLAYER.fastFallSpeed);
+          slideOnLanding = true;
+        }
       }
     },
 
@@ -64,6 +69,10 @@ export function createPlayer(scene) {
         if (feetY <= 0) {
           feetY = 0;
           velocityY = 0;
+          if (slideOnLanding) {
+            slideOnLanding = false;
+            slideTimeLeft = PLAYER.slideDuration;
+          }
         }
       }
 

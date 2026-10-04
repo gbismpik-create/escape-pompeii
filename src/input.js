@@ -1,5 +1,7 @@
-// Turns raw keyboard events into game actions ('left', 'right', 'jump', 'down').
+// Turns raw keyboard and touch events into game actions
+// ('left', 'right', 'jump', 'down').
 // Actions are queued so a quick tap is never missed between frames.
+import { INPUT } from './config.js';
 
 const KEY_ACTIONS = {
   ArrowLeft: 'left',
@@ -21,6 +23,56 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
   queue.push(action);
 });
+
+// --- Touch swipes ---
+// The move fires as soon as the finger has travelled far enough, without
+// waiting for it to lift, which makes swipes feel instant. One action per swipe.
+let swipe = null; // { id, startX, startY, done }
+
+window.addEventListener(
+  'touchstart',
+  (event) => {
+    event.preventDefault(); // stop scrolling, zooming and the delayed fake mouse click
+    if (swipe) return; // only follow the first finger
+    const touch = event.changedTouches[0];
+    swipe = { id: touch.identifier, startX: touch.clientX, startY: touch.clientY, done: false };
+  },
+  { passive: false }, // needed, or the browser ignores preventDefault()
+);
+
+window.addEventListener(
+  'touchmove',
+  (event) => {
+    event.preventDefault();
+    const touch = findTouch(event.changedTouches);
+    if (!touch || swipe.done) return;
+
+    const dx = touch.clientX - swipe.startX;
+    const dy = touch.clientY - swipe.startY;
+    if (Math.hypot(dx, dy) < INPUT.minSwipeDistance) return;
+
+    // Whichever direction moved more wins. Screen y grows downwards.
+    if (Math.abs(dx) > Math.abs(dy)) queue.push(dx > 0 ? 'right' : 'left');
+    else queue.push(dy > 0 ? 'down' : 'jump');
+    swipe.done = true;
+  },
+  { passive: false },
+);
+
+function endSwipe(event) {
+  if (findTouch(event.changedTouches)) swipe = null;
+}
+window.addEventListener('touchend', endSwipe);
+window.addEventListener('touchcancel', endSwipe);
+
+function findTouch(touches) {
+  if (!swipe) return null;
+  for (const touch of touches) if (touch.identifier === swipe.id) return touch;
+  return null;
+}
+
+// iOS Safari ignores user-scalable=no; this blocks its pinch-zoom gesture.
+document.addEventListener('gesturestart', (event) => event.preventDefault());
 
 // Returns all actions since the last call, then clears the queue.
 export function consumeActions() {

@@ -28,6 +28,12 @@ export const PLAYER = {
   slideHeight: 0.8, // player (and hitbox) height while sliding
 };
 
+export const INPUT = {
+  // A touch must move at least this far (CSS pixels) to count as a swipe,
+  // so plain taps don't trigger moves.
+  minSwipeDistance: 30,
+};
+
 export const CAMERA = {
   fov: 60,
   near: 0.1,
