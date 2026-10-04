@@ -31,21 +31,32 @@ function weightedPick(table) {
   return entries[0][0];
 }
 
+// A move for every piece name (to check a row stays passable).
+const MOVES = Object.fromEntries(
+  [OBSTACLES.fullRow, OBSTACLES.lane, OBSTACLES.special].flatMap((t) => Object.entries(t).map(([name, p]) => [name, p.move])),
+);
+// Weights only ({ name: weight }, as in THEATRE.obstacles) → { name: { weight } }.
+const weighted = (table = {}) => Object.fromEntries(Object.entries(table).map(([name, weight]) => [name, { weight }]));
+
 // One row: { full: pieceName } or { lanes: [pieceName | null, ...] }.
 // Keeps every row passable: a full row can always be jumped or slid under,
 // and a mixed row always keeps at least one lane that isn't a block.
 // openSquare: no roof beams (the Forum has no roofs over the lanes).
-function randomRow(openSquare) {
-  if (Math.random() < OBSTACLES.fullRowChance) {
-    const full = openSquare ? Object.fromEntries(Object.entries(OBSTACLES.fullRow).filter(([, p]) => p.move !== 'slide')) : OBSTACLES.fullRow;
+// rules: a district's own pieces ({ fullRowChance, fullRow, lane }, weights).
+function randomRow(openSquare, rules = null) {
+  const fullRowChance = rules ? rules.fullRowChance : OBSTACLES.fullRowChance;
+  const laneTable = rules ? weighted(rules.lane) : OBSTACLES.lane;
+  if (Math.random() < fullRowChance) {
+    let full = rules ? weighted(rules.fullRow) : OBSTACLES.fullRow;
+    if (openSquare) full = Object.fromEntries(Object.entries(full).filter(([name]) => MOVES[name] !== 'slide'));
     return { full: weightedPick(full) };
   }
   for (let tries = 0; tries < 20; tries++) {
     const lanes = Array.from({ length: LANES.count }, () =>
-      Math.random() < OBSTACLES.emptyLaneChance ? null : weightedPick(OBSTACLES.lane),
+      Math.random() < OBSTACLES.emptyLaneChance ? null : weightedPick(laneTable),
     );
     const hasObstacle = lanes.some(Boolean);
-    const hasWayThrough = lanes.some((p) => !p || OBSTACLES.lane[p].move !== 'block');
+    const hasWayThrough = lanes.some((p) => !p || MOVES[p] !== 'block');
     if (hasObstacle && hasWayThrough) return { lanes };
   }
   return { lanes: Array(LANES.count).fill(null) }; // an empty row is always safe
@@ -84,6 +95,7 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
   const pieces = {
     ...Object.fromEntries(Object.entries(OBSTACLES.fullRow).map(([name, p]) => [name, { ...p, perRow: 1 }])),
     ...Object.fromEntries(Object.entries(OBSTACLES.lane).map(([name, p]) => [name, { ...p, perRow: LANES.count }])),
+    ...Object.fromEntries(Object.entries(OBSTACLES.special).map(([name, p]) => [name, { ...p, perRow: LANES.count }])),
   };
   for (const [name, piece] of Object.entries(pieces)) {
     const parts = kit.near[name];
@@ -156,7 +168,9 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
     // side streets, freed slots). clear: [from, to] distance ranges with no
     // rows. openSquare: the Forum (no roof beams). stepped: the lanes are
     // steps (floorAt(distance, x) gives each one's height; no full rows).
-    fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false, stepped = false, floorAt = () => 0 } = {}) {
+    // rulesAt(distance): a district's own pieces there, null for no row
+    // there, or undefined for the usual ones.
+    fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false, stepped = false, floorAt = () => 0, rulesAt = () => undefined } = {}) {
       const list = (active[chunkSlot] = []);
 
       const chunkStart = chunk.distance;
@@ -168,8 +182,10 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
         nextRowDistance += rowSpeed(distance) * OBSTACLES.rowSpacingTime;
         if (r >= rowsPerChunk || distance > lastRowDistance || Math.random() >= OBSTACLES.rowChance) continue;
         if (clear.some(([from, to]) => distance > from && distance < to)) continue;
-        let row = randomRow(openSquare);
-        while (stepped && row.full) row = randomRow(openSquare);
+        const rules = rulesAt(distance);
+        if (rules === null) continue;
+        let row = randomRow(openSquare, rules);
+        while (stepped && row.full) row = randomRow(openSquare, rules);
         if (row.full) {
           place(row.full, 0, distance, list);
         } else {

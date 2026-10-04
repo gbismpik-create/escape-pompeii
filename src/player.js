@@ -21,7 +21,7 @@ export function createPlayer(scene, model, shield = createShield()) {
   // Where the hitbox was last frame, to tell which way a collision came from.
   const previousHitbox = new THREE.Box3();
 
-  let lane, feetY, velocityY, slideTimeLeft, slideOnLanding;
+  let lane, feetY, velocityY, jumped, slideTimeLeft, slideOnLanding;
   let stumbleTimeLeft = 0;
   // The floor under him: 0 on a street, a step's height where the lanes are
   // steps. floorAt(x, z) is set by main.js (from the track).
@@ -33,6 +33,7 @@ export function createPlayer(scene, model, shield = createShield()) {
     feetY = 0; // height of the player's feet above the ground
     floor = 0;
     velocityY = 0;
+    jumped = false; // in the air from a jump (not just dropping off a step)
     slideTimeLeft = 0;
     slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
     stumbleTimeLeft = 0;
@@ -108,7 +109,9 @@ export function createPlayer(scene, model, shield = createShield()) {
 
       if (action === 'shield') shield.toggle(slideTimeLeft <= 0 && !slideOnLanding);
 
-      if (action === 'jump' && isGrounded() && !shield.isRaised) {
+      // Dropping off a step still counts as on the ground for a jump.
+      if (action === 'jump' && (isGrounded() || !jumped) && !shield.isRaised) {
+        jumped = true;
         // Starting speed needed to reach jumpHeight under gravity: v = √(2·g·h)
         velocityY = Math.sqrt(2 * PLAYER.gravity * PLAYER.jumpHeight);
         slideTimeLeft = 0; // jumping cancels a slide
@@ -154,6 +157,7 @@ export function createPlayer(scene, model, shield = createShield()) {
         if (feetY <= floor && velocityY <= 0) {
           feetY = floor;
           velocityY = 0;
+          jumped = false;
           if (slideOnLanding) {
             slideOnLanding = false;
             slideTimeLeft = PLAYER.slideDuration;

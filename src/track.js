@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE } from './config.js';
+import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
 import { createObstacles } from './obstacles.js';
 import { createStatues } from './statues.js';
 import { isLowEnd } from './device.js';
@@ -41,26 +42,9 @@ const SQUARE_START = L - SQUARE; // where the square begins in a junction chunk
 const CENTRE = L - SQUARE / 2; // the junction's centre line, from the chunk start
 
 // Path angles (radians): 0 runs towards -z; positive bends left (towards -x).
+// (forward and poseOn, the path maths, are in path.js.)
 const QUARTER = Math.PI / 2;
-const DIR = new THREE.Vector3();
-function forward(angle, target = new THREE.Vector3()) {
-  return target.set(-Math.sin(angle), 0, -Math.cos(angle));
-}
-
-// Where a path segment is, s metres along the path: a straight from its
-// start, or an arc of curvature k (1 / radius; + bends left). Returns the
-// path's angle there and writes the point into out.
-function poseOn(seg, s, out) {
-  const t = s - seg.from;
-  if (!seg.k) {
-    out.copy(seg.start).addScaledVector(forward(seg.angle, DIR), t);
-    return seg.angle;
-  }
-  const a = seg.angle + seg.k * t;
-  out.set(seg.start.x + (Math.cos(a) - Math.cos(seg.angle)) / seg.k, seg.start.y, seg.start.z - (Math.sin(a) - Math.sin(seg.angle)) / seg.k);
-  return a;
-}
-
+const ROUTE = theatreRoute();
 // A small seeded random generator, so layouts are the same every visit.
 function seeded(seed) {
   let s = seed;
@@ -254,8 +238,10 @@ function createGround(scene) {
   ground.receiveShadow = true;
   scene.add(ground);
   return {
-    update(playerZ) {
+    // sunk: in the theatre, whose orchestra lies below the street.
+    update(playerZ, sunk = false) {
       ground.position.z = playerZ - length / 2 + (TRACK.chunksBehind + 1) * L;
+      ground.position.y = sunk ? THEATRE.groundDrop : -0.1;
     },
   };
 }
@@ -267,6 +253,49 @@ function nextJunctionAfter(from, seconds) {
   return Math.ceil((from + metres) / L) * L;
 }
 const randomInterval = () => TURNS.interval[0] + Math.random() * (TURNS.interval[1] - TURNS.interval[0]);
+
+// Which obstacles go where in the theatre (rel: metres from its start):
+// null for none, else a THEATRE.obstacles table.
+function theatreRules(rel) {
+  const o = THEATRE.obstacles;
+  if (rel < 12) return null; // the way in, just after the turn
+  if (rel < ROUTE.passageEnd - 3) return o.passage;
+  if (rel < ROUTE.passageEnd + 4) return null; // out onto the stage
+  if (rel < ROUTE.stageEnd - 6) return o.stage;
+  if (rel < ROUTE.ringStart + 4) return null; // the curve and the stairs
+  if (rel < ROUTE.ringEnd - 3) return o.tier;
+  return null; // off the steps, the vomitorium, the forecourt
+}
+
+// The Large Theatre: one set piece, full detail only (one draw call per
+// material), with a merged copy that only casts shadows (see SHADOW_LAYER).
+function createTheatre(world, kit) {
+  const group = new THREE.Group();
+  group.name = 'theatre';
+  for (const { geometry, material } of kit.near.Theatre) {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  const shadow = new THREE.Mesh(mergeGeometries(kit.far.Theatre.map((p) => p.geometry)), kit.far.Theatre[0].material);
+  shadow.castShadow = true;
+  shadow.layers.set(SHADOW_LAYER);
+  group.add(shadow);
+  group.visible = false;
+  world.add(group);
+  return {
+    group,
+    // start: where its route begins (world-group space); angle: the path's angle there.
+    place(start, angle) {
+      group.position.copy(start);
+      group.rotation.y = angle;
+      group.visible = true;
+    },
+    hide() {
+      group.visible = false;
+    },
+  };
+}
 
 export function createTrack(scene, kit) {
   const world = new THREE.Group();
@@ -326,6 +355,12 @@ export function createTrack(scene, kit) {
   const forumLayout = (distance, run) =>
     distance === run.start ? forumLayouts.in : distance === run.end - L ? forumLayouts.out : forumLayouts.middle[Math.floor(Math.random() * 3)];
   const finishMarks = createFinishMarks(world);
+  // Theatre chunks have no layout of their own: the theatre is one set piece
+  // laid along its route (built in the path's own frame: forward is -z).
+  const emptyLayout = { near: new Map(), far: new Map(), shadow: new THREE.BufferGeometry(), free: [] };
+  const theatre = createTheatre(world, kit);
+  let theatreRun = null; // the theatre run on offer or being run, or null
+  let theatreUsed = false; // once a run
 
   // One slot = a group per detail level, holding one mesh per material:
   // near and far for the camera, and a far copy that only casts shadows.
@@ -356,8 +391,9 @@ export function createTrack(scene, kit) {
     root.visible = false;
     world.add(root);
     // A chunk: where it starts (world-group space), its angle, how far
-    // along the path it starts, and its kind ('street', 'T', 'X', 'open').
-    // district: 'residential' | 'forum'; run: the Forum's { start, end } path distances.
+    // along the path it starts, and its kind ('street', 'T', 'X', 'open',
+    // 'side', 'forum', 'theatre'). district: 'residential' | 'forum' |
+    // 'theatre'; run: the district's { kind, start, end } path distances.
     return { slot, root, lods, start: new THREE.Vector3(), angle: 0, distance: 0, kind: 'street', district: 'residential', run: null };
   }
   const free = Array.from({ length: slotCount }, (_, slot) => createSlot(slot));
@@ -375,13 +411,15 @@ export function createTrack(scene, kit) {
   const cursor = { position: new THREE.Vector3(), angle: 0, distance: 0, run: null };
   let cameFromForum = false;
 
-  // Stretches where the lanes are steps: { from, to, heights: [lane 0, 1, 2] }.
-  // The steps rise from flat over TRACK.stepRamp metres and sink back at the end.
+  // Stretches where the lanes are steps: { from, to, heights: [lane 0, 1, 2] }
+  // (rising from flat over TRACK.stepRamp metres and sinking back at the end),
+  // or { from, to, floor(metres in, lane) } (the theatre).
   let steps = [];
   function floorAt(d, x) {
     const run = steps.find((r) => d >= r.from && d < r.to);
     if (!run) return 0;
     const lane = THREE.MathUtils.clamp(Math.round(x / LANES.width + (LANES.count - 1) / 2), 0, LANES.count - 1);
+    if (run.floor) return run.floor(d - run.from, lane);
     const k = THREE.MathUtils.clamp(Math.min(d - run.from, run.to - d) / TRACK.stepRamp, 0, 1);
     return run.heights[lane] * k;
   }
@@ -413,7 +451,7 @@ export function createTrack(scene, kit) {
     chunk.root.scale.x = chunk.mirrored ? -1 : 1;
     chunk.root.visible = true;
     const layout =
-      kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : district === 'forum' ? forumLayout(distance, run) : layouts[Math.floor(Math.random() * layouts.length)];
+      kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : district === 'theatre' ? emptyLayout : district === 'forum' ? forumLayout(distance, run) : layouts[Math.floor(Math.random() * layouts.length)];
     for (const lod of ['near', 'far']) {
       for (const [material, mesh] of chunk.lods[lod].userData.meshes) {
         const geometry = layout[lod].get(material);
@@ -439,6 +477,7 @@ export function createTrack(scene, kit) {
       // On steps: each piece stands on its own step, and nothing spans the lanes.
       stepped: steppedAt(distance, distance + L),
       floorAt,
+      rulesAt: district === 'theatre' ? (d) => theatreRules(d - run.start) : undefined,
     });
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, on the path.
@@ -461,17 +500,24 @@ export function createTrack(scene, kit) {
     const chunk = free.pop();
     if (!chunk) return false;
     const d = cursor.distance;
-    const inForum = cursor.run && d < cursor.run.end;
-    const kind = d >= finishIndex * L ? 'open' : inForum ? 'forum' : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
+    const run = cursor.run && d < cursor.run.end ? cursor.run : null;
+    // Past the theatre, wait to lay the street until the runner is inside it,
+    // so the street (which leads away round the far side) never shows
+    // through the junction he came from.
+    if (cursor.run?.kind === 'theatre' && !run && playerDistance < cursor.run.start + ROUTE.passageEnd) {
+      free.push(chunk);
+      return false;
+    }
+    const kind = d >= finishIndex * L ? 'open' : run ? run.kind : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
     // Tests only: a stepped stretch every fourth pair of chunks.
     if (TRACK.testSteps && Math.round(d / L) % 8 === 4) steps.push({ from: d, to: d + 2 * L, heights: TRACK.testSteps });
     // A curve (k ≠ 0): the path bends through this chunk.
     const k = curveFor(d);
-    if (k !== (segmentAt(d).k ?? 0)) segments.push({ from: d, start: cursor.position.clone(), angle: cursor.angle, k });
-    placeChunk(chunk, cursor.position, cursor.angle, d, kind, kind === 'forum' ? 'forum' : 'residential', kind === 'forum' ? cursor.run : null);
+    if (TRACK.testCurve && k !== (segmentAt(d).k ?? 0)) segments.push({ from: d, start: cursor.position.clone(), angle: cursor.angle, k });
+    placeChunk(chunk, cursor.position, cursor.angle, d, kind, run ? run.kind : 'residential', run);
     path.push(chunk);
-    // Where the next chunk starts: along the straight or round the curve.
-    cursor.angle = poseOn(segments[segments.length - 1], d + L, cursor.position);
+    // Where the next chunk starts: along the straight or round the curves.
+    cursor.angle = pose(d + L, cursor.position);
     cursor.distance += L;
     if (kind === 'T' || kind === 'X') openJunction(chunk);
     return true;
@@ -489,11 +535,19 @@ export function createTrack(scene, kit) {
       if (!side) continue;
       const angle = chunk.angle + turn * QUARTER;
       const start = turn === 0 ? cursor.position.clone() : centre.clone().addScaledVector(forward(angle, tmp), SQUARE / 2);
-      // Where this way leads: sometimes into the Forum (never twice running).
-      const forum = !cameFromForum && Math.random() < DISTRICTS.forumChance;
-      const [min, max] = DISTRICTS.forumChunks;
-      const run = forum ? { start: cursor.distance, end: cursor.distance + L * (min + Math.floor(Math.random() * (max - min + 1))) } : null;
-      placeChunk(side, start, angle, cursor.distance, 'side', forum ? 'forum' : 'residential', run);
+      // Where this way leads: sometimes into the theatre (once a run, if it
+      // ends well before the sea), or the Forum (never twice running).
+      const d = cursor.distance;
+      const theatreFits = !finishDistance || d + ROUTE.length + TURNS.finishMargin < finishDistance;
+      let run = null;
+      if ((!theatreUsed || THEATRE.testRepeat) && !theatreRun && theatreFits && Math.random() < THEATRE.chance) {
+        run = theatreRun = { kind: 'theatre', start: d, end: d + ROUTE.length };
+        theatre.place(start, angle);
+      } else if (!cameFromForum && Math.random() < DISTRICTS.forumChance) {
+        const [min, max] = DISTRICTS.forumChunks;
+        run = { kind: 'forum', start: d, end: d + L * (min + Math.floor(Math.random() * (max - min + 1))) };
+      }
+      placeChunk(side, start, angle, d, 'side', run ? run.kind : 'residential', run);
       exits[way] = side;
     }
   }
@@ -513,8 +567,26 @@ export function createTrack(scene, kit) {
     cursor.angle = chosen.angle;
     cursor.position.copy(chosen.start).addScaledVector(forward(chosen.angle, tmp), L);
     cursor.distance = chosen.distance + L;
-    cursor.run = chosen.run; // into the Forum, or null
-    cameFromForum = Boolean(chosen.run);
+    cursor.run = chosen.run; // into the Forum or the theatre, or null
+    cameFromForum = chosen.run?.kind === 'forum';
+    if (chosen.run?.kind === 'theatre') {
+      // The path follows the theatre's route: its curves, and its floors.
+      theatreUsed = true;
+      for (const { at, k } of ROUTE.bends) {
+        const from = chosen.distance + at;
+        const start = new THREE.Vector3();
+        const angle = poseOn(segments[segments.length - 1], from, start);
+        segments.push({ from, start, angle, k });
+      }
+      steps.push({ from: chosen.run.start, to: chosen.run.end, floor: theatreFloor });
+      // The side street was laid empty; the passage has its own obstacles.
+      const run = chosen.run;
+      obstacles.fill(chosen.slot, chosen, { floorAt, rulesAt: (d) => theatreRules(d - run.start) });
+      cursor.angle = pose(cursor.distance, cursor.position);
+    } else if (theatreRun) {
+      // The theatre was down another way.
+      theatreRun.declined = true;
+    }
     junction = null;
     exits = null;
     // The next junction comes after the Forum, out in the streets again.
@@ -543,6 +615,9 @@ export function createTrack(scene, kit) {
     cursor.distance = -TRACK.chunksBehind * L;
     segments = [{ from: cursor.distance, start: cursor.position.clone(), angle: 0, k: 0 }];
     steps = [];
+    theatre.hide();
+    theatreRun = null;
+    theatreUsed = false;
     placeWorld(0);
     cursor.run = null;
     cameFromForum = false;
@@ -602,21 +677,26 @@ export function createTrack(scene, kit) {
     frameAt,
 
     // How far (metres along the path) from `distance` to the nearest obstacle
-    // row or statue that may topple, or 0 inside a junction's clear zone
-    // (nothing should fall there).
+    // row or statue that may topple, or 0 inside a junction's clear zone or
+    // a tunnel (nothing should fall there).
     distanceToObstacle(distance) {
       if (junction && Math.abs(distance - (junction.distance + CENTRE)) < L) return 0;
+      if (theatreRun && !theatreRun.declined) {
+        // Nothing falls in the theatre's vaulted passage or its vomitorium.
+        const rel = distance - theatreRun.start;
+        if ((rel > -2 && rel < ROUTE.passageEnd) || (rel > ROUTE.tunnelStart - 2 && rel < ROUTE.tunnelEnd + 2)) return 0;
+      }
       let best = Infinity;
       for (const o of obstacles.list()) best = Math.min(best, Math.abs(o.distance - distance));
       for (const d of statues.toppleDistances()) best = Math.min(best, Math.abs(d - distance));
       return best;
     },
 
-    // The district at a path distance: the Forum from just inside its
-    // entrance to its end.
+    // The district at a path distance: the Forum or the theatre from just
+    // inside its entrance to its end.
     districtAt(distance) {
       const run = chunkAt(distance)?.run;
-      return run && distance >= run.start + DISTRICTS.gateOpen && distance < run.end ? 'forum' : 'residential';
+      return run && distance >= run.start + DISTRICTS.gateOpen && distance < run.end ? run.kind : 'residential';
     },
 
     // Is a statue free to topple here? No obstacle row and no junction
@@ -666,13 +746,19 @@ export function createTrack(scene, kit) {
 
     // fogDistance: beyond this, the fog hides everything (metres).
     update(playerZ, fogDistance = Infinity) {
-      ground.update(playerZ);
       placeWorld(-playerZ);
+      const inTheatre = theatreRun && !theatreRun.declined && playerDistance > theatreRun.start && playerDistance < theatreRun.start + ROUTE.ringEnd;
+      ground.update(playerZ, inTheatre);
       // Recycle chunks that are now too far behind; lay new ones ahead.
       while (path.length && path[0].distance + L < playerDistance - TRACK.chunksBehind * L) release(path.shift());
       if (leftovers.length && playerDistance >= releaseLeftoversAt) {
         leftovers.forEach(release);
         leftovers = [];
+      }
+      // The theatre goes once it is behind (or once its way was not taken).
+      if (theatreRun && ((theatreRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > theatreRun.end + TRACK.chunksBehind * L)) {
+        theatre.hide();
+        theatreRun = null;
       }
       while (!junction && cursor.distance < playerDistance + TRACK.chunksAhead * L && extend());
       // Detail level by distance from the camera; hide chunks lost in the fog.
@@ -686,6 +772,7 @@ export function createTrack(scene, kit) {
         chunk.lods.far.visible = !chunk.lods.near.visible;
         chunk.lods.shadow.visible = distance < GRAPHICS.shadowDistance;
       }
+      if (theatreRun) theatre.group.visible = theatreRun.start - cameraDistance < fogDistance;
     },
   };
 }

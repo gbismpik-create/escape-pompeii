@@ -15,7 +15,7 @@ export const LANES = {
 export const DISTRICTS = {
   forumChance: 0.35, // chance a way out of a junction leads into the Forum (never twice running)
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
-  names: { residential: "Via dell'Abbondanza", forum: 'The Forum' },
+  names: { residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre' },
   gateOpen: 6, // metres into the Forum (past the entrance arch) where its name shows
   titleTime: 2.2, // seconds the district name shows
 };
@@ -501,6 +501,46 @@ export const STATUES = {
   types: ['Statue_Apollo', 'Statue_Emperor', 'Statue_Faun', 'Statue_Notable'], // pieces in the street kit
 };
 
+// The Large Theatre (theatre route in path.js, the model in the kit): a way
+// out of a junction can lead through it, at most once a run. The route: a
+// vaulted passage alongside the seating, across the stage, a tight curve up
+// onto a band of three broad steps through the seating (the lanes are the
+// steps), round the tier, and out through a vaulted exit (vomitorium).
+// Sizes follow the real theatre (seating about 31 m in radius, ~5,000 seats).
+export const THEATRE = {
+  chance: 0.25, // chance a way out of a junction leads into it (once a run)
+  passage: 29.5, // metres of vaulted passage
+  stage: 36.5, // metres across the stage
+  turnRadius: 3.5, // the tight curve onto the tier (= the stage front's distance from the path)
+  exitRadius: 8, // the wider curve off the tier into the vomitorium
+  exitBlend: 4, // metres past the tier over which the three steps even out
+  ringRadius: 18, // the tier band's middle lane, from the orchestra's centre
+  ringAngle: 120, // degrees run round the tier (the exit then leads away from where you came in)
+  vomitorium: 16, // metres of straight exit tunnel
+  tierHeights: [2.2, 2.7, 3.2], // the three steps' floors above the stage (lane 0 nearest the orchestra)
+  rampIn: 9, // metres of stairs from the stage up to the steps
+  // The building (metres; heights from the stage floor).
+  orchestraDepth: -1.2, // the orchestra floor below the stage
+  firstRow: 11, // radius of the first row of seats (the orchestra's edge)
+  rowDepth: 0.75,
+  rowRise: 0.42,
+  outerRadius: 31, // the seating's outer edge
+  stageBack: 4.5, // the stage wall (scaenae frons), right of the path
+  stageWallHeight: 14,
+  // Obstacles in each part, as in OBSTACLES (weights only). None on the
+  // stairs, in the tight curve or in the vomitorium.
+  obstacles: {
+    // the vaulted passage: mostly fallen beams to slide under
+    passage: { fullRowChance: 0.6, fullRow: { FallenBeam: 3, FallenColumn: 1 }, lane: { Rubble: 1, AmphoraStack: 1 } },
+    // the stage: fallen scenery and props, no full rows
+    stage: { fullRowChance: 0, lane: { Scenery_Panel: 2, AmphoraStack: 1, Basket: 1 } },
+    // the three steps: things left behind on them, one lane at a time
+    tier: { fullRowChance: 0, lane: { Basket: 2, Rubble: 1, AmphoraStack: 1 } },
+  },
+  testRepeat: false, // tests only: offer the theatre at every junction, not once a run
+  groundDrop: -1.8, // the plain ground sinks this low in the theatre (the orchestra is below the street)
+};
+
 // People fleeing across the Forum (crowds.js): small groups run from one
 // side of the square to the other. Bumping into someone makes the runner
 // stumble; it never ends the run or counts towards the surge.
@@ -544,6 +584,11 @@ export const OBSTACLES = {
     // thin pulling poles out of the hitbox, so only the 2.2 m body counts.
     Cart: { move: 'jump', weight: 1, hitboxLength: 2.2 },
     AmphoraStack: { move: 'jump', weight: 1 }, // about 1 m high: jump it or go round
+  },
+  // Single-lane pieces found only in some districts (see THEATRE.obstacles).
+  special: {
+    Basket: { move: 'jump' }, // a spectator's basket left on the steps, about 0.5 m high
+    Scenery_Panel: { move: 'block' }, // a painted stage flat fallen across a lane: go round
   },
   // Hitboxes come from each model's size, shrunk by hitboxMargin on every
   // side so near misses feel fair, with two exceptions while the jump is

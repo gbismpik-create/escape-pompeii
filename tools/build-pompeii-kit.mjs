@@ -18,6 +18,8 @@ import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { writeFileSync } from 'node:fs';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { THEATRE, LANES } from '../src/config.js';
+import { theatreRoute, theatreFloor, forward } from '../src/path.js';
 
 globalThis.FileReader = class {
   readAsArrayBuffer(b) { b.arrayBuffer().then(x => { this.result = x; this.onloadend?.(); }); }
@@ -1074,6 +1076,343 @@ function rubble(P, cx, cz, w, h, n) {
     P.add(xf(new THREE.SphereGeometry(0.045, 6, 5), [0, -0.62, 0]), 'cloth', { color: skin });
     pieces.push(P);
   }
+}
+
+// ================================================================== THE LARGE THEATRE (one set piece, built along the theatre route)
+// Built in the route's own frame (the passage starts at the origin running
+// towards -z, x to the right), from the same numbers and route maths as the
+// game (THEATRE in config.js, path.js), so the floors meet the runner's feet.
+// The seating is a half-circle round the orchestra, left of the stage; the
+// runner crosses the stage, climbs onto a band of three broad steps through
+// the seating, runs round it, and leaves by a vaulted exit (vomitorium).
+{
+  const T = THEATRE;
+  const route = theatreRoute();
+  const P = new Piece('Theatre');
+  // the orchestra's centre: on the stage front line, ringRadius beyond where the tier starts
+  const ringStart = route.pose(route.ringStart);
+  const C = V(ringStart.point.x, 0, ringStart.point.z + T.ringRadius);
+  const at = (r, phi, y) => V(C.x - r * Math.sin(phi), y, C.z - r * Math.cos(phi)); // phi 0 = far end of the stage
+  const tuff = C_(0x9d8f78), travertine = C_(0xd9cdb5), seatLight = C_(0xcfc2a8), mortar = C_(0x6f6656);
+  function C_(h) { return new THREE.Color(h); }
+  const stoneFn = (base) => (p) => base.clone().multiplyScalar(0.9 + 0.18 * fbm(p.x * 0.8, p.y * 2, p.z * 0.8)).lerp(COL.ash, clamp(0.3 - p.y * 0.05) * 0.2);
+  const BAND_IN = T.ringRadius - 1.5 * LANES.width, BAND_OUT = T.ringRadius + 1.5 * LANES.width;
+  const laneOf = (r) => clamp(Math.floor((r - BAND_IN) / LANES.width), 0, 2);
+
+  // Where the exit tunnel and the stairs cut through: samples along the route.
+  const cut = [];
+  for (let s = route.ringEnd - 1; s <= route.tunnelEnd + 2; s += 0.75) cut.push(route.pose(s).point.clone());
+  const inCut = (p, w = 3.4) => cut.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < w);
+  const stairs = [];
+  for (let s = route.stageEnd; s <= route.stageEnd + T.rampIn; s += 0.5) stairs.push(route.pose(s).point.clone());
+  const onStairs = (p) => stairs.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 2.9);
+
+  // A ring sector between radii r0..r1 at height y (flat top), from phi0 to phi1.
+  const SEGS = 72;
+  function rowTop(r0, r1, y, colorFn, skip) {
+    for (let i = 0; i < SEGS; i++) {
+      const a0 = (i / SEGS) * Math.PI, a1 = ((i + 1) / SEGS) * Math.PI;
+      const mid = at((r0 + r1) / 2, (a0 + a1) / 2, y);
+      if (skip(mid)) continue;
+      const g = new THREE.BufferGeometry();
+      const pts = [at(r0, a0, y), at(r1, a0, y), at(r1, a1, y), at(r0, a1, y)];
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap((p) => p.toArray()), 3));
+      g.setIndex([0, 2, 1, 0, 3, 2]);
+      g.computeVertexNormals();
+      P.add(g, 'stone', { colorFn, noise: 0.06, freq: 2 });
+    }
+  }
+  // A riser: the vertical face at radius r from y0 up to y1, facing the orchestra.
+  function riser(r, y0, y1, colorFn, skip) {
+    for (let i = 0; i < SEGS; i++) {
+      const a0 = (i / SEGS) * Math.PI, a1 = ((i + 1) / SEGS) * Math.PI;
+      if (skip(at(r, (a0 + a1) / 2, y1))) continue;
+      const g = new THREE.BufferGeometry();
+      const pts = [at(r, a0, y0), at(r, a1, y0), at(r, a1, y1), at(r, a0, y1)];
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap((p) => p.toArray()), 3));
+      g.setIndex([0, 2, 1, 0, 3, 2]);
+      g.computeVertexNormals();
+      P.add(g, 'stone', { colorFn, noise: 0.05, freq: 2 });
+    }
+  }
+  // Seats: tuff and travertine rows, with lighter radial stairways (scalaria) between the wedges of seats.
+  const seatFn = (p) => {
+    const phi = Math.atan2(C.x - p.x, C.z - p.z), r = Math.hypot(p.x - C.x, p.z - C.z);
+    const stair = [30, 60, 90, 120, 150].some((d) => Math.abs((phi * 180) / Math.PI - d) * (Math.PI / 180) * r < 0.55);
+    return stoneFn(stair ? seatLight : Math.floor(r / T.rowDepth) % 2 ? tuff : travertine)(p);
+  };
+  const noSkip = () => false;
+  const skipSeats = (p) => (Math.hypot(p.x - C.x, p.z - C.z) > T.ringRadius && inCut(p)) || onStairs(p); // the exit only cuts the seats above the band
+
+  // ---- orchestra: a half-disc of pale paving below the stage, with three low wide steps round it
+  for (let i = 0; i < SEGS; i++) {
+    const a0 = (i / SEGS) * Math.PI, a1 = ((i + 1) / SEGS) * Math.PI;
+    const g = new THREE.BufferGeometry();
+    const pts = [C.clone().setY(T.orchestraDepth), at(T.firstRow - 1.5, a0, T.orchestraDepth), at(T.firstRow - 1.5, a1, T.orchestraDepth)];
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap((p) => p.toArray()), 3));
+    g.setIndex([0, 2, 1]);
+    g.computeVertexNormals();
+    P.add(g, 'stone', { colorFn: stoneFn(C_(0xe6dccb)), noise: 0.05, freq: 1 });
+  }
+  for (let k = 0; k < 3; k++) {
+    const r0 = T.firstRow - 1.5 + k * 0.5, y = T.orchestraDepth + 0.15 * (k + 1);
+    rowTop(r0, r0 + 0.5, y, stoneFn(C_(0xe0d4bf)), noSkip);
+    riser(r0, y - 0.15, y, stoneFn(C_(0xd2c5ad)), noSkip);
+  }
+
+  // ---- the seating: rows below the band, the band's three broad steps, rows above
+  let y = T.orchestraDepth + 0.45;
+  let r = T.firstRow;
+  for (; r + T.rowDepth <= BAND_IN + 0.01; r += T.rowDepth) {
+    y += T.rowRise;
+    rowTop(r, r + T.rowDepth, y, seatFn, skipSeats);
+    riser(r, y - T.rowRise, y, seatFn, skipSeats);
+  }
+  // the parapet (balteus) between the lower seats and the band
+  const bandFloor = T.tierHeights;
+  riser(BAND_IN, y, bandFloor[0] + 0.8, stoneFn(C_(0xc9b99a)), onStairs);
+  rowTop(BAND_IN - 0.25, BAND_IN, bandFloor[0] + 0.8, stoneFn(C_(0xd8cbb0)), onStairs);
+  // the band: one step per lane (built past where the stairs end; the stairs are their own ribbon)
+  const rampEndPhi = (route.stageEnd + T.rampIn - route.ringStart) / T.ringRadius;
+  const pastStairs = (p) => Math.atan2(C.x - p.x, C.z - p.z) < rampEndPhi;
+  for (let l = 0; l < 3; l++) {
+    const r0 = BAND_IN + l * LANES.width;
+    rowTop(r0, r0 + LANES.width, bandFloor[l], stoneFn(l === 1 ? travertine : C_(0xd2c4a6)), pastStairs);
+    riser(r0 + (l ? 0 : -0.25), l ? bandFloor[l - 1] : bandFloor[0] - 0.6, bandFloor[l], stoneFn(tuff), pastStairs);
+  }
+  // rows above the band, up to the top of the seating
+  y = bandFloor[2];
+  for (r = BAND_OUT; r + T.rowDepth <= T.outerRadius + 0.01; r += T.rowDepth) {
+    y += T.rowRise;
+    rowTop(r, r + T.rowDepth, y, seatFn, skipSeats);
+    riser(r, y - T.rowRise, y, seatFn, skipSeats);
+  }
+  const top = y;
+  // the height of the seating at a distance from the orchestra's centre
+  function seatHeight(rr) {
+    if (rr < T.firstRow) return T.orchestraDepth + 0.45;
+    if (rr < BAND_IN) return T.orchestraDepth + 0.45 + T.rowRise * Math.ceil((rr - T.firstRow) / T.rowDepth);
+    if (rr < BAND_OUT) return bandFloor[laneOf(rr)];
+    return Math.min(top, bandFloor[2] + T.rowRise * Math.ceil((rr - BAND_OUT) / T.rowDepth));
+  }
+  // the outer wall round the top, with a cornice
+  riser(T.outerRadius, T.orchestraDepth - 0.5, top + 1.4, stoneFn(C_(0xb8a88c)), (p) => inCut(p, 3.3));
+  rowTop(T.outerRadius - 0.1, T.outerRadius + 0.5, top + 1.4, stoneFn(travertine), (p) => inCut(p, 3.3));
+  // the seating's straight ends (analemmata) along the stage front, stepping up with the rows
+  for (const end of [0, Math.PI]) {
+    const g = grid(40, 1, (u, v) => {
+      const rr = lerp(T.firstRow, T.outerRadius, u);
+      return at(rr, end, v ? seatHeight(rr) + 0.3 : T.orchestraDepth - 0.5);
+    });
+    P.add(g, 'stone', { colorFn: stoneFn(C_(0xa89a80)), noise: 0.08 });
+  }
+
+  // ---- stairs from the stage up onto the band: a stepped ribbon along the route, one strip per lane
+  const ribbon = (s0, s1, x0, x1, heightAt, mat, colorFn, step = 0.5) => {
+    for (let s = s0; s < s1 - 1e-6; s += step) {
+      const e = Math.min(s1, s + step);
+      const a = route.pose(s), b = route.pose(e);
+      const ra = forward(a.angle - Math.PI / 2, V(0, 0, 0)), rb = forward(b.angle - Math.PI / 2, V(0, 0, 0)); // right of the path
+      const h = heightAt(s);
+      const pts = [
+        a.point.clone().addScaledVector(ra, x0).setY(h), a.point.clone().addScaledVector(ra, x1).setY(h),
+        b.point.clone().addScaledVector(rb, x1).setY(h), b.point.clone().addScaledVector(rb, x0).setY(h),
+      ];
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap((p) => p.toArray()), 3));
+      g.setIndex([0, 2, 1, 0, 3, 2]);
+      g.computeVertexNormals();
+      P.add(g, mat, { colorFn, noise: 0.05, freq: 2 });
+      // its sides, down into the ground, so strips at different heights meet
+      for (const [i0, i1] of [[0, 3], [1, 2]]) {
+        const sk = [pts[i0], pts[i1], pts[i1].clone().setY(-0.3), pts[i0].clone().setY(-0.3)];
+        const gs = new THREE.BufferGeometry();
+        gs.setAttribute('position', new THREE.Float32BufferAttribute(sk.flatMap((p) => p.toArray()), 3));
+        gs.setIndex([0, 1, 2, 0, 2, 3]);
+        gs.computeVertexNormals();
+        P.add(gs, mat, { colorFn: stoneFn(tuff), noise: 0.05 });
+      }
+      // the riser up to the next step
+      const h2 = heightAt(e);
+      if (Math.abs(h2 - h) > 1e-3) {
+        const q = [
+          b.point.clone().addScaledVector(rb, x0).setY(Math.min(h, h2)), b.point.clone().addScaledVector(rb, x1).setY(Math.min(h, h2)),
+          b.point.clone().addScaledVector(rb, x1).setY(Math.max(h, h2)), b.point.clone().addScaledVector(rb, x0).setY(Math.max(h, h2)),
+        ];
+        const gr = new THREE.BufferGeometry();
+        gr.setAttribute('position', new THREE.Float32BufferAttribute(q.flatMap((p) => p.toArray()), 3));
+        gr.setIndex([0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2]);
+        gr.computeVertexNormals();
+        P.add(gr, mat, { colorFn, noise: 0.05 });
+      }
+    }
+  };
+  const W = LANES.width;
+  for (let l = 0; l < 3; l++) {
+    const x0 = (l - 1) * W - W / 2, x1 = x0 + W;
+    // stairs: steps of about 0.3 m, following the climb the runner makes
+    ribbon(route.stageEnd, route.stageEnd + T.rampIn + 0.5, x0, x1, (s) => theatreFloor(s + 0.25, l), 'stone', stoneFn(travertine), 0.5);
+    // where the steps even out past the band (a little above it, so it doesn't flicker against the band)
+    ribbon(route.ringEnd, route.ringEnd + T.exitBlend, x0, x1, (s) => theatreFloor(s, l) + 0.02, 'stone', stoneFn(C_(0xbfb39b)), 0.5);
+  }
+  // the vomitorium's floor, sloping down to the street
+  ribbon(route.ringEnd + T.exitBlend, route.tunnelEnd, -1.5 * W, 1.5 * W, (s) => theatreFloor(s, 1) + 0.02, 'stone', stoneFn(C_(0xbfb39b)), 1);
+
+  // ---- the vomitorium: walls and a barrel vault along the exit tunnel
+  const tunnelFloor = (s) => Math.min(theatreFloor(s, 0), theatreFloor(s, 1), theatreFloor(s, 2));
+  const wallFn = (p) => (p.y - 0 < 0.9 ? C_(0x8a7d68) : C_(0xa39580)).clone().multiplyScalar(0.9 + 0.15 * fbm(p.x * 3, p.y * 3, p.z * 3));
+  const tunnel = (s0, s1, halfWidth, wallH, floorAt) => {
+    P.add(grid(Math.max(4, Math.ceil((s1 - s0) / 0.75)), 14, (u, v) => {
+      const s = lerp(s0, s1, u), pose = route.pose(s);
+      const right = forward(pose.angle - Math.PI / 2, V(0, 0, 0));
+      const f = floorAt(s);
+      // v 0..1 runs up the left wall, over the vault, down the right wall
+      const k = v * 2 * (wallH + halfWidth * Math.PI / 2) / 2;
+      let x, y;
+      const vaultLen = (halfWidth * Math.PI) / 2;
+      const t = v * (2 * wallH + 2 * vaultLen);
+      if (t < wallH) { x = -halfWidth; y = t; }
+      else if (t < wallH + 2 * vaultLen) { const a = Math.PI - (t - wallH) / halfWidth; x = Math.cos(a) * halfWidth; y = wallH + Math.sin(a) * halfWidth; }
+      else { x = halfWidth; y = 2 * wallH + 2 * vaultLen - t; }
+      void k;
+      return pose.point.clone().addScaledVector(right, x).setY(f - 0.3 + y);
+    }), 'plaster', { colorFn: wallFn, noise: 0.08, freq: 3 });
+  };
+  // the solid masonry round a tunnel (it fills the gap cut in the seats above),
+  // and an arched portal at each end
+  const shell = (s0, s1, halfWidth, wallH, floorAt, colorFn, ends = [s0, s1]) => {
+    const outer = halfWidth + 1.2, roof = wallH + halfWidth + 1.0;
+    const prof = [[-outer, -0.3], [-outer, roof], [outer, roof], [outer, -0.3]];
+    P.add(grid(Math.max(2, Math.ceil((s1 - s0) / 2)), 3, (u, v) => {
+      const s = lerp(s0, s1, u), pose = route.pose(s), right = forward(pose.angle - Math.PI / 2, V(0, 0, 0));
+      const [x, y] = prof[Math.round(v * 3)];
+      return pose.point.clone().addScaledVector(right, x).setY(floorAt(s) - 0.3 + y);
+    }), 'stone', { colorFn, noise: 0.06, freq: 1 });
+    for (const end of ends) {
+      const wall = new THREE.Shape([new THREE.Vector2(-outer, -0.3), new THREE.Vector2(outer, -0.3), new THREE.Vector2(outer, roof), new THREE.Vector2(-outer, roof)]);
+      const hole = new THREE.Path();
+      hole.moveTo(-halfWidth, -0.29); hole.lineTo(halfWidth, -0.29); hole.lineTo(halfWidth, wallH); hole.absarc(0, wallH, halfWidth, 0, Math.PI, false); hole.lineTo(-halfWidth, -0.29);
+      wall.holes.push(hole);
+      const pose = route.pose(end);
+      // the portal's arch voussoirs in pale travertine, the rest in courses of tuff
+      P.add(xf(new THREE.ExtrudeGeometry(wall, { depth: 0.5, bevelEnabled: false, curveSegments: 12 }), pose.point.clone().setY(floorAt(end) - 0.3).toArray(), [0, pose.angle, 0]), 'stone', {
+        colorFn: (p) => {
+          const local = p.clone().sub(pose.point), right = forward(pose.angle - Math.PI / 2, V(0, 0, 0));
+          const x = local.dot(right), y = p.y - floorAt(end) + 0.3;
+          const ring = Math.hypot(x, Math.max(0, y - wallH)) < halfWidth + 0.55 && y > wallH - 0.2;
+          return ring ? stoneFn(travertine)(p) : stoneFn(Math.floor(y / 0.55) % 2 ? C_(0xa08f74) : C_(0xb3a387))(p);
+        }, noise: 0.05,
+      });
+    }
+  };
+  // retaining walls where the stairs and the exit cut through the seats
+  const cutWall = (s0, s1, x, colorFn, minR = 0) => {
+    P.add(grid(Math.ceil((s1 - s0) / 0.5), 1, (u, v) => {
+      const s = lerp(s0, s1, u), pose = route.pose(s), right = forward(pose.angle - Math.PI / 2, V(0, 0, 0));
+      const q = pose.point.clone().addScaledVector(right, x), rr = Math.hypot(q.x - C.x, q.z - C.z);
+      const floor = theatreFloor(s, x < 0 ? 0 : 2);
+      return q.setY(v && rr > minR ? Math.max(seatHeight(rr) + 0.15, floor + 0.4) : Math.min(floor, seatHeight(rr)) - 0.3);
+    }), 'stone', { colorFn, noise: 0.06, freq: 2 });
+  };
+  const masonry = (p) => stoneFn(Math.floor(p.y / 0.55) % 2 ? C_(0x9f8e73) : C_(0xaf9f84))(p);
+  tunnel(route.tunnelStart, route.tunnelEnd, 3.0, 2.5, tunnelFloor);
+  for (const x of [-3.1, 3.1]) {
+    cutWall(route.ringEnd, route.tunnelStart, x, masonry, BAND_OUT);
+    cutWall(route.stageEnd + 1, route.stageEnd + T.rampIn + 1.5, x, masonry);
+  }
+  shell(route.tunnelStart, route.tunnelEnd, 3.0, 2.5, tunnelFloor, masonry);
+
+  // ---- the vaulted passage (parodos) beside the seating, onto the stage, and its entrance in the outer wall
+  const passage = (s) => 0;
+  tunnel(0, route.passageEnd, 3.3, 3.0, passage);
+  shell(0, route.passageEnd - 2, 3.3, 3.0, passage, masonry, [route.passageEnd - 2]); // its way in is the arch in the outer wall
+  P.add(xf(new THREE.PlaneGeometry(6.6, route.passageEnd), [0, 0.001, -route.passageEnd / 2], [-Math.PI / 2, 0, 0]), 'stone', { colorFn: stoneFn(C_(0x8f8676)), noise: 0.1, freq: 2 });
+  {
+    // the theatre's outer wall across the entrance, with the passage's arch in it
+    // (as wide as the opening off the junction square, between the houses' corners)
+    const wall = new THREE.Shape([new THREE.Vector2(-4.6, 0), new THREE.Vector2(4.6, 0), new THREE.Vector2(4.6, 11), new THREE.Vector2(-4.6, 11)]);
+    const hole = new THREE.Path();
+    hole.moveTo(-3.3, -0.01); hole.lineTo(3.3, -0.01); hole.lineTo(3.3, 3.0); hole.absarc(0, 3.0, 3.3, 0, Math.PI, false); hole.lineTo(-3.3, -0.01);
+    wall.holes.push(hole);
+    P.add(xf(new THREE.ExtrudeGeometry(wall, { depth: 1.2, bevelEnabled: false, curveSegments: 16 }), [0, 0, -1.2]), 'stone', {
+      colorFn: (p) => (p.y > 10.2 ? travertine.clone() : stoneFn(Math.floor(p.y / 0.6) % 2 ? C_(0xa08f74) : C_(0xb3a387))(p)), noise: 0.05,
+    });
+  }
+
+  // ---- out of the vomitorium: a paved forecourt between low precinct walls, to the street
+  {
+    const mid = route.pose((route.tunnelEnd + route.length) / 2);
+    const len = route.length - route.tunnelEnd;
+    P.add(xf(block(9.2, 0.1, len, 0.01), mid.point.clone().setY(-0.08).toArray(), [0, mid.angle, 0]), 'stone', { colorFn: stoneFn(C_(0xb9ad96)), noise: 0.12, freq: 3 });
+    const right = forward(mid.angle - Math.PI / 2, V(0, 0, 0));
+    for (const side of [-1, 1]) {
+      P.add(xf(block(0.6, 2.4, len, 0.03), mid.point.clone().addScaledVector(right, side * 4.4).setY(0).toArray(), [0, mid.angle, 0]), 'plaster', {
+        colorFn: (p) => (p.y < 0.8 ? COL.pompRed.clone() : p.y > 2.25 ? travertine.clone() : C_(0xd9cdb5)), noise: 0.06,
+      });
+    }
+  }
+
+  // ---- the stage (pulpitum): a wooden floor from the stage front to the stage wall, its front wall with niches
+  const stageZ0 = C.z + 24, stageZ1 = C.z - 24;
+  P.add(xf(block(T.stageBack - C.x + 0.5, 0.12, stageZ0 - stageZ1, 0.01), [(C.x + T.stageBack) / 2, -0.12, (stageZ0 + stageZ1) / 2]), 'wood', {
+    colorFn: (p) => COL.woodLt.clone().lerp(C_(0xb59a72), 0.4).multiplyScalar(0.9 + 0.12 * (Math.floor((p.z - stageZ1) / 0.3) % 2) + 0.1 * fbm(p.x, p.z * 4, 0)), noise: 0.1,
+  });
+  P.add(grid(48, 1, (u, v) => V(C.x, lerp(T.orchestraDepth, 0, v), lerp(stageZ0, stageZ1, u))), 'plaster', {
+    colorFn: (p) => (Math.abs(((p.z % 2.4) + 2.4) % 2.4 - 1.2) < 0.45 ? COL.pompRedDk.clone() : C_(0xd8cdb6)), noise: 0.06,
+  });
+
+  // ---- the stage wall (scaenae frons): two storeys of columns and painted
+  // panels, with three doorways (the royal door in the middle)
+  const SX = T.stageBack;
+  const frontFn = (p) => {
+    const door = [0, 12, -12].some((dz) => Math.abs(p.z - (C.z + dz)) < (dz ? 1.3 : 2.1) && p.y < (dz ? 4.2 : 5.6));
+    if (door) return COL.woodDk.clone().multiplyScalar(0.6);
+    const panel = ((p.z % 4) + 4) % 4;
+    if (p.y < 1.2) return C_(0x7d6a52);
+    if (p.y < 7.4) return panel > 0.5 && panel < 3.5 ? (Math.floor(p.z / 4) % 2 ? COL.pompRed.clone() : COL.ochre.clone()) : C_(0xe8dfcc);
+    return panel > 0.6 && panel < 3.4 ? C_(0x5d6f8a).lerp(C_(0xe8dfcc), 0.35) : C_(0xe8dfcc);
+  };
+  P.add(xf(block(1.2, T.stageWallHeight, stageZ0 - stageZ1, 0.02), [SX + 0.6, 0, (stageZ0 + stageZ1) / 2]), 'plaster', { colorFn: frontFn, noise: 0.05, freq: 1 });
+  // columns in pairs in front of the wall, on a podium, two storeys with entablatures
+  const marble = C_(0xece6da);
+  const shaft = (x, y0, z, h, r) => {
+    P.add(xf(lathe([[r, 0], [r * 0.86, h], [r * 1.15, h + 0.05], [0, h + 0.05]], 14), [x, y0, z]), 'stone', { color: marble, noise: 0.04 });
+    P.add(xf(block(r * 2.6, 0.18, r * 2.6, 0.01), [x, y0 + h + 0.05, z]), 'stone', { color: marble });
+  };
+  P.add(xf(block(1.3, 1.2, stageZ0 - stageZ1, 0.02), [SX - 0.6, 0, (stageZ0 + stageZ1) / 2]), 'stone', { colorFn: stoneFn(travertine) });
+  for (let z = stageZ1 + 2; z <= stageZ0 - 2; z += 4) {
+    for (const dz of [-0.7, 0.7]) {
+      shaft(SX - 0.7, 1.2, z + dz, 5.6, 0.26);
+      shaft(SX - 0.6, 7.6, z + dz, 4.2, 0.2);
+    }
+  }
+  P.add(xf(block(1.6, 0.6, stageZ0 - stageZ1, 0.02), [SX - 0.4, 7.0, (stageZ0 + stageZ1) / 2]), 'stone', { color: marble });
+  P.add(xf(block(1.4, 0.6, stageZ0 - stageZ1, 0.02), [SX - 0.3, 12.0, (stageZ0 + stageZ1) / 2]), 'stone', { color: marble });
+  // the stage's side walls (parascaenia), leaving the way in from the passage open
+  P.add(xf(block(SX - C.x + 1.2, 9, 1.0, 0.02), [(C.x + SX) / 2, 0, stageZ1 - 0.5]), 'plaster', { colorFn: (p) => (p.y < 1.4 ? COL.pompRed.clone() : C_(0xd9cdb5)), noise: 0.06 });
+  P.add(xf(block(SX - 3.3 + 1.2, 9, 1.0, 0.02), [(3.3 + SX) / 2 + 0.3, 0, stageZ0 + 0.5]), 'plaster', { colorFn: (p) => (p.y < 1.4 ? COL.pompRed.clone() : C_(0xd9cdb5)), noise: 0.06 });
+
+  pieces.push(P);
+}
+
+// ================================================================== THEATRE OBSTACLES: a wicker basket left on the tiers (jump), a fallen painted scenery panel (go round)
+{
+  const P = new Piece('Basket');
+  P.add(lathe([[0, 0], [0.26, 0.02], [0.32, 0.3], [0.34, 0.42], [0.3, 0.42], [0.28, 0.32], [0, 0.32]], 16), 'wood', {
+    colorFn: (p) => C_b(0xb08a52).multiplyScalar(0.8 + 0.3 * (Math.floor(p.y / 0.05) % 2)), noise: 0.1,
+  });
+  P.add(xf(new THREE.SphereGeometry(0.26, 10, 6, 0, TAU, 0, Math.PI / 2), [0, 0.34, 0], [0, 0, 0], [1, 0.5, 1]), 'cloth', { color: C_b(0x9c5a3c), noise: 0.15 });
+  pieces.push(P);
+  function C_b(h) { return new THREE.Color(h); }
+}
+{
+  const P = new Piece('Scenery_Panel');
+  // a painted wooden flat, fallen and leaning on its frame across a lane
+  P.add(xf(block(1.5, 2.2, 0.08, 0.01), [0, 0, 0], [-0.55, 0, 0]), 'wood', {
+    colorFn: (p) => (p.y > 1.2 ? new THREE.Color(0x6b8fb0) : p.y > 0.5 ? new THREE.Color(0x8a9a5a) : new THREE.Color(0xd8c9a8)), noise: 0.12,
+  });
+  for (const s of [-1, 1]) P.add(xf(block(0.08, 1.4, 0.08, 0.01), [s * 0.7, 0, -0.5], [0.4, 0, 0]), 'wood', { color: COL.woodDk });
+  pieces.push(P);
 }
 
 // ================================================================== EXPORT
