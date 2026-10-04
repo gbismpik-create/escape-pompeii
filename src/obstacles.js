@@ -47,7 +47,7 @@ function randomRow() {
 }
 
 // A piece's hitbox around its own origin, in game orientation (turned 180°).
-function pieceHitbox(parts, move) {
+function pieceHitbox(parts, { move, hitboxLength }) {
   const box = new THREE.Box3();
   for (const { geometry } of parts) {
     geometry.computeBoundingBox();
@@ -63,6 +63,12 @@ function pieceHitbox(parts, move) {
     box.max.y = OBSTACLES.slideGap.top - m;
   }
   if (move === 'block') box.max.y = OBSTACLES.blockHeight - m;
+  if (hitboxLength) {
+    // Only hitboxLength metres around the model's origin count (not the cart's thin poles).
+    const z = 0;
+    box.min.z = Math.max(box.min.z, z - hitboxLength / 2);
+    box.max.z = Math.min(box.max.z, z + hitboxLength / 2);
+  }
   return box;
 }
 
@@ -74,7 +80,7 @@ export function createObstacles(scene, chunkCount, kit) {
   for (const [name, piece] of Object.entries(pieces)) {
     const parts = kit.near[name];
     if (!parts) throw new Error(`The street kit has no "${name}"`);
-    piece.hitbox = pieceHitbox(parts, piece.move);
+    piece.hitbox = pieceHitbox(parts, piece);
     const capacity = chunkCount * rowsPerChunk * piece.perRow;
     piece.meshes = parts.map(({ geometry, material }) => {
       const mesh = new THREE.InstancedMesh(geometry, material, capacity);

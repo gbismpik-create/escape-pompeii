@@ -372,7 +372,9 @@ export const OBSTACLES = {
   emptyLaneChance: 0.4, // chance that a lane in a row is left empty
   lane: {
     Rubble: { move: 'jump', weight: 1 },
-    Cart: { move: 'block', weight: 1 }, // abandoned, 4.3 m long
+    // Abandoned, about 1.2 m high: jump it or go round. hitboxLength keeps the
+    // thin pulling poles out of the hitbox, so only the 2.2 m body counts.
+    Cart: { move: 'jump', weight: 1, hitboxLength: 2.2 },
     AmphoraStack: { move: 'jump', weight: 1 }, // about 1 m high: jump it or go round
   },
   // Hitboxes come from each model's size, shrunk by hitboxMargin on every
