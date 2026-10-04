@@ -58,6 +58,58 @@ body {
   opacity: 0.7;
 }
 
+#start .modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(84vw, 320px);
+  margin-top: 0.4rem;
+}
+
+#start .modes[hidden],
+#game-over .menu[hidden],
+#finish .menu[hidden] {
+  display: none;
+}
+
+#start .modes button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.8rem 1rem;
+  border: 2px solid #d8b25a;
+  border-radius: 12px;
+  background: rgba(154, 32, 38, 0.85);
+  color: #f6eedb;
+  font: inherit;
+  cursor: pointer;
+}
+
+#start .modes button[data-mode='endless'] {
+  background: rgba(40, 34, 30, 0.85);
+}
+
+#start .modes b {
+  font-size: 1.2rem;
+}
+
+#start .modes small {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+#game-over .menu,
+#finish .menu {
+  margin-top: 1rem;
+  padding: 0.55rem 1.6rem;
+  border: 1px solid rgba(241, 234, 216, 0.6);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 #finish {
   position: fixed;
   inset: 0;

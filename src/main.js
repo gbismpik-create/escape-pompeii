@@ -13,6 +13,7 @@ import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
   updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish,
+  setupStartModes, showStart, setupMenuButtons, showMenuButtons,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
@@ -179,6 +180,7 @@ function showEndScreen() {
   if (unlocked) {
     endlessUnlocked = true;
     saveEndlessUnlocked();
+    showMenuButtons(true);
   }
   showFinish({
     distance: JOURNEY.length,
@@ -209,9 +211,35 @@ function restart() {
   shake = 0;
 }
 
-// Any move, tap or Space on the start screen begins the first run. That
-// first input is also what lets the browser start the sound (audio.js).
+// Any move, tap or Space on the start screen begins a run (in the last
+// mode played; Escape at first). That first input is also what lets the
+// browser start the sound (audio.js).
 const START_ACTIONS = ['tap', 'jump', 'left', 'right', 'down', 'restart'];
+
+function startRun(chosenMode) {
+  mode = chosenMode;
+  isStarted = true;
+  hideStart();
+  restart();
+}
+
+// Back to the start menu (from the game-over or end screen).
+function openMenu() {
+  isStarted = false;
+  isGameOver = false;
+  hideGameOver();
+  setEdgeGlow(0);
+  showStart(endlessUnlocked, JOURNEY.length);
+}
+
+showStart(endlessUnlocked, JOURNEY.length);
+showMenuButtons(endlessUnlocked);
+setupStartModes((chosen) => {
+  if (!isStarted && !isPaused) startRun(chosen);
+});
+setupMenuButtons(() => {
+  if (isGameOver && !isPaused) openMenu();
+});
 
 function handleAction(action) {
   if (action === 'toggleMute') {
@@ -219,11 +247,9 @@ function handleAction(action) {
   } else if (isPaused) {
     // Settings are open: the game ignores everything else.
   } else if (!isStarted) {
-    if (START_ACTIONS.includes(action)) {
-      isStarted = true;
-      hideStart();
-      restart();
-    }
+    if (action === 'modeEscape') startRun('escape');
+    else if (action === 'modeEndless' && endlessUnlocked) startRun('endless');
+    else if (START_ACTIONS.includes(action)) startRun(mode);
   } else if (action === 'debugNextPhase') {
     if (DEBUG.phaseKey && !isGameOver) {
       if (mode === 'endless') runTime = nextPhaseStart(runTime);
@@ -235,6 +261,8 @@ function handleAction(action) {
     player.handleAction(action === 'tap' ? 'shield' : action); // a tap in a run raises the shield
   } else if ((action === 'restart' || action === 'tap') && timeSinceGameOver >= GAME.restartDelay) {
     restart();
+  } else if (action === 'menu' && endlessUnlocked && timeSinceGameOver >= GAME.restartDelay) {
+    openMenu();
   }
 }
 

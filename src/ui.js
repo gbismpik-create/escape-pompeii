@@ -54,9 +54,34 @@ start.innerHTML = `
   <p class="tagline">Pompeii, 79 AD. Vesuvius is erupting. Run for the harbour.</p>
   <p class="controls">Swipe, or use the arrow keys / WASD:<br />left and right to change lane, up to jump, down to slide.<br />Tap or press E to raise your shield.</p>
   <p class="sound"></p>
+  <div class="modes" data-control hidden>
+    <button type="button" data-mode="escape"><b>Escape to the sea</b><small>1.6 km · press 1</small></button>
+    <button type="button" data-mode="endless"><b>Endless</b><small>as far as you can · press 2</small></button>
+  </div>
   <p class="hint">Tap or press Space to start</p>
 `;
 document.body.appendChild(start);
+const startModes = start.querySelector('.modes');
+const startHint = start.querySelector('.hint');
+
+// Once Endless is unlocked the start screen offers both modes.
+// onPick(mode) runs when a mode button is tapped.
+export function setupStartModes(onPick) {
+  for (const button of startModes.querySelectorAll('button')) {
+    button.addEventListener('click', () => {
+      button.blur(); // keep keys going to the game
+      onPick(button.dataset.mode);
+    });
+  }
+}
+
+// unlocked: show the mode buttons. length: the journey (for its label).
+export function showStart(unlocked, length) {
+  startModes.hidden = !unlocked;
+  startModes.querySelector('[data-mode="escape"] small').textContent = `${(length / 1000).toLocaleString('en-US')} km · press 1`;
+  startHint.textContent = unlocked ? 'Choose a run' : 'Tap or press Space to start';
+  start.hidden = false;
+}
 
 export function updateStartSound(muted) {
   start.querySelector('.sound').textContent = muted
@@ -159,6 +184,7 @@ overlay.innerHTML = `
   <p class="distance"></p>
   <p class="best"></p>
   <p class="hint">Tap or press R to run again</p>
+  <button type="button" class="menu" data-control>Menu</button>
 `;
 document.body.appendChild(overlay);
 
@@ -232,6 +258,21 @@ export function showGameOver(distance, best, isNewBest, reason = '', journey = n
   overlay.hidden = false;
 }
 
+// The Menu button on the game-over and end screens (shown once Endless is
+// unlocked, when there is a choice to go back to).
+export function setupMenuButtons(onMenu) {
+  for (const button of [overlay, finish].map((o) => o.querySelector('.menu'))) {
+    button.addEventListener('click', () => {
+      button.blur();
+      onMenu();
+    });
+  }
+}
+
+export function showMenuButtons(visible) {
+  for (const o of [overlay, finish]) o.querySelector('.menu').hidden = !visible;
+}
+
 export function hideGameOver() {
   overlay.hidden = true;
   finish.hidden = true;
@@ -260,6 +301,7 @@ finish.innerHTML = `
   <p class="unlocked" hidden>Endless mode unlocked</p>
   <p class="fact"></p>
   <p class="hint">Tap or press R to run again</p>
+  <button type="button" class="menu" data-control>Menu</button>
 `;
 document.body.appendChild(finish);
 

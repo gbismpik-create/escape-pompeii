@@ -15,6 +15,9 @@ const KEY_ACTIONS = {
   ArrowDown: 'down',
   KeyS: 'down',
   KeyR: 'restart',
+  Escape: 'menu', // back to the start menu from the game-over / end screen
+  Digit1: 'modeEscape', // start menu, once Endless is unlocked
+  Digit2: 'modeEndless',
   KeyM: 'toggleMute',
   KeyP: 'debugNextPhase',
   [SHIELD.key]: 'shield',
