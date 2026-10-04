@@ -1,6 +1,9 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, LIGHTS, GROUND } from './config.js';
+import { RENDERER, CAMERA, LIGHTS } from './config.js';
+import { createPlayer } from './player.js';
+import { createTrack } from './track.js';
+import { consumeActions } from './input.js';
 
 const canvas = document.getElementById('game');
 
@@ -21,29 +24,36 @@ const camera = new THREE.PerspectiveCamera(
   CAMERA.near,
   CAMERA.far,
 );
-camera.position.set(CAMERA.position.x, CAMERA.position.y, CAMERA.position.z);
-camera.lookAt(CAMERA.lookAt.x, CAMERA.lookAt.y, CAMERA.lookAt.z);
 
 // Lights
 const ambient = new THREE.AmbientLight(LIGHTS.ambient.color, LIGHTS.ambient.intensity);
 scene.add(ambient);
 
 const sun = new THREE.DirectionalLight(LIGHTS.sun.color, LIGHTS.sun.intensity);
-sun.position.set(LIGHTS.sun.position.x, LIGHTS.sun.position.y, LIGHTS.sun.position.z);
 sun.castShadow = true;
 sun.shadow.mapSize.set(LIGHTS.sun.shadowMapSize, LIGHTS.sun.shadowMapSize);
 const s = LIGHTS.sun.shadowArea;
 Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s });
 scene.add(sun);
+scene.add(sun.target); // the target must be in the scene for its position to update
 
-// Ground
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(GROUND.size, GROUND.size),
-  new THREE.MeshStandardMaterial({ color: GROUND.color }),
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
+// Game objects
+const track = createTrack(scene);
+const player = createPlayer(scene);
+
+function updateFollowers() {
+  const p = player.mesh.position;
+
+  const camX = p.x * CAMERA.sideFollow;
+  camera.position.set(camX + CAMERA.offset.x, p.y + CAMERA.offset.y, p.z + CAMERA.offset.z);
+  camera.lookAt(camX + CAMERA.lookAhead.x, CAMERA.lookAhead.y, p.z + CAMERA.lookAhead.z);
+
+  const o = LIGHTS.sun.offset;
+  sun.position.set(o.x, o.y, p.z + o.z);
+  sun.target.position.set(0, 0, p.z);
+
+  track.update(p.z);
+}
 
 // Resize
 window.addEventListener('resize', () => {
@@ -53,6 +63,17 @@ window.addEventListener('resize', () => {
 });
 
 // Loop
-renderer.setAnimationLoop(() => {
+const timer = new THREE.Timer();
+timer.connect(document); // pauses the clock while the tab is hidden
+
+renderer.setAnimationLoop((timestamp) => {
+  timer.update(timestamp);
+  // Cap the step so a long hitch can't teleport the player.
+  const dt = Math.min(timer.getDelta(), 0.1);
+
+  for (const action of consumeActions()) player.handleAction(action);
+  player.update(dt);
+  updateFollowers();
+
   renderer.render(scene, camera);
 });

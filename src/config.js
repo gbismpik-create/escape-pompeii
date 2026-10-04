@@ -5,12 +5,31 @@ export const RENDERER = {
   clearColor: 0x87a0b8,
 };
 
+export const LANES = {
+  count: 3,
+  width: 2.5, // distance between lane centres (world units)
+};
+
+export const PLAYER = {
+  size: { x: 1, y: 1.8, z: 1 },
+  color: 0xe07a2f,
+  runSpeed: 12, // units per second, forward
+  // How quickly the player slides into a new lane. Higher = snappier.
+  // ~12 means the move is mostly done in about 0.25 s.
+  laneChangeSharpness: 12,
+};
+
 export const CAMERA = {
   fov: 60,
   near: 0.1,
   far: 1000,
-  position: { x: 0, y: 8, z: 15 },
-  lookAt: { x: 0, y: 0, z: 0 },
+  // Position relative to the player: behind (+z) and above (+y).
+  offset: { x: 0, y: 4, z: 7 },
+  // The point the camera looks at, relative to the player (ahead = -z).
+  lookAhead: { x: 0, y: 1, z: -6 },
+  // How closely the camera follows the player sideways (0–1).
+  // 1 = locked to the player, lower = camera lags behind lane changes a bit.
+  sideFollow: 0.6,
 };
 
 export const LIGHTS = {
@@ -18,13 +37,19 @@ export const LIGHTS = {
   sun: {
     color: 0xffffff,
     intensity: 1.5,
-    position: { x: 10, y: 20, z: 10 },
+    // Offset from the player; the sun travels with the player so shadows never run out.
+    offset: { x: 10, y: 20, z: 10 },
     shadowMapSize: 2048,
     shadowArea: 30, // half-width of the shadow camera frustum
   },
 };
 
 export const GROUND = {
-  size: 100,
+  length: 100,
+  // Width is LANES.width × this. Keep it odd so grid lines fall on lane edges.
+  widthInLanes: 41,
   color: 0x808080,
+  lineColor: 0x5a5a5a,
+  lineWidthPx: 3, // out of a 64 px tile
+  anisotropy: 4,
 };
