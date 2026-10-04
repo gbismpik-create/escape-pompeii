@@ -30,13 +30,12 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-Week 2: make it look like Pompeii.
+Shield action.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
 
 From the GAME_DESIGN.md build order:
-- Shield action (uses the existing legionary and animations)
 - Runs with an ending: distance bar, beach finish line
 - Turns at junctions: corner chunks; on a turn the world rotates 90° around the runner
 - Statues: static landmarks first, then toppling ones
