@@ -170,5 +170,16 @@ export function createObstacles(scene, chunkCount) {
     collides(hitbox) {
       return slots.some((slot) => slot.type && slot.hitbox.intersectsBox(hitbox));
     },
+
+    // Distance along the track from z to the nearest obstacle (Infinity if none).
+    distanceToNearest(z) {
+      let nearest = Infinity;
+      for (const slot of slots) {
+        if (!slot.type) continue;
+        const slotZ = (slot.hitbox.min.z + slot.hitbox.max.z) / 2;
+        nearest = Math.min(nearest, Math.abs(slotZ - z));
+      }
+      return nearest;
+    },
   };
 }

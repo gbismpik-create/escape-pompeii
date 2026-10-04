@@ -98,6 +98,7 @@ export const LIGHTS = {
 //     2 / fogDensity metres (0.011 → 180 m, 0.03 → 65 m). The fog colour is
 //     the sky's horizon colour, so the town fades into the sky.
 //   ashRate: share of ASH.maxParticles falling (0–1).
+//   tileRate: average falling roof tiles per second.
 //   speedMultiplier: multiplies the run speed. Obstacle rows are spaced for
 //     the highest multiplier, so every pattern stays passable.
 export const PHASES = {
@@ -119,6 +120,7 @@ export const PHASES = {
       ashRate: 0.3,
       ashColor: 0xd9d3c7,
       speedMultiplier: 1,
+      tileRate: 0.25, // falling roof tiles per second (see TILES)
     },
     {
       name: 'Ash & darkness',
@@ -136,6 +138,7 @@ export const PHASES = {
       ashRate: 1,
       ashColor: 0x8c857c,
       speedMultiplier: 1.07,
+      tileRate: 0.5, // falling roof tiles per second (see TILES)
     },
     {
       name: 'Surge',
@@ -153,6 +156,7 @@ export const PHASES = {
       ashRate: 1,
       ashColor: 0x6e5146,
       speedMultiplier: 1.15,
+      tileRate: 0.85, // falling roof tiles per second (see TILES)
     },
   ],
 };
@@ -168,6 +172,26 @@ export const ASH = {
   size: 0.11, // flake size (metres)
   nearFade: 2.5, // flakes closer to the camera than this fade out (no blobs on the lens)
   opacity: 0.85,
+};
+
+// Roof tiles shaken loose by the earthquakes and the weight of pumice.
+// A shadow warns where one will land; the tile drops and shatters.
+export const TILES = {
+  warningTime: 1.0, // seconds the shadow shows before the tile lands
+  fallTime: 0.45, // the tile is visible falling for the last part of the warning
+  dropHeight: 14, // metres above the road where the falling tile appears
+  size: { x: 0.7, y: 0.14, z: 0.9 }, // one terracotta roof tile (tegula)
+  hitboxMargin: 0.1,
+  // Tiles never land closer than this (in seconds of running) to an
+  // obstacle row or to another tile, so all lanes are open around a tile
+  // and there is time to dodge it and still reach the next row's way through.
+  clearanceTime: 0.3,
+  targetPlayerChance: 0.65, // chance a tile aims at the player's lane (else a random lane)
+  maxTiles: 6, // most tiles in flight or in pieces at once
+  shadowRadius: 0.75,
+  shadowDarkness: 0.25, // 1 = no shadow, 0 = black
+  pieces: 5, // fragments per broken tile
+  pieceLifetime: 1.6, // seconds before fragments sink away
 };
 
 export const DEBUG = {

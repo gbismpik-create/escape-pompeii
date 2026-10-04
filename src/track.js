@@ -90,6 +90,10 @@ export function createTrack(scene) {
       return obstacles.collides(hitbox);
     },
 
+    distanceToNearestObstacle(z) {
+      return obstacles.distanceToNearest(z);
+    },
+
     update(playerZ) {
       surface.update(playerZ);
       const playerIndex = Math.floor(-playerZ / L);

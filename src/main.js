@@ -5,6 +5,8 @@ import { createPlayer } from './player.js';
 import { createTrack } from './track.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart } from './phases.js';
+import { createTiles } from './tiles.js';
+import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import { updateDistance, showBest, showGameOver, hideGameOver } from './ui.js';
 import { loadBest, saveBest } from './storage.js';
@@ -32,6 +34,7 @@ const camera = new THREE.PerspectiveCamera(
 const environment = createEnvironment(scene);
 const track = createTrack(scene);
 const player = createPlayer(scene);
+const tiles = createTiles(scene, track);
 
 function updateFollowers() {
   const p = player.object.position;
@@ -79,6 +82,7 @@ function restart() {
   hideGameOver();
   player.reset();
   track.reset();
+  tiles.reset();
 }
 
 function handleAction(action) {
@@ -106,10 +110,13 @@ renderer.setAnimationLoop((timestamp) => {
     timeSinceGameOver += dt; // the world freezes; only the overlay is live
   } else {
     runTime += dt;
-    player.update(dt, environment.phase.speedMultiplier);
+    const { speedMultiplier, tileRate } = environment.phase;
+    player.update(dt, speedMultiplier);
     track.update(player.object.position.z);
+    const speed = speedAt(currentDistance()) * speedMultiplier;
+    tiles.update(dt, player.object.position, speed, tileRate);
     updateDistance(currentDistance());
-    if (track.collides(player.hitbox)) gameOver();
+    if (track.collides(player.hitbox) || tiles.collides(player.hitbox)) gameOver();
   }
 
   updateFollowers();
