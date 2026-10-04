@@ -127,27 +127,49 @@ function planJunction(type, random) {
   return placements;
 }
 
-// The Forum (stand-in): the lanes' road, and the whole square paved around
-// it, a little lower so the two don't flicker.
-function planForum() {
-  return [
-    { piece: 'Road_30m', x: 0, z: 0, angle: 0 },
-    { piece: 'Road_30m', x: 0, y: -0.03, z: 0, angle: 0, sx: 24 / (2 * ROAD_HALF) },
-  ];
+// The Forum, in kit space: the square paved in travertine, a two-storey
+// colonnade down each side (6 m bays) or a temple front in place of three
+// bays, statues on pedestals in front, and an arch where the way comes in
+// (gate 'in', at the start) or goes out ('out', at the end).
+// Pieces on the -x side are the +x ones turned half round about the chunk's
+// middle: (x, z) → (-x, L - z).
+function planForum(random, { temple = 0, gate = null } = {}) {
+  const placements = [{ piece: 'Forum_Paving_30m', x: 0, z: 0, angle: 0 }];
+  const side = (piece, z, s, extra = {}) =>
+    placements.push(s > 0 ? { piece, x: 0, z, angle: 0, ...extra } : { piece, x: 0, z: L - z, angle: Math.PI, ...extra });
+  for (const s of [1, -1]) {
+    if (temple === s) {
+      side('Forum_Colonnade_6m', 0, s);
+      side('Forum_Temple', 6, s);
+      side('Forum_Colonnade_6m', 24, s);
+    } else {
+      for (let z = 0; z < L; z += 6) side('Forum_Colonnade_6m', z, s);
+    }
+    // A statue on its pedestal in front of the colonnade, facing the square
+    // (the simplified version: there are many and they are seen from afar).
+    const z = 6 + random() * 18;
+    const type = STATUES.types[Math.floor(random() * STATUES.types.length)];
+    placements.push({ piece: 'Pedestal', x: s * 10.2, z, angle: -s * Math.PI / 2 });
+    placements.push({ piece: type, x: s * 10.2, y: STATUES.pedestalHeight, z, angle: -s * Math.PI / 2, lowDetail: true });
+  }
+  if (gate === 'in') placements.push({ piece: 'Forum_Gate', x: 0, z: 0.7, angle: 0 });
+  if (gate === 'out') placements.push({ piece: 'Forum_Gate', x: 0, z: L - 0.7, angle: Math.PI });
+  return placements;
 }
 
 // Merges a layout's pieces into one geometry per material.
 // sx / sz stretch a piece along its own x / z before it is turned.
-function mergeLayout(pieces, placements) {
+// Placements marked lowDetail use lowPieces (the far kit) even up close.
+function mergeLayout(pieces, placements, lowPieces = pieces) {
   const byMaterial = new Map();
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3();
-  for (const { piece, x, y = 0, z, angle, sx = 1, sz = 1 } of placements) {
+  for (const { piece, x, y = 0, z, angle, sx = 1, sz = 1, lowDetail = false } of placements) {
     m.compose(position.set(x, y, z), q.setFromAxisAngle(up, angle), scale.set(sx, 1, sz));
-    for (const part of pieces[piece] ?? []) {
+    for (const part of (lowDetail ? lowPieces : pieces)[piece] ?? []) {
       if (!byMaterial.has(part.material)) byMaterial.set(part.material, []);
       byMaterial.get(part.material).push(part.geometry.clone().applyMatrix4(m));
     }
@@ -246,12 +268,20 @@ export function createTrack(scene, kit) {
 
   // Build the layouts once.
   const random = seeded(2024);
-  const build = (plan) => ({ near: mergeLayout(kit.near, plan), far: mergeLayout(kit.far, plan), free: plan.free ?? [] });
+  const build = (plan) => ({ near: mergeLayout(kit.near, plan, kit.far), far: mergeLayout(kit.far, plan), free: plan.free ?? [] });
   const layouts = Array.from({ length: KIT.layouts }, () => build(planLayout(random)));
   const junctionLayouts = { T: build(planJunction('T', random)), X: build(planJunction('X', random)) };
   // From the finish chunk on, the street opens out: road only, no houses.
   const openLayout = build([{ piece: 'Road_30m', x: 0, z: 0, angle: 0 }]);
-  const forumLayout = build(planForum());
+  // The Forum: three middles (colonnades both sides, a temple left or right)
+  // and the chunks with the arch in and out.
+  const forumLayouts = {
+    middle: [build(planForum(random)), build(planForum(random, { temple: 1 })), build(planForum(random, { temple: -1 }))],
+    in: build(planForum(random, { gate: 'in' })),
+    out: build(planForum(random, { gate: 'out' })),
+  };
+  const forumLayout = (distance, run) =>
+    distance === run.start ? forumLayouts.in : distance === run.end - L ? forumLayouts.out : forumLayouts.middle[Math.floor(Math.random() * 3)];
   const finishMarks = createFinishMarks(world);
 
   // One slot = a group per detail level, holding one mesh per material:
@@ -321,7 +351,7 @@ export function createTrack(scene, kit) {
     chunk.root.scale.x = chunk.mirrored ? -1 : 1;
     chunk.root.visible = true;
     const layout =
-      kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : district === 'forum' ? forumLayout : layouts[Math.floor(Math.random() * layouts.length)];
+      kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : district === 'forum' ? forumLayout(distance, run) : layouts[Math.floor(Math.random() * layouts.length)];
     for (const lod of ['near', 'far', 'shadow']) {
       for (const [material, mesh] of chunk.lods[lod].userData.meshes) {
         const geometry = layout[lod === 'near' ? 'near' : 'far'].get(material);

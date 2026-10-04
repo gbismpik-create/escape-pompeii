@@ -934,6 +934,102 @@ function rubble(P, cx, cz, w, h, n) {
   }
 }
 
+// ================================================================== FORUM (paving, colonnade bays, temple front, entrance arch)
+// Built in place, kit space: the square runs along +z from z = 0; pieces for
+// the +x side face the square (towards -x); the track turns them for the
+// other side. Travertine (pale stone), plaster walls, terracotta roofs.
+{
+  const trav = C(0xe3d8c2), travDk = C(0xc9bca3), joint = C(0x6f675c);
+  const travFn = (p) => trav.clone().lerp(travDk, clamp((fbm(p.x * 1.3, p.y * 2, p.z * 1.3) - 0.42) * 2.2)).lerp(COL.ash, clamp(1 - p.y / 0.5) * 0.15);
+  // A Doric column for the forum: 16 sides, tapered, with a cushion capital and square abacus.
+  const column = (x, y, z, h, r) => [
+    xf(lathe([[r, 0], [r * 0.84, h * 0.97], [r * 0.9, h * 0.97], [r * 1.18, h], [0, h]], 16), [x, y, z]),
+    xf(block(r * 2.6, h * 0.05, r * 2.6, 0.01), [x, y + h, z]),
+  ];
+
+  // ---- paving: the whole square in big slabs (30 m long, 26 m wide), joints showing between them
+  {
+    const P = new Piece('Forum_Paving_30m');
+    P.add(xf(new THREE.PlaneGeometry(26, 30), [0, -0.06, 15], [-Math.PI / 2, 0, 0]), 'stone', { color: joint, noise: 0.1 });
+    for (let x = -13; x < 13; x += 1.3) for (let z = 0; z < 30; z += 2.5) {
+      const w = 1.3 - 0.05, d = 2.5 - 0.05, sh = (fbm(x * 0.7, 0, z * 0.7) - 0.5) * 0.1;
+      P.add(xf(block(w, 0.06, d, 0.012), [x + 0.65, -0.06, z + 1.25]), 'stone', { colorFn: (p) => travFn(p).multiplyScalar(1 + sh), noise: 0.06, freq: 4 });
+    }
+    pieces.push(P);
+  }
+
+  // ---- colonnade bay (6 m): two storeys of columns on a step, a gallery floor,
+  // a tiled roof sloping back to a plastered wall with shop doors
+  {
+    const P = new Piece('Forum_Colonnade_6m');
+    const X = 12, BACK = 16.5, L6 = 6;
+    P.add(xf(block(BACK - X + 0.8, 0.35, L6, 0.02), [(X - 0.8 + BACK) / 2, 0, L6 / 2]), 'stone', { colorFn: travFn, noise: 0.06 });
+    for (const z of [1.5, 4.5]) {
+      column(X, 0.35, z, 4.2, 0.34).forEach((g) => P.add(g, 'stone', { colorFn: travFn, noise: 0.05 }));
+      column(X, 5.55, z, 3.0, 0.24).forEach((g) => P.add(g, 'stone', { colorFn: travFn, noise: 0.05 }));
+    }
+    // lower entablature with a frieze of triglyphs (darker blocks), then the gallery floor
+    P.add(xf(block(0.9, 0.5, L6, 0.01), [X, 4.76, L6 / 2]), 'stone', { colorFn: travFn });
+    P.add(xf(block(0.9, 0.45, L6, 0.01), [X, 5.26, L6 / 2]), 'stone', {
+      colorFn: (p) => (Math.abs(((p.z % 1.5) + 1.5) % 1.5 - 0.75) < 0.2 && p.x < X ? travDk.clone().multiplyScalar(0.85) : travFn(p)),
+    });
+    P.add(xf(block(BACK - X, 0.2, L6, 0.01), [(X + BACK) / 2, 5.35, L6 / 2]), 'stone', { colorFn: travFn });
+    P.add(xf(block(0.7, 0.45, L6, 0.01), [X, 8.75, L6 / 2]), 'stone', { colorFn: travFn });
+    // roof: terracotta tiles in ridges, sloping up to the back wall
+    P.add(grid(16, 6, (u, v) => {
+      const x = lerp(X - 0.6, BACK + 0.2, v), z = u * L6;
+      return V(x, 9.2 + (x - X) * 0.22 + 0.04 * Math.abs(Math.sin(u * Math.PI * 12)), z);
+    }), 'terracotta', { colorFn: (p) => COL.terra.clone().lerp(COL.terraDk, clamp(fbm(p.x, p.y, p.z * 2) - 0.3)), noise: 0.1 });
+    // back wall: red dado, cream above, a shop door in each bay
+    P.add(xf(block(0.3, 9.6, L6, 0.01), [BACK, 0.35, L6 / 2]), 'plaster', {
+      colorFn: (p) => {
+        const door = Math.abs(p.z - L6 / 2) < 0.9 && p.y < 2.9;
+        return door ? COL.woodDk.clone() : p.y < 1.5 ? COL.pompRed.clone() : COL.cream.clone().lerp(COL.whiteWash, 0.4);
+      }, noise: 0.06,
+    });
+    pieces.push(P);
+  }
+
+  // ---- temple front (18 m wide along the square): a high podium with steps,
+  // six tall columns, an entablature and a pediment, the cella behind
+  {
+    const P = new Piece('Forum_Temple');
+    const X = 13, W = 18, D = 16, H = 3.0, Z0 = 0;
+    P.add(xf(block(D, H, W, 0.03), [X + D / 2, 0, Z0 + W / 2]), 'stone', { colorFn: travFn, noise: 0.06 });
+    for (let i = 0; i < 10; i++) P.add(xf(block(0.3, (i + 1) * 0.3, 9, 0.01), [X - 0.15 - (9 - i) * 0.3, 0, Z0 + W / 2]), 'stone', { colorFn: travFn });
+    for (let i = 0; i < 6; i++) column(X + 1.2, H, Z0 + 1.6 + i * 2.96, 8.2, 0.48).forEach((g) => P.add(g, 'stone', { colorFn: travFn, noise: 0.05 }));
+    P.add(xf(block(D - 0.6, 1.0, W - 0.4, 0.02), [X + D / 2, H + 8.6, Z0 + W / 2]), 'stone', { colorFn: travFn });
+    // pediment: a triangle across the front, roof sloping back
+    const pediment = new THREE.Shape([new THREE.Vector2(-W / 2, 0), new THREE.Vector2(W / 2, 0), new THREE.Vector2(0, 2.6)]);
+    P.add(xf(new THREE.ExtrudeGeometry(pediment, { depth: D - 0.6, bevelEnabled: false }), [X + 0.3, H + 9.6, Z0 + W / 2], [0, Math.PI / 2, 0]), 'stone', { colorFn: travFn });
+    for (const s of [1, -1]) P.add(grid(4, 12, (u, v) => V(lerp(X, X + D, v), H + 9.62 + 2.62 * (1 - u), Z0 + W / 2 + s * u * (W / 2 + 0.3))), 'terracotta', { color: COL.terra, noise: 0.1 });
+    // the cella: a plastered block behind the columns, its door dark
+    P.add(xf(block(D - 4, 8.6, W - 4, 0.02), [X + 2 + (D - 4) / 2, H, Z0 + W / 2]), 'plaster', {
+      colorFn: (p) => (Math.abs(p.z - (Z0 + W / 2)) < 1.4 && p.y < H + 5 && p.x < X + 2.2 ? COL.woodDk.clone() : COL.cream.clone()), noise: 0.05,
+    });
+    pieces.push(P);
+  }
+
+  // ---- entrance arch across the way in (at z = 0), with walls out to the colonnades
+  {
+    const P = new Piece('Forum_Gate');
+    for (const s of [1, -1]) {
+      P.add(xf(block(1.4, 6.2, 1.4, 0.03), [s * 4.9, 0, 0]), 'stone', { colorFn: travFn, noise: 0.06 });
+      P.add(xf(block(7.6, 6.0, 0.7, 0.02), [s * 9.4, 0, 0]), 'plaster', { colorFn: (p) => (p.y < 1.4 ? COL.pompRed.clone() : COL.cream.clone()), noise: 0.06 });
+    }
+    // the arch, its keystone, and the attic above with a panel for an inscription
+    const arch = new THREE.Shape();
+    arch.moveTo(-5.6, 0); arch.lineTo(5.6, 0); arch.lineTo(5.6, 3.6); arch.lineTo(-5.6, 3.6); arch.lineTo(-5.6, 0);
+    const hole = new THREE.Path();
+    hole.moveTo(-4.2, -0.01); hole.absarc(0, -0.01, 4.2, 0, Math.PI, false); hole.lineTo(-4.2, -0.01);
+    arch.holes.push(hole);
+    P.add(xf(new THREE.ExtrudeGeometry(arch, { depth: 1.4, bevelEnabled: false, curveSegments: 24 }), [0, 6.2, -0.7]), 'stone', { colorFn: travFn, noise: 0.05 });
+    P.add(xf(block(11.6, 1.6, 1.6, 0.03), [0, 9.8, 0]), 'stone', { colorFn: travFn, noise: 0.05 });
+    P.add(xf(block(5, 0.9, 0.04, 0.01), [0, 10.15, 0.8]), 'stone', { color: travDk });
+    pieces.push(P);
+  }
+}
+
 // ================================================================== EXPORT
 const scene = new THREE.Scene();
 let total = 0;
