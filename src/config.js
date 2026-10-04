@@ -457,6 +457,35 @@ export const TURNS = {
   housesBeforeSquare: 3,
 };
 
+// Statues on pedestals (statues.js), from the street kit. One stands every
+// so often on a pavement or at the corner of a crossroads. Running past an
+// intact one adds it to the Museum.
+export const STATUES = {
+  spacing: [150, 250], // metres between statues (random in this range)
+  pavementX: 3.5, // pedestal centre, metres from the middle of the street
+  pavementHeight: 0.36, // the pavement's top: pedestals stand on it
+  pedestalHeight: 1.1, // the figure stands this high
+  // Per type: the name and one-line fact shown in the Museum.
+  types: {
+    Statue_Apollo: {
+      name: 'Apollo',
+      fact: 'A bronze Apollo shooting an arrow stood in the sanctuary of Apollo beside the Forum; the original is now in Naples.',
+    },
+    Statue_Emperor: {
+      name: 'Emperor in a toga',
+      fact: 'The Forum was lined with statues of emperors and benefactors on tall bases; many of the empty bases still stand.',
+    },
+    Statue_Faun: {
+      name: 'Dancing faun',
+      fact: 'A small bronze dancing faun gave the House of the Faun, one of the largest houses in Pompeii, its name.',
+    },
+    Statue_Notable: {
+      name: 'Seated notable',
+      fact: 'Pompeii honoured generous citizens with statues: a crossroads on Via dell\'Abbondanza is named after Marcus Holconius Rufus, whose statue stood there.',
+    },
+  },
+};
+
 export const STREET = {
   sideGroundWidth: 140, // plain ground under and beyond the buildings
   sideGroundColor: 0x8a7a62,

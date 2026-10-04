@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -14,12 +14,14 @@ import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
   updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange,
+  setupMuseum, updateMuseum, showMuseumFind,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
 import { createFalling } from './falling.js';
 import { isSideClip } from './obstacles.js';
-import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked } from './storage.js';
+import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked, loadMuseum, saveMuseum } from './storage.js';
+import { renderStatuePictures } from './statues.js';
 
 const canvas = document.getElementById('game');
 
@@ -63,6 +65,14 @@ setupSettings(audio.levels, {
 setLoading(true);
 const [kit, character] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap)]);
 const track = createTrack(scene, kit);
+
+// The Museum: statues found by running past them (saved in the browser).
+const museumFound = loadMuseum();
+const STATUE_COUNT = Object.keys(STATUES.types).length;
+setupMuseum(STATUES.types, renderStatuePictures(renderer, kit), {
+  onOpenChange: (open) => (isPaused = open),
+});
+updateMuseum(museumFound, STATUE_COUNT);
 environment.addVolcano(kit);
 setLoading(false);
 const shield = createShield();
@@ -451,6 +461,13 @@ renderer.setAnimationLoop((timestamp) => {
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     updateDistance(currentDistance());
+    const found = track.statues.update(currentDistance());
+    if (found && !museumFound.has(found)) {
+      museumFound.add(found);
+      saveMuseum(museumFound);
+      updateMuseum(museumFound, STATUE_COUNT);
+      showMuseumFind(STATUES.types[found].name);
+    }
     updateShield(shield.state, shield.remaining);
     checkCollisions();
     if (!isGameOver) updateJunction();

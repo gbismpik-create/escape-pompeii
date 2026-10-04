@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES } from './config.js';
 import { createObstacles } from './obstacles.js';
+import { createStatues } from './statues.js';
 import { isLowEnd } from './device.js';
 import { addAshCover } from './ashShader.js';
 import { speedAt, MAX_SPEED_MULTIPLIER } from './speed.js';
@@ -59,7 +60,10 @@ const pickHouse = (random, previous) => {
 };
 
 // Where each piece goes in one street layout, in kit space (street along +z).
+// placements.free lists the pavement spots left without a prop ({ side, z }),
+// where a statue can stand.
 function planLayout(random) {
+  const free = [];
   const placements = [
     { piece: 'Road_30m', x: 0, z: 0, angle: 0 },
     { piece: 'Kerbs_30m', x: 0, z: 0, angle: 0 },
@@ -85,7 +89,9 @@ function planLayout(random) {
       const name = names.find((n, k) => (r -= weights[k]) < 0) ?? names[0];
       placements.push({ piece: name, x: side * KIT.props[name][0], z: spots[i], angle: -side * Math.PI / 2 });
     }
+    for (const z of spots.slice(count)) free.push({ side, z });
   }
+  placements.free = free;
   return placements;
 }
 
@@ -108,6 +114,8 @@ function planJunction(type, random) {
       placements.push({ piece: house, x: side * KIT.facadeX, z: KIT.houseWidth * (i + 0.5), angle: -side * Math.PI / 2 });
     }
   }
+  // A statue can stand at either corner where the houses end before the square.
+  placements.free = [-1, 1].map((side) => ({ side, z: (TURNS.housesBeforeSquare * KIT.houseWidth + SQUARE_START) / 2 }));
   if (type === 'T') {
     // The wall: two narrower house fronts across the end, facing back.
     let previous = null;
@@ -224,11 +232,12 @@ export function createTrack(scene, kit) {
   const slotCount = TRACK.chunksBehind + 1 + TRACK.chunksAhead + 5;
   const ground = createGround(scene);
   const obstacles = createObstacles(world, slotCount, kit);
+  const statues = createStatues(world, kit);
   const materials = Object.values(kit.materials);
 
   // Build the layouts once.
   const random = seeded(2024);
-  const build = (plan) => ({ near: mergeLayout(kit.near, plan), far: mergeLayout(kit.far, plan) });
+  const build = (plan) => ({ near: mergeLayout(kit.near, plan), far: mergeLayout(kit.far, plan), free: plan.free ?? [] });
   const layouts = Array.from({ length: KIT.layouts }, () => build(planLayout(random)));
   const junctionLayouts = { T: build(planJunction('T', random)), X: build(planJunction('X', random)) };
   // From the finish chunk on, the street opens out: road only, no houses.
@@ -291,7 +300,8 @@ export function createTrack(scene, kit) {
     chunk.root.rotation.y = Math.PI + angleOf(heading);
     // Mirroring left-right doubles the variety. (The kit is double-sided, so
     // the flipped faces still draw correctly.)
-    chunk.root.scale.x = kind === 'street' && Math.random() < 0.5 ? -1 : 1;
+    chunk.mirrored = kind === 'street' && Math.random() < 0.5;
+    chunk.root.scale.x = chunk.mirrored ? -1 : 1;
     chunk.root.visible = true;
     const layout =
       kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : layouts[Math.floor(Math.random() * layouts.length)];
@@ -308,6 +318,7 @@ export function createTrack(scene, kit) {
     // after them), and none on the run-up to a junction.
     const clearFrom = nextJunction - TURNS.clearBefore * speedAt(nextJunction) * MAX_SPEED_MULTIPLIER;
     obstacles.fill(chunk.slot, chunk, { empty: kind === 'T' || kind === 'X' || kind === 'side', clearFrom, clearTo: nextJunction + L });
+    if (kind === 'street' || kind === 'T' || kind === 'X') statues.place(chunk, layout.free);
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, in this chunk's frame.
       finishMarks.position.copy(position).addScaledVector(forward(heading, tmp), finishDistance - distance);
@@ -318,6 +329,7 @@ export function createTrack(scene, kit) {
 
   function release(chunk) {
     chunk.root.visible = false;
+    statues.release(chunk.slot);
     obstacles.fill(chunk.slot, chunk, { empty: true });
     free.push(chunk);
   }
@@ -392,6 +404,7 @@ export function createTrack(scene, kit) {
     cursor.heading = 0;
     cursor.distance = -TRACK.chunksBehind * L;
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
+    statues.reset();
     planNextJunction(0);
     nextJunction = TURNS.enabled ? Math.max(nextJunction, nextJunctionAfter(0, TURNS.firstAfter)) : Infinity;
     if (finishDistance && nextJunction + L > finishDistance - TURNS.finishMargin) nextJunction = Infinity;
@@ -408,6 +421,7 @@ export function createTrack(scene, kit) {
     world,
     reset,
     obstacles,
+    statues,
 
     // The obstacle touching the player's hitbox (scene space), or null.
     // The obstacles are stored in world-group space; with quarter turns a
