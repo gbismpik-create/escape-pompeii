@@ -79,14 +79,21 @@ export const CHARACTER = {
 // real recordings, same names). Loops are .wav: MP3 adds a few ms of
 // silence at each end, which leaves a gap every time a loop repeats.
 export const AUDIO = {
+  // A list means variations: one is picked at random each time.
   files: {
-    footstep: 'assets/audio/footstep.mp3',
+    footstep: ['assets/audio/footstep-1.mp3', 'assets/audio/footstep-2.mp3', 'assets/audio/footstep-3.mp3', 'assets/audio/footstep-4.mp3'],
+    jump: 'assets/audio/jump.mp3', // whoosh as he leaps
+    slide: 'assets/audio/slide.mp3', // scrape along the stones
     impact: 'assets/audio/impact.mp3',
     stumble: 'assets/audio/stumble.mp3',
+    tile: 'assets/audio/tile.mp3', // a roof tile shattering on the road
     rumble: 'assets/audio/rumble.wav', // loops
+    roar: 'assets/audio/roar.wav', // loops: the surge cloud, louder as it closes in
     music: 'assets/audio/music.wav', // loops
   },
-  volume: { master: 0.8, music: 0.35, effects: 0.8, rumble: 1 },
+  volume: { master: 0.8, music: 0.35, effects: 0.8, rumble: 1, roar: 0.9 },
+  musicOnGameOver: 0.35, // music drops to this share on the game-over screen
+  tileHearingDistance: 45, // shattering tiles further than this (metres) are silent
   // One footstep every half run cycle (two steps per cycle), so the steps
   // keep time with the legs at any speed.
   stepsPerRunCycle: 2,

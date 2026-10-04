@@ -47,7 +47,12 @@ setLoading(true);
 const character = await loadCharacter(environment.envMap);
 setLoading(false);
 const player = createPlayer(scene, character);
-const tiles = createTiles(scene, track);
+const tiles = createTiles(scene, track, {
+  onShatter: (x, z) => {
+    const p = player.object.position;
+    audio.tileShatter(Math.hypot(x - p.x, z - p.z));
+  },
+});
 const surge = createSurge(scene);
 let shake = 0; // camera shake after a stumble, fading out
 
@@ -87,6 +92,7 @@ function gameOver(reason = '') {
   isGameOver = true;
   isCaught = false;
   player.settle();
+  audio.setGameOver(true);
   timeSinceGameOver = 0;
   const distance = currentDistance();
   const isNewBest = distance > best;
@@ -101,6 +107,7 @@ function gameOver(reason = '') {
 function restart() {
   isGameOver = false;
   runTime = 0;
+  audio.setGameOver(false);
   hideGameOver();
   player.reset();
   track.reset();
@@ -173,7 +180,7 @@ renderer.setAnimationLoop((timestamp) => {
     character.setEnvIntensity?.(envIntensity); // the built-in legionary has no metal
     const zBefore = player.object.position.z;
     player.update(dt, speedMultiplier);
-    audio.updateFootsteps(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
+    audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     track.update(player.object.position.z);
     const speed = speedAt(currentDistance()) * speedMultiplier;
     tiles.update(dt, player.object.position, speed, tileRate);
@@ -190,6 +197,7 @@ renderer.setAnimationLoop((timestamp) => {
   setEdgeGlow(glow * (0.9 + 0.1 * Math.sin(runTime * 5)));
   shake = Math.max(0, shake - dt * 0.6);
   audio.setRumble(environment.phase.rumbleVolume);
+  audio.setRoar(isGameOver ? 0 : isCaught ? 1 : surge.proximity); // fades out on the game-over screen
 
   updateFollowers();
 

@@ -49,7 +49,8 @@ function instanced(scene, name, geometry, material, count) {
   return mesh;
 }
 
-export function createTiles(scene, track) {
+// onShatter(x, z): called when a tile hits the road (e.g. for its sound).
+export function createTiles(scene, track, { onShatter } = {}) {
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const shadowGeometry = new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2);
   const shadows = instanced(scene, 'tiles:shadow', shadowGeometry, shadowMaterial(), TILES.maxTiles);
@@ -109,6 +110,7 @@ export function createTiles(scene, track) {
 
   function shatter(tile) {
     tile.shattered = true;
+    onShatter?.(tile.x, tile.z);
     tile.pieces.forEach((p, i) => {
       const angle = (i / TILES.pieces) * Math.PI * 2 + Math.random();
       const speed = 1.5 + Math.random() * 2.5;

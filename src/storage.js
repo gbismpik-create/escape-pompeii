@@ -1,4 +1,4 @@
-// Best score, saved in the browser. localStorage can be missing or throw
+// Best score and the mute choice, saved in the browser. localStorage can be missing or throw
 // (private browsing, storage disabled, quota full), so every access is
 // wrapped: the game still works, it just won't remember the score.
 
@@ -17,5 +17,23 @@ export function saveBest(distance) {
     localStorage.setItem(BEST_KEY, String(distance));
   } catch {
     // Not saved; nothing else to do.
+  }
+}
+
+const MUTED_KEY = 'escape-pompeii.muted';
+
+export function loadMuted() {
+  try {
+    return localStorage.getItem(MUTED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveMuted(muted) {
+  try {
+    localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
+  } catch {
+    // Not saved; the game starts with sound next time.
   }
 }
