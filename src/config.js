@@ -373,14 +373,14 @@ export const OBSTACLES = {
   lane: {
     Rubble: { move: 'jump', weight: 1 },
     Cart: { move: 'block', weight: 1 }, // abandoned, 4.3 m long
-    AmphoraStack: { move: 'block', weight: 1 },
+    AmphoraStack: { move: 'jump', weight: 1 }, // about 1 m high: jump it or go round
   },
   // Hitboxes come from each model's size, shrunk by hitboxMargin on every
   // side so near misses feel fair, with two exceptions while the jump is
   // 2.2 m high (higher than these models):
   //   slide pieces: the band from slideGap.bottom to slideGap.top (too high
   //     to jump over, clear of a sliding player at 0.8 m)
-  //   block pieces: blockHeight tall, so they can't be jumped
+  //   block pieces (the cart): blockHeight tall, so they can't be jumped
   hitboxMargin: 0.1,
   slideGap: { bottom: 1.2, top: 2.6 },
   blockHeight: 3,
