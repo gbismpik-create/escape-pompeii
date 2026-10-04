@@ -119,6 +119,11 @@ export function createLegionary() {
   const torso = buildTorso(pelvis);
   const legs = [buildLeg(pelvis, -1), buildLeg(pelvis, 1)];
   const arms = [buildArm(torso, -1), buildArm(torso, 1)];
+  // A plain scutum on the left forearm, only shown while it is raised
+  // (this simple figure carries no shield otherwise).
+  const scutum = part([box([0.62, 0.05, 0.9], [0, 0, 0], C.tunic), box([0.12, 0.06, 0.12], [0, 0.03, 0], C.bronze)], arms[0].fore, [0, -0.3, 0]);
+  scutum.visible = false;
+  let shieldWeight = 0;
 
   let runPhase = 0;
   let airWeight = 0;
@@ -130,7 +135,7 @@ export function createLegionary() {
     root,
 
     // state: { distance moved this frame, grounded, sliding, sideSpeed }
-    update(dt, { moved, grounded, sliding, sideSpeed }) {
+    update(dt, { moved, grounded, sliding, sideSpeed, shieldRaised }) {
       const A = LEGIONARY;
       if (grounded && !sliding) runPhase += (moved / A.runCycleLength) * Math.PI * 2;
 
@@ -163,6 +168,14 @@ export function createLegionary() {
         upper.rotation.z = pose(0, -dir * 0.5, -dir * 0.6); // spread arms for balance
         fore.rotation.x = pose(1.2 + 0.25 * sin * dir, 0.5, 0.3);
       });
+
+      // Shield raised: the left arm goes straight up, the scutum flat on top.
+      shieldWeight += ((shieldRaised ? 1 : 0) - shieldWeight) * k;
+      const shield = arms[0];
+      shield.upper.rotation.x += (Math.PI - shield.upper.rotation.x) * shieldWeight;
+      shield.upper.rotation.z *= 1 - shieldWeight;
+      shield.fore.rotation.x *= 1 - shieldWeight;
+      scutum.visible = shieldWeight > 0.5;
 
       // Body: lean forward, bob twice per cycle, shoulders twist against the hips.
       torso.rotation.x = pose(-A.forwardLean, -0.1, -0.2);
@@ -204,6 +217,8 @@ export function createLegionary() {
 
     reset() {
       runPhase = 0;
+      shieldWeight = 0;
+      scutum.visible = false;
       stumbleWeight = 0;
       airWeight = 0;
       slideWeight = 0;

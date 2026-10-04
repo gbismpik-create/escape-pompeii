@@ -144,6 +144,7 @@ export function createPlayer(scene, model, shield = createShield()) {
         grounded: isGrounded(),
         sliding,
         sideSpeed: dt > 0 ? (object.position.x - previousX) / dt : 0,
+        shieldRaised: shield.isRaised,
       });
 
       const p = object.position;

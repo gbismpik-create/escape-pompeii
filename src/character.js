@@ -87,6 +87,22 @@ function createCharacter(gltf, envMap) {
     }));
   const fixEuler = new THREE.Euler();
 
+  // The raised-shield pose (see CHARACTER.shieldPose). Each frame the
+  // bones are slerped from the animation's rotation towards these by
+  // shieldWeight. saved holds the animation's own rotation, put back before
+  // the mixer runs (like the slide correction above).
+  const shieldBones = Object.entries(CHARACTER.shieldPose)
+    .filter(([name]) => bones[name])
+    .map(([name, rotation]) => ({
+      bone: bones[name],
+      target: new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+      saved: new THREE.Quaternion(),
+    }));
+  const scutum = bones.Scutum;
+  const scutumRest = scutum?.position.clone();
+  const scutumRaised = new THREE.Vector3(...CHARACTER.shieldOffset);
+  let shieldWeight = 0; // 0 = lowered, 1 = fully raised
+
   // How far into its low pose the slide is (0–1): the clip goes down over
   // its first ~20% and back up over its last ~20%.
   function slideDepth() {
@@ -102,6 +118,7 @@ function createCharacter(gltf, envMap) {
   // first (otherwise it would pile up while the slide pose is held), then
   // this frame's is added on top.
   function step(dt) {
+    for (const s of shieldBones) s.bone.quaternion.copy(s.saved);
     for (const fix of slideFixes) fix.bone.quaternion.multiply(fix.applied.invert());
     mixer.update(dt);
     const depth = slideDepth();
@@ -110,6 +127,14 @@ function createCharacter(gltf, envMap) {
       fix.applied.setFromEuler(fixEuler.set(r.x * depth, r.y * depth, r.z * depth));
       fix.bone.quaternion.multiply(fix.applied);
     }
+    // Slerp: a smooth blend between two rotations, here from the animation
+    // towards the shield pose. Eased, so the arm swings rather than slides.
+    const w = THREE.MathUtils.smoothstep(shieldWeight, 0, 1);
+    for (const s of shieldBones) {
+      s.saved.copy(s.bone.quaternion);
+      if (w > 0) s.bone.quaternion.slerp(s.target, w);
+    }
+    if (scutum) scutum.position.lerpVectors(scutumRest, scutumRaised, w);
   }
 
   function play(name, fade) {
@@ -131,6 +156,7 @@ function createCharacter(gltf, envMap) {
     }
     current = null;
     stumbleTimeLeft = 0;
+    shieldWeight = 0;
     root.rotation.set(0, 0, 0);
     play('run', 0);
   }
@@ -154,6 +180,7 @@ function createCharacter(gltf, envMap) {
 
     // Game over: settle into the Idle animation (breathing, looking about).
     idle() {
+      shieldWeight = 0;
       play('idle', CHARACTER.idleFade);
       root.rotation.set(0, 0, 0);
     },
@@ -163,8 +190,10 @@ function createCharacter(gltf, envMap) {
       step(dt);
     },
 
-    // Same inputs as the procedural legionary: { moved, grounded, sliding, sideSpeed }
-    update(dt, { moved, grounded, sliding, sideSpeed }) {
+    // Same inputs as the procedural legionary: { moved, grounded, sliding, sideSpeed, shieldRaised }
+    update(dt, { moved, grounded, sliding, sideSpeed, shieldRaised }) {
+      const shieldStep = dt / CHARACTER.shieldBlendTime;
+      shieldWeight = THREE.MathUtils.clamp(shieldWeight + (shieldRaised ? shieldStep : -shieldStep), 0, 1);
       stumbleTimeLeft = Math.max(0, stumbleTimeLeft - dt);
       const wanted = stumbleTimeLeft > 0 ? 'stumble' : sliding ? 'slide' : !grounded ? 'jump' : 'run';
       if (wanted !== 'stumble') play(wanted, CHARACTER.crossFade);

@@ -108,6 +108,15 @@ export const CHARACTER = {
   // the beams at 1.2 m) and pushes the right foot 0.25 m into the road.
   // These keep him between 0 and 1.16 m. Bones missing from a model are skipped.
   slidePoseFix: { Thigh_R: [-0.5, 0, 0], Shoulder_L: [0.8, 0, 0] },
+  // Shield raised overhead: these bones are turned to these rotations
+  // (radians, local x/y/z) on top of whatever animation is playing, blended
+  // in and out over shieldBlendTime. The upper arm goes up, the forearm
+  // across above the helmet, and the scutum lies flat on it, face up.
+  shieldPose: { Shoulder_L: [0, 0, 2.75], Elbow_L: [0, 0, 1.5], Scutum: [0, 0, -2.68] },
+  // Where the scutum sits on the forearm while raised (its bone's position,
+  // metres): moved to the upper side so it rests above the arm.
+  shieldOffset: [-0.2, -0.25, 0.05],
+  shieldBlendTime: 0.15, // seconds to swing the shield up or down
 };
 
 // Sound. Placeholder files live in public/assets/audio/ (replace them with
