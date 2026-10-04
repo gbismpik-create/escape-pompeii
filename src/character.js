@@ -1,46 +1,29 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CHARACTER, LEGIONARY, PLAYER, STUMBLE } from './config.js';
 import { createLegionary } from './legionary.js';
-import { embeddedBytes } from './assets.js';
+import { loadGLTF } from './assets.js';
+import { isLowEnd } from './device.js';
 
 // The player's model: a skinned glTF legionary played with an
 // AnimationMixer, with short cross-fades between Run, Jump, Slide and
 // Stumble (and Idle on the game-over screen). It only shows the player; collisions use the player's own
 // hitbox (player.js), never the model.
 
-// Phones and tablets (touch screens) get the low-poly file, and so do very
-// weak computers; other desktops get the detailed one.
-function prefersLowPoly() {
-  if (CHARACTER.quality !== 'auto') return CHARACTER.quality === 'low';
-  const touch = window.matchMedia?.('(pointer: coarse)').matches;
-  const weak = (navigator.hardwareConcurrency ?? 8) <= 2 || (navigator.deviceMemory ?? 8) <= 2; // deviceMemory: Chrome only
-  return touch || weak;
-}
-
 // Loads the right model for this device. If the low-poly file is missing,
 // tries the detailed one; if no file loads, uses the built-in procedural
 // legionary, so the game always has a player.
 // envMap: reflections for the armour (see environment.js).
 export async function loadCharacter(envMap) {
-  const urls = prefersLowPoly() ? [CHARACTER.lowModel, CHARACTER.hdModel] : [CHARACTER.hdModel];
-  const loader = new GLTFLoader();
+  const urls = isLowEnd() ? [CHARACTER.lowModel, CHARACTER.hdModel] : [CHARACTER.hdModel];
   for (const url of urls) {
     try {
-      return createCharacter(await loadModel(loader, url), envMap);
+      return createCharacter(await loadGLTF(url), envMap);
     } catch (error) {
       console.warn(`Could not load ${url}.`, error);
     }
   }
   console.warn('Using the built-in legionary instead.');
   return createLegionary();
-}
-
-// Uses the copy embedded in the page if there is one (see assets.js),
-// otherwise downloads the file.
-function loadModel(loader, url) {
-  const bytes = embeddedBytes(url);
-  return bytes ? loader.parseAsync(bytes.buffer, '') : loader.loadAsync(url);
 }
 
 // Seconds a jump spends in the air: up and down under gravity.

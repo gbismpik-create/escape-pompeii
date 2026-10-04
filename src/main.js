@@ -4,6 +4,7 @@ import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE } from './config.js';
 import { createPlayer } from './player.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
+import { loadKit } from './kit.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart } from './phases.js';
 import { speedAt } from './speed.js';
@@ -38,7 +39,6 @@ const camera = new THREE.PerspectiveCamera(
 
 // Game objects
 const environment = createEnvironment(scene, renderer);
-const track = createTrack(scene);
 const audio = createAudio();
 function toggleMute() {
   const muted = audio.toggleMute();
@@ -57,7 +57,8 @@ setupSettings(audio.levels, {
 });
 
 setLoading(true);
-const character = await loadCharacter(environment.envMap);
+const [kit, character] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap)]);
+const track = createTrack(scene, kit);
 setLoading(false);
 const player = createPlayer(scene, character);
 const surge = createSurge(scene);
@@ -205,7 +206,7 @@ renderer.setAnimationLoop((timestamp) => {
     const zBefore = player.object.position.z;
     player.update(dt, speedMultiplier);
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
-    track.update(player.object.position.z);
+    track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     updateDistance(currentDistance());
     checkCollisions();
     surge.update(dt, player.object.position, environment.phase.surgeVisibility);

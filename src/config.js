@@ -6,7 +6,7 @@ export const RENDERER = {
 
 export const LANES = {
   count: 3,
-  width: 2.5, // distance between lane centres (world units)
+  width: 1.8, // distance between lane centres (metres): matches the street kit's road
 };
 
 export const PLAYER = {
@@ -26,6 +26,46 @@ export const PLAYER = {
 
   slideDuration: 0.8, // seconds
   slideHeight: 0.8, // player (and hitbox) height while sliding
+};
+
+// Graphics quality. 'auto' gives phones, tablets and very weak computers the
+// lighter settings; 'high' or 'low' forces one (handy for testing).
+export const GRAPHICS = {
+  quality: 'auto',
+  // Street chunks closer than this (metres) use the full-detail kit; further
+  // ones use the simplified "far" kit (about a third of the triangles).
+  // (Measured from the camera.)
+  detailDistance: { high: 50, low: 25 },
+  // Furthest the street is drawn (metres). The fog is made at least thick
+  // enough to hide everything beyond, so chunks never pop into view.
+  viewDistance: { high: 200, low: 140 },
+  // Shadows are cast by the simplified street (they look the same on the
+  // ground at a fraction of the cost), within this distance of the player.
+  shadowDistance: 40,
+  // Phones use cheaper Lambert materials instead of MeshStandardMaterial.
+  lambertOnLowEnd: true,
+};
+
+// The street kit (made with tools/build-pompeii-kit.mjs; npm run build:kit).
+// Its street runs along +z from 0 to 30 m; the game runs towards -z, so each
+// chunk is built in kit coordinates and turned round 180°.
+export const KIT = {
+  file: 'assets/pompeii-kit.glb',
+  farFile: 'assets/pompeii-kit-far.glb', // simplified, for distant chunks
+  layouts: 5, // different street layouts merged at load (each also used mirrored)
+  houses: ['House_Red', 'House_Ochre', 'House_White'],
+  housesPerSide: 5, // 6 m wide each: 5 fill a 30 m chunk
+  houseWidth: 6,
+  facadeX: 4.6, // house fronts stand at |x| = 4.6, the pavement's outer edge
+  // Props on the pavements (|x| 3.0–4.6), well clear of the lanes.
+  props: {
+    perSide: [1, 3], // how many per side of a chunk (min, max)
+    // name: [distance from the street centre, chance of being picked]
+    Column: [3.45, 3],
+    Amphora: [3.35, 3],
+    Fountain: [3.7, 1],
+    Thermopolium: [3.55, 1],
+  },
 };
 
 export const LEGIONARY = {
@@ -55,10 +95,6 @@ export const LEGIONARY = {
 export const CHARACTER = {
   hdModel: 'assets/legionary-hd.glb', // ~70k triangles: desktop
   lowModel: 'assets/legionary.glb', // low-poly: phones and weaker devices
-  // 'auto' picks by device; 'hd' or 'low' forces one (handy for testing).
-  // If the low-poly file is missing, the detailed one is tried; if no file
-  // loads, the game uses the built-in legionary (legionary.js).
-  quality: 'auto',
   facing: Math.PI, // the models face +z; the game runs towards -z
   crossFade: 0.12, // seconds to blend between run / jump / slide
   stumbleFade: 0.06, // a quicker blend into the stumble
@@ -293,19 +329,14 @@ export const VESUVIUS = {
 
 
 export const TRACK = {
-  // Length of one street chunk (metres = world units). Keep it a multiple of
-  // LANES.width so the ground lines join up seamlessly between chunks.
-  chunkLength: 30,
+  chunkLength: 30, // metres: one Road_30m from the kit
   chunksAhead: 6, // how many chunks exist in front of the player (6 × 30 = 180 m view)
   chunksBehind: 1, // kept behind the player so the camera never sees a gap
-  // Street width in lanes. 5 = the 3 running lanes plus one pavement lane each side.
-  streetWidthInLanes: 5,
 };
 
 export const STREET = {
-  pavementHeight: 0.3, // raised pavements (crepidines) on both sides of the road
   sideGroundWidth: 140, // plain ground under and beyond the buildings
-  anisotropy: 4, // keeps the distant paving sharp
+  sideGroundColor: 0x8a7a62,
 };
 
 // Colours of the town. Pompeii's walls were painted plaster, often with a
@@ -339,7 +370,7 @@ export const OBSTACLES = {
   rowChance: 0.75, // chance that a row has any obstacles at all
   emptyLaneChance: 0.4, // chance that a lane in a row is left empty
   weights: { low: 1, bar: 1, block: 1.2 }, // how often each type is picked
-  width: 2, // across the lane (lane is 2.5 wide)
+  width: 1.5, // across the lane (lane is 1.8 wide)
   // Hitboxes are this much smaller than the visible box on every side,
   // so near misses feel fair rather than cheap.
   hitboxMargin: 0.1,
