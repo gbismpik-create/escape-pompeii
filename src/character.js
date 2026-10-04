@@ -26,13 +26,24 @@ export async function loadCharacter(envMap) {
   const loader = new GLTFLoader();
   for (const url of urls) {
     try {
-      return createCharacter(await loader.loadAsync(url), envMap);
+      return createCharacter(await loadModel(loader, url), envMap);
     } catch (error) {
       console.warn(`Could not load ${url}.`, error);
     }
   }
   console.warn('Using the built-in legionary instead.');
   return createLegionary();
+}
+
+// A single-file build of the game (e.g. the shareable page) can't fetch
+// separate files, so it carries each model as base64 text in
+// window.EMBEDDED_ASSETS, keyed by its usual path. Decoding it here avoids
+// a network request entirely. Otherwise the file is loaded normally.
+function loadModel(loader, url) {
+  const base64 = globalThis.EMBEDDED_ASSETS?.[url];
+  if (!base64) return loader.loadAsync(url);
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  return loader.parseAsync(bytes.buffer, '');
 }
 
 // Seconds a jump spends in the air: up and down under gravity.
