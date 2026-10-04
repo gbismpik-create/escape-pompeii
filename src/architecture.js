@@ -61,6 +61,24 @@ export function createLayout(name) {
   };
 }
 
+// A left-right mirror image of a layout, for twice the variety.
+// Flipping x with a scale of -1 would turn every shape inside out, so each
+// placement is mirrored as M' = S·M·S instead: its position and rotation
+// are reflected, but each shape keeps its normal handedness. That works
+// because all three shapes are symmetric left-to-right.
+const FLIP_X = new THREE.Matrix4().makeScale(-1, 1, 1);
+
+export function mirrorLayout(layout) {
+  const mirrored = createLayout(`${layout.name} (mirrored)`);
+  for (const kind of KINDS) {
+    mirrored.items[kind] = layout.items[kind].map(({ matrix, color }) => ({
+      matrix: FLIP_X.clone().multiply(matrix).multiply(FLIP_X),
+      color,
+    }));
+  }
+  return mirrored;
+}
+
 // ---------------------------------------------------------------------------
 // Building kit. "side" is -1 (left of the street) or 1 (right).
 // Thin details (doors, painted bands) sit on the facade, just proud of it.

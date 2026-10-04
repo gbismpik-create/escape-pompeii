@@ -2,7 +2,7 @@
 // "a" is metres along the 30 m chunk; side -1 is left, 1 is right.
 import { TOWN } from './config.js';
 import {
-  FACADE_X, createLayout, house, shop, counter, awning, colonnade, fountain, shrine, sideStreet,
+  FACADE_X, createLayout, mirrorLayout, house, shop, counter, awning, colonnade, fountain, shrine, sideStreet,
 } from './architecture.js';
 
 const P = TOWN.plaster;
@@ -60,4 +60,8 @@ function portico() {
   return L;
 }
 
-export const CHUNK_LAYOUTS = [street(), market(), crossroads(), portico()];
+// Each layout also appears mirrored left-to-right: 8 variants in total.
+export const CHUNK_LAYOUTS = [street(), market(), crossroads(), portico()].flatMap((layout) => [
+  layout,
+  mirrorLayout(layout),
+]);
