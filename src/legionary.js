@@ -210,6 +210,11 @@ export function createLegionary() {
       root.rotation.y += (lean * 0.6 - root.rotation.y) * k;
     },
 
+    // Turning at a junction (see character.js).
+    setTurn(yaw) {
+      body.rotation.y = yaw;
+    },
+
     stumble() {
       stumbleWeight = 1;
       stumbleTime = 0;

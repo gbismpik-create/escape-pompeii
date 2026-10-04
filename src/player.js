@@ -51,6 +51,11 @@ export function createPlayer(scene, model, shield = createShield()) {
       legionary.idle?.(); // the built-in legionary has no idle animation
     },
 
+    // Turning at a junction: the model faces yaw radians off the street.
+    setTurn(yaw) {
+      legionary.setTurn?.(yaw);
+    },
+
     // Keeps his animation going after the game has stopped.
     tick(dt) {
       legionary.tick?.(dt);

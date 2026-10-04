@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -84,19 +84,86 @@ const fallingTarget = { position: player.object.position, hitbox: player.hitbox,
 player.settle(); // stand idle on the start screen
 let shake = 0; // camera shake after a stumble, fading out
 
+// After a turn the camera (and the legionary) start facing down the old
+// street, which the world has just swung round, and ease onto the new one:
+// turnYaw goes from the turn's angle back to 0.
+let turnYaw = 0;
+let turnFrom = 0;
+let turnTime = 0;
+const UP = new THREE.Vector3(0, 1, 0);
+const camPivot = new THREE.Vector3();
+const camTarget = new THREE.Vector3();
+
+function updateTurnEase(dt) {
+  turnTime = Math.min(TURNS.cameraTurnTime, turnTime + dt);
+  turnYaw = turnFrom * (1 - THREE.MathUtils.smoothstep(turnTime / TURNS.cameraTurnTime, 0, 1));
+  player.setTurn(turnYaw);
+}
+
 function updateFollowers() {
   const p = player.object.position;
 
   const camX = p.x * CAMERA.sideFollow;
   // Height is fixed (not p.y) so the camera stays steady during jumps and slides.
   camera.position.set(camX + CAMERA.offset.x, CAMERA.offset.y, p.z + CAMERA.offset.z);
-  camera.lookAt(camX + CAMERA.lookAhead.x, CAMERA.lookAhead.y, p.z + CAMERA.lookAhead.z);
+  camTarget.set(camX + CAMERA.lookAhead.x, CAMERA.lookAhead.y, p.z + CAMERA.lookAhead.z);
+  if (turnYaw !== 0) {
+    // Swing round the runner.
+    camPivot.set(p.x, 0, p.z);
+    camera.position.sub(camPivot).applyAxisAngle(UP, turnYaw).add(camPivot);
+    camTarget.sub(camPivot).applyAxisAngle(UP, turnYaw).add(camPivot);
+  }
+  camera.lookAt(camTarget);
   if (shake > 0) {
     camera.position.x += (Math.random() - 0.5) * shake;
     camera.position.y += (Math.random() - 0.5) * shake;
   }
 
-  environment.update(runTime, p, camera, phaseTime());
+  environment.update(runTime, p, camera, phaseTime(), track.heading);
+}
+
+// ---- Junctions ----
+// Inside the turn window a left/right swipe chooses a way out instead of
+// changing lane. The turn itself happens on the junction's centre line.
+let queuedTurn = null; // 'left' | 'right' | null
+const ROAD_HALF = (LANES.count * LANES.width) / 2;
+
+function currentSpeed() {
+  return speedAt(currentDistance()) * environment.phase.speedMultiplier * shield.speedFactor;
+}
+
+// Is the runner in the turn window of the junction ahead?
+function inTurnWindow() {
+  const j = track.junction;
+  if (!j) return false;
+  const d = -player.object.position.z;
+  return d >= j.centre - currentSpeed() * TURNS.window && d < j.centre + ROAD_HALF;
+}
+
+function turn(way) {
+  const angle = track.take(way);
+  if (!angle) return;
+  turnFrom = turnYaw + angle; // a turn during a turn carries on from where the camera is
+  turnTime = 0;
+  falling.reset(); // anything still falling was over the old street
+}
+
+// Each frame while running: take a queued turn on the centre line, carry
+// straight on through a crossroads, or run into the wall of a T-junction.
+function updateJunction() {
+  const j = track.junction;
+  if (!j) return;
+  const d = -player.object.position.z;
+  if (queuedTurn && d >= j.centre) {
+    turn(queuedTurn);
+    queuedTurn = null;
+  } else if (!queuedTurn && j.type === 'X' && d >= j.centre + ROAD_HALF) {
+    track.take('straight');
+  } else if (j.type === 'T' && -player.hitbox.min.z >= j.wall) {
+    // The front of his hitbox reached the house fronts across the end.
+    audio.impact();
+    gameOver('You ran into a wall');
+  }
 }
 
 // Resize
@@ -197,6 +264,9 @@ function showEndScreen() {
 function restart() {
   isGameOver = false;
   isFinishing = false;
+  queuedTurn = null;
+  turnFrom = turnYaw = 0;
+  player.setTurn(0);
   runTime = 0;
   debugPhaseSkip = 0;
   setJourney(mode === 'escape' ? JOURNEY.length : null);
@@ -258,6 +328,11 @@ function handleAction(action) {
   } else if (isFinishing) {
     // Slowing to a stop at the sea: no more moves.
   } else if (!isGameOver && !isCaught) {
+    if ((action === 'left' || action === 'right') && inTurnWindow()) {
+      if (track.junction.ways.includes(action)) queuedTurn = action; // no lane change in the window
+      if (-player.object.position.z >= track.junction.centre) updateJunction(); // a late swipe turns at once
+      return;
+    }
     player.handleAction(action === 'tap' ? 'shield' : action); // a tap in a run raises the shield
   } else if ((action === 'restart' || action === 'tap') && timeSinceGameOver >= GAME.restartDelay) {
     restart();
@@ -334,6 +409,8 @@ renderer.setAnimationLoop((timestamp) => {
     updateDistance(currentDistance());
     updateShield(shield.state, shield.remaining);
     checkCollisions();
+    if (!isGameOver) updateJunction();
+    updateTurnEase(dt);
     const speed = speedAt(currentDistance()) * speedMultiplier;
     fallingTarget.shieldRaised = shield.isRaised;
     fallingTarget.velocityZ = -speed * shield.speedFactor;

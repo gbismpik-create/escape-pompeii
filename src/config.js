@@ -436,7 +436,7 @@ export const TRACK = {
 // (turn left or right, or run into the wall) or a crossroads (turn, or run
 // straight on). On a turn the whole town rotates 90° around the runner.
 export const TURNS = {
-  enabled: false,
+  enabled: true,
   interval: [20, 40], // seconds of running between junctions (random in this range)
   firstAfter: 15, // seconds before the first junction of a run
   crossroadsChance: 0.4, // the rest are T-junctions

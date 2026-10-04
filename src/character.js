@@ -178,6 +178,12 @@ function createCharacter(gltf, envMap) {
 
     reset,
 
+    // Turning at a junction: the model faces yaw radians off the street
+    // for a moment and swings round (main.js eases yaw back to 0).
+    setTurn(yaw) {
+      model.rotation.y = CHARACTER.facing + yaw;
+    },
+
     // Game over: settle into the Idle animation (breathing, looking about).
     idle() {
       shieldWeight = 0;

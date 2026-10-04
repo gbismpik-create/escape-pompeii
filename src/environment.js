@@ -51,6 +51,10 @@ export function createEnvironment(scene, renderer) {
   sun.shadow.camera.layers.enable(SHADOW_LAYER); // the street's shadow-only copy
   scene.add(sun, sun.target); // the target must be in the scene for its position to update
 
+  const sunOffset = new THREE.Vector3();
+  const UP = new THREE.Vector3(0, 1, 0);
+
+  // The surge's glow comes from behind the runner, whichever way he faces.
   const glow = new THREE.DirectionalLight(LIGHTS.glow.color, 0);
   scene.add(glow, glow.target);
 
@@ -76,7 +80,9 @@ export function createEnvironment(scene, renderer) {
 
     // phaseTime: what sets the eruption phase. Endless mode: the run time.
     // Escape mode: progress along the journey (see journeyPhaseTime).
-    update(runTime, playerPosition, camera, phaseTime = runTime) {
+    // heading: how far the town has turned at junctions (radians). The sun,
+    // Vesuvius and the sky turn with it, so they keep their real directions.
+    update(runTime, playerPosition, camera, phaseTime = runTime, heading = 0) {
       updatePhaseState(phase, phaseTime);
       const p = playerPosition;
 
@@ -100,7 +106,8 @@ export function createEnvironment(scene, renderer) {
       const o = LIGHTS.sun.offset;
       sun.color.copy(phase.sunColor);
       sun.intensity = phase.sunIntensity;
-      sun.position.set(o.x, o.y, p.z + o.z);
+      sunOffset.set(o.x, o.y, o.z).applyAxisAngle(UP, heading);
+      sun.position.set(sunOffset.x, sunOffset.y, p.z + sunOffset.z);
       sun.target.position.set(0, 0, p.z);
 
       const g = LIGHTS.glow.offset;
@@ -108,7 +115,7 @@ export function createEnvironment(scene, renderer) {
       glow.position.set(g.x, g.y, p.z + g.z);
       glow.target.position.set(0, 0, p.z);
 
-      backdrop.update(phase, camera, { hemi, sun }, runTime);
+      backdrop.update(phase, camera, { hemi, sun }, runTime, heading);
     },
   };
 }

@@ -133,6 +133,7 @@ export function createBackdrop() {
   sun.position.set(0.4, 1, 0.6);
   scene.add(hemi, sun);
 
+  const UP = new THREE.Vector3(0, 1, 0);
   let volcano = null; // { group, mountain, column, fires, materials }
   const angle = THREE.MathUtils.degToRad(BACKDROP.angle);
 
@@ -154,7 +155,9 @@ export function createBackdrop() {
     },
 
     // phase: the blended eruption phase (see phases.js).
-    update(phase, mainCamera, mainLights, time) {
+    // heading: how far the town has turned (radians); Vesuvius and the sun
+    // keep their real directions, so they turn with it.
+    update(phase, mainCamera, mainLights, time, heading = 0) {
       camera.position.copy(mainCamera.position);
       camera.quaternion.copy(mainCamera.quaternion);
       if (camera.aspect !== mainCamera.aspect) {
@@ -171,14 +174,20 @@ export function createBackdrop() {
       hemi.intensity = mainLights.hemi.intensity;
       sun.color.copy(mainLights.sun.color);
       sun.intensity = mainLights.sun.intensity;
+      sun.position.set(0.4, 1, 0.6).applyAxisAngle(UP, heading);
 
       if (!volcano) return;
       // Keeps its place on the horizon as the player runs.
+      // Its direction is fixed in the real world: at the start of a run it
+      // stands BACKDROP.angle right of the street; after turns, wherever
+      // that direction now is.
+      const a = angle - heading;
       volcano.group.position.set(
-        Math.sin(angle) * BACKDROP.distance,
+        camera.position.x + Math.sin(a) * BACKDROP.distance,
         BACKDROP.baseY,
-        camera.position.z - Math.cos(angle) * BACKDROP.distance,
+        camera.position.z - Math.cos(a) * BACKDROP.distance,
       );
+      volcano.group.rotation.y = heading;
       // The column grows with the eruption (scaled about its base).
       volcano.column.scale.setScalar(phase.columnScale);
       // Haze: fade towards the horizon colour (colour down, glow up).

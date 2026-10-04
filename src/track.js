@@ -219,8 +219,9 @@ export function createTrack(scene, kit) {
   world.name = 'world';
   scene.add(world);
 
-  // Slots: the path ahead and behind, plus the side streets of a junction.
-  const slotCount = TRACK.chunksBehind + 1 + TRACK.chunksAhead + 3;
+  // Slots: the path ahead and behind, plus the side streets of a junction
+  // (and two spare, while the ways not taken are still in view).
+  const slotCount = TRACK.chunksBehind + 1 + TRACK.chunksAhead + 5;
   const ground = createGround(scene);
   const obstacles = createObstacles(world, slotCount, kit);
   const materials = Object.values(kit.materials);
@@ -266,6 +267,10 @@ export function createTrack(scene, kit) {
   const free = Array.from({ length: slotCount }, (_, slot) => createSlot(slot));
   let path = []; // chunks in order along the path
   let exits = null; // a junction's side streets: { left, right, straight } chunks
+  // The ways not taken stay until they are behind the camera (releaseAt:
+  // path distance), so they don't vanish in the middle of the turn.
+  let leftovers = [];
+  let releaseLeftoversAt = Infinity;
   let junction = null; // the junction chunk waiting for a choice
   let nextJunction = Infinity; // path distance where the next junction chunk starts
   let finishDistance = null;
@@ -352,7 +357,8 @@ export function createTrack(scene, kit) {
   // path, the others go. Plans the next junction.
   function chooseExit(way) {
     const chosen = exits[way];
-    for (const [w, side] of Object.entries(exits)) if (w !== way) release(side);
+    leftovers = Object.entries(exits).filter(([w]) => w !== way).map(([, side]) => side);
+    releaseLeftoversAt = chosen.distance + L / 2;
     path.push(chosen);
     cursor.heading = chosen.heading;
     cursor.position.copy(chosen.start).addScaledVector(forward(chosen.heading, tmp), L);
@@ -371,6 +377,8 @@ export function createTrack(scene, kit) {
   function reset(finish = null) {
     for (const chunk of path) release(chunk);
     if (exits) for (const side of Object.values(exits)) release(side);
+    for (const side of leftovers) release(side);
+    leftovers = [];
     path = [];
     exits = null;
     junction = null;
@@ -461,10 +469,14 @@ export function createTrack(scene, kit) {
       const playerDistance = -playerZ;
       // Recycle chunks that are now too far behind; lay new ones ahead.
       while (path.length && path[0].distance + L < playerDistance - TRACK.chunksBehind * L) release(path.shift());
+      if (leftovers.length && playerDistance >= releaseLeftoversAt) {
+        leftovers.forEach(release);
+        leftovers = [];
+      }
       while (!junction && cursor.distance < playerDistance + TRACK.chunksAhead * L && extend());
       // Detail level by distance from the camera; hide chunks lost in the fog.
       const cameraDistance = playerDistance - CAMERA.offset.z;
-      const chunks = exits ? [...path, ...Object.values(exits)] : path;
+      const chunks = [...path, ...(exits ? Object.values(exits) : []), ...leftovers];
       for (const chunk of chunks) {
         const start = chunk.distance; // the chunk spans start .. start + L
         const distance = Math.max(0, start - cameraDistance, cameraDistance - start - L);
