@@ -12,13 +12,13 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield, setJourney,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
 import { createFalling } from './falling.js';
 import { isSideClip } from './obstacles.js';
-import { loadBest, saveBest } from './storage.js';
+import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked } from './storage.js';
 
 const canvas = document.getElementById('game');
 
@@ -114,6 +114,12 @@ let isCaught = false; // the surge is rolling over the player; game over follows
 // 'escape': a journey of JOURNEY.length metres to the sea. 'endless': no end.
 let mode = 'escape';
 let debugPhaseSkip = 0; // the P key's jump ahead in phase time (Escape mode)
+// Escape mode's finish: after the line he slows to a stop (stopProgress
+// 0 → 1), then the end screen shows.
+let isFinishing = false;
+let stopProgress = 0;
+let bestTime = loadBestTime();
+let endlessUnlocked = loadEndlessUnlocked();
 
 // What sets the eruption phase: progress to the sea, or time in Endless.
 function phaseTime() {
@@ -135,6 +141,10 @@ function gameOver(reason = '') {
   audio.setGameOver(true);
   timeSinceGameOver = 0;
   const distance = currentDistance();
+  if (mode === 'escape') {
+    showGameOver(distance, best, false, reason, { length: JOURNEY.length, bestTime });
+    return;
+  }
   const isNewBest = distance > best;
   if (isNewBest) {
     best = distance;
@@ -144,8 +154,47 @@ function gameOver(reason = '') {
   showGameOver(distance, best, isNewBest, reason);
 }
 
+// Crossed the finish line: stop taking moves and slow to a stop.
+function startFinish() {
+  isFinishing = true;
+  stopProgress = 0;
+  shield.lower();
+  falling.reset();
+}
+
+// Stopped: the end screen. The game then waits like after a game over.
+function showEndScreen() {
+  isFinishing = false;
+  isGameOver = true;
+  timeSinceGameOver = 0;
+  player.settle();
+  audio.setGameOver(true);
+  const time = runTime;
+  const isNewBest = !bestTime || time < bestTime;
+  if (isNewBest) {
+    bestTime = time;
+    saveBestTime(time);
+  }
+  const unlocked = !endlessUnlocked;
+  if (unlocked) {
+    endlessUnlocked = true;
+    saveEndlessUnlocked();
+  }
+  showFinish({
+    distance: JOURNEY.length,
+    time,
+    artifacts: 0, // not collected yet (see CLAUDE.md "Later")
+    saved: 0, // no followers yet
+    bestTime,
+    isNewBest,
+    unlocked,
+    fact: JOURNEY.finishFact,
+  });
+}
+
 function restart() {
   isGameOver = false;
+  isFinishing = false;
   runTime = 0;
   debugPhaseSkip = 0;
   setJourney(mode === 'escape' ? JOURNEY.length : null);
@@ -153,7 +202,7 @@ function restart() {
   audio.setGameOver(false);
   hideGameOver();
   player.reset();
-  track.reset();
+  track.reset(mode === 'escape' ? JOURNEY.length : null);
   surge.reset();
   falling.reset();
   setAshFade(0);
@@ -180,6 +229,8 @@ function handleAction(action) {
       if (mode === 'endless') runTime = nextPhaseStart(runTime);
       else debugPhaseSkip += nextPhaseStart(phaseTime()) - phaseTime(); // skip the look, not the road
     }
+  } else if (isFinishing) {
+    // Slowing to a stop at the sea: no more moves.
   } else if (!isGameOver && !isCaught) {
     player.handleAction(action === 'tap' ? 'shield' : action); // a tap in a run raises the shield
   } else if ((action === 'restart' || action === 'tap') && timeSinceGameOver >= GAME.restartDelay) {
@@ -238,6 +289,12 @@ renderer.setAnimationLoop((timestamp) => {
     surge.update(dt, player.object.position, 1);
     setAshFade(surge.caughtProgress);
     if (surge.caughtProgress >= 1) gameOver('The surge caught up with you');
+  } else if (isFinishing) {
+    // Past the line: ease to a stop, then the end screen.
+    stopProgress = Math.min(1, stopProgress + dt / JOURNEY.stopTime);
+    player.update(dt, environment.phase.speedMultiplier * (1 - stopProgress) ** 2);
+    track.update(player.object.position.z, environment.fogDistance);
+    if (stopProgress >= 1) showEndScreen();
   } else {
     runTime += dt;
     const { speedMultiplier, envIntensity } = environment.phase;
@@ -252,19 +309,26 @@ renderer.setAnimationLoop((timestamp) => {
     const speed = speedAt(currentDistance()) * speedMultiplier;
     fallingTarget.shieldRaised = shield.isRaised;
     fallingTarget.velocityZ = -speed * shield.speedFactor;
-    falling.update(dt, environment.phase.fallRate, speed * shield.speedFactor, fallingTarget);
+    // Nothing new falls on the last stretch before the sea.
+    const nearFinish = mode === 'escape' && currentDistance() > JOURNEY.length - JOURNEY.finishClearDistance;
+    falling.update(dt, nearFinish ? 0 : environment.phase.fallRate, speed * shield.speedFactor, fallingTarget);
     surge.update(dt, player.object.position, environment.phase.surgeVisibility);
+    if (mode === 'escape' && currentDistance() >= JOURNEY.length && !isGameOver && !isCaught) startFinish();
   }
+
+  // At the sea the surge's glow and roar die away.
+  const reachedSea = mode === 'escape' && (isFinishing || (isGameOver && currentDistance() >= JOURNEY.length));
+  const calm = reachedSea ? (isFinishing ? 1 - stopProgress : 0) : 1;
 
   // The glow at the screen edges: steady during the surge phase, stronger
   // as the cloud closes in (half as strong before the surge phase), with a
   // slow flicker.
   const surgePhase = environment.phase.surgeVisibility;
   const glow = Math.max(surgePhase * 0.35, surge.proximity * (0.5 + 0.5 * surgePhase)) * SURGE.edgeGlowMax;
-  setEdgeGlow(glow * (0.9 + 0.1 * Math.sin(runTime * 5)));
+  setEdgeGlow(glow * calm * (0.9 + 0.1 * Math.sin(runTime * 5)));
   shake = Math.max(0, shake - dt * 0.6);
   audio.setRumble(environment.phase.rumbleVolume);
-  audio.setRoar(isGameOver ? 0 : isCaught ? 1 : surge.proximity); // fades out on the game-over screen
+  audio.setRoar(isGameOver ? 0 : isCaught ? 1 : surge.proximity * calm); // fades out on the game-over screen
   const { tensionDrone, tensionHeartbeat, tensionHigh } = environment.phase;
   const running = isStarted && !isGameOver && !isCaught && !isPaused;
   audio.updateTension(

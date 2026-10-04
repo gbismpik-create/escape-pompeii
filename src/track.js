@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY } from './config.js';
 import { createObstacles } from './obstacles.js';
 import { isLowEnd } from './device.js';
 import { addAshCover } from './ashShader.js';
@@ -85,6 +85,48 @@ function mergeLayout(pieces, placements) {
   return merged;
 }
 
+// The finish (Escape mode): a line across the road and a signpost to the sea.
+// The sign's text is painted on a canvas and used as a texture.
+function createFinishMarks(scene) {
+  const group = new THREE.Group();
+  const line = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.4, 0.35).rotateX(-Math.PI / 2),
+    new THREE.MeshLambertMaterial({ color: JOURNEY.finishLineColor, polygonOffset: true, polygonOffsetFactor: -2 }),
+  );
+  line.position.y = 0.02;
+  group.add(line);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 192;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#7a5a36';
+  g.fillRect(0, 0, 512, 192);
+  g.strokeStyle = '#4a3420';
+  g.lineWidth = 10;
+  g.strokeRect(5, 5, 502, 182);
+  g.fillStyle = '#f2e8d0';
+  g.textAlign = 'center';
+  const [big, small] = JOURNEY.sign.lines;
+  g.font = 'bold 84px Georgia, serif';
+  g.fillText(big, 256, 98);
+  g.font = 'italic 44px Georgia, serif';
+  g.fillText(small, 256, 160);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const wood = new THREE.MeshLambertMaterial({ color: 0x5a3f24 });
+  const board = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 0.06), [wood, wood, wood, wood, new THREE.MeshLambertMaterial({ map: texture }), wood]);
+  board.position.set(JOURNEY.sign.x, 2.1, -JOURNEY.sign.distancePast);
+  board.castShadow = true;
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.4, 0.12), wood);
+  post.position.set(JOURNEY.sign.x, 1.2, -JOURNEY.sign.distancePast - 0.05);
+  post.castShadow = true;
+  group.add(board, post);
+  group.visible = false;
+  scene.add(group);
+  return group;
+}
+
 // Plain ground beyond the houses, following the player.
 function createGround(scene) {
   const length = (TRACK.chunksAhead + TRACK.chunksBehind + 2) * L;
@@ -145,11 +187,17 @@ export function createTrack(scene, kit) {
   }
   const chunks = Array.from({ length: chunkCount }, (_, slot) => createSlot(slot));
 
+  // From the finish chunk on, the street opens out: road only, no houses.
+  const openPlan = [{ piece: 'Road_30m', x: 0, z: 0, angle: 0 }];
+  const openLayout = { near: mergeLayout(kit.near, openPlan), far: mergeLayout(kit.far, openPlan) };
+  const finishMarks = createFinishMarks(scene);
+  let finishIndex = Infinity; // first open chunk
+
   function placeChunk(chunk, index) {
     chunk.index = index;
     const chunkZ = -index * L;
     chunk.root.position.z = chunkZ;
-    const layout = layouts[Math.floor(Math.random() * layouts.length)];
+    const layout = index >= finishIndex ? openLayout : layouts[Math.floor(Math.random() * layouts.length)];
     // Mirroring left-right doubles the variety. (The kit is double-sided, so
     // the flipped faces still draw correctly.)
     chunk.root.scale.x = Math.random() < 0.5 ? 1 : -1;
@@ -163,8 +211,12 @@ export function createTrack(scene, kit) {
     obstacles.fill(chunk.slot, chunkZ);
   }
 
-  function reset() {
-    obstacles.reset();
+  // finishDistance: where the run ends (Escape mode), or null (Endless).
+  function reset(finishDistance = null) {
+    finishIndex = finishDistance ? Math.floor(finishDistance / L) : Infinity;
+    finishMarks.visible = Boolean(finishDistance);
+    if (finishDistance) finishMarks.position.z = -finishDistance;
+    obstacles.reset(finishDistance ? finishDistance - JOURNEY.finishClearDistance : Infinity);
     chunks.forEach((chunk, i) => placeChunk(chunk, i - TRACK.chunksBehind));
   }
   reset();

@@ -58,3 +58,40 @@ export function saveVolumes(volumes) {
     // Not saved; the defaults come back next time.
   }
 }
+
+// Escape mode: the best time to the sea (seconds; 0 = never finished), and
+// whether Endless mode has been unlocked by reaching the sea once.
+const BEST_TIME_KEY = 'escape-pompeii.bestTime';
+const ENDLESS_KEY = 'escape-pompeii.endlessUnlocked';
+
+export function loadBestTime() {
+  try {
+    return Number(localStorage.getItem(BEST_TIME_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function saveBestTime(seconds) {
+  try {
+    localStorage.setItem(BEST_TIME_KEY, String(seconds));
+  } catch {
+    // Not saved.
+  }
+}
+
+export function loadEndlessUnlocked() {
+  try {
+    return localStorage.getItem(ENDLESS_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveEndlessUnlocked() {
+  try {
+    localStorage.setItem(ENDLESS_KEY, '1');
+  } catch {
+    // Not saved: it unlocks again on the next finish.
+  }
+}

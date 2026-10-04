@@ -217,13 +217,59 @@ export function setAshFade(amount) {
   ashFade.style.opacity = amount.toFixed(3);
 }
 
-export function showGameOver(distance, best, isNewBest, reason = '') {
+// journey: { length, bestTime } in Escape mode (shows how far along you
+// got instead of the best distance), or null in Endless mode.
+export function showGameOver(distance, best, isNewBest, reason = '', journey = null) {
   overlay.querySelector('.reason').textContent = reason;
-  overlay.querySelector('.distance').textContent = `You ran ${distance} m`;
-  overlay.querySelector('.best').textContent = isNewBest ? 'New best!' : `Best: ${best} m`;
+  overlay.querySelector('.distance').textContent = `You ran ${distance.toLocaleString('en-US')} m`;
+  if (journey) {
+    const percent = Math.min(99, Math.floor((distance / journey.length) * 100));
+    overlay.querySelector('.best').textContent =
+      `${percent}% of the way to the sea` + (journey.bestTime ? ` · Best time ${formatTime(journey.bestTime)}` : '');
+  } else {
+    overlay.querySelector('.best').textContent = isNewBest ? 'New best!' : `Best: ${best} m`;
+  }
   overlay.hidden = false;
 }
 
 export function hideGameOver() {
   overlay.hidden = true;
+  finish.hidden = true;
+}
+
+// 87.4 → "1:27.4"
+export function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = (seconds - m * 60).toFixed(1).padStart(4, '0');
+  return `${m}:${s}`;
+}
+
+// ---- End screen: reached the sea (Escape mode) ----
+const finish = document.createElement('div');
+finish.id = 'finish';
+finish.hidden = true;
+finish.innerHTML = `
+  <h1>You reached the sea</h1>
+  <dl class="stats">
+    <dt>Distance</dt><dd class="distance"></dd>
+    <dt>Time</dt><dd class="time"></dd>
+    <dt>Artifacts</dt><dd class="artifacts"></dd>
+    <dt>People saved</dt><dd class="saved"></dd>
+    <dt>Best time</dt><dd class="best"></dd>
+  </dl>
+  <p class="unlocked" hidden>Endless mode unlocked</p>
+  <p class="fact"></p>
+  <p class="hint">Tap or press R to run again</p>
+`;
+document.body.appendChild(finish);
+
+export function showFinish({ distance, time, artifacts, saved, bestTime, isNewBest, unlocked, fact }) {
+  finish.querySelector('.distance').textContent = `${distance.toLocaleString('en-US')} m`;
+  finish.querySelector('.time').textContent = formatTime(time);
+  finish.querySelector('.artifacts').textContent = String(artifacts);
+  finish.querySelector('.saved').textContent = String(saved);
+  finish.querySelector('.best').textContent = isNewBest ? `${formatTime(bestTime)}, new best!` : formatTime(bestTime);
+  finish.querySelector('.unlocked').hidden = !unlocked;
+  finish.querySelector('.fact').textContent = fact;
+  finish.hidden = false;
 }

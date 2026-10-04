@@ -99,6 +99,7 @@ export function createObstacles(scene, chunkCount, kit) {
   const active = Array.from({ length: chunkCount }, () => []);
   const matrix = new THREE.Matrix4();
   let nextRowDistance = 0;
+  let lastRowDistance = Infinity; // no rows beyond this (the finish)
 
   function place(name, index, x, z, list) {
     const piece = pieces[name];
@@ -109,8 +110,10 @@ export function createObstacles(scene, chunkCount, kit) {
   }
 
   return {
-    reset() {
+    // lastRow: no rows beyond this distance (Escape mode's finish), or Infinity.
+    reset(lastRow = Infinity) {
       nextRowDistance = OBSTACLES.safeStartDistance;
+      lastRowDistance = lastRow;
     },
 
     // Fills a chunk's block with the rows that fall inside it. Rows don't
@@ -128,7 +131,7 @@ export function createObstacles(scene, chunkCount, kit) {
       for (let r = 0; nextRowDistance < chunkEnd; r++) {
         const distance = nextRowDistance;
         nextRowDistance += rowSpeed(distance) * OBSTACLES.rowSpacingTime;
-        if (r >= rowsPerChunk || Math.random() >= OBSTACLES.rowChance) continue;
+        if (r >= rowsPerChunk || distance > lastRowDistance || Math.random() >= OBSTACLES.rowChance) continue;
         const row = randomRow();
         const rowIndex = chunkSlot * rowsPerChunk + r;
         if (row.full) {

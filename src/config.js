@@ -164,6 +164,16 @@ export const JOURNEY = {
   // Phases follow distance here, so stumbles and the shield's slowdown don't
   // shift them, and the last stretch is always the surge.
   phaseShares: [0.35, 0.35, 0.3],
+  finishClearDistance: 40, // no obstacles or falling things in the last metres
+  stopTime: 1.2, // seconds to slow to a stop after the finish line
+  // For now the finish is a plain open area: the houses end, a line crosses
+  // the road and a signpost points to the sea.
+  sign: { lines: ['AD MARE', 'To the sea'], x: 3.4, distancePast: 6 },
+  finishLineColor: 0xe9e0c8,
+  // Shown on the end screen.
+  finishFact:
+    'Pliny the Elder, commander of the Roman fleet at Misenum, sailed across the bay to rescue people near Vesuvius. ' +
+    'He landed at Stabiae, just south of Pompeii, and died there; his nephew Pliny the Younger wrote down what happened.',
 };
 
 export const GAME = {
