@@ -79,7 +79,8 @@ function pieceHitbox(parts, { move, hitboxLength, hitboxHeight }) {
 }
 
 // parent: the group the obstacles live in (the track's turning world).
-export function createObstacles(parent, chunkCount, kit) {
+// frameAt(s): the path's frame s metres along it (see track.js).
+export function createObstacles(parent, chunkCount, kit, frameAt) {
   const pieces = {
     ...Object.fromEntries(Object.entries(OBSTACLES.fullRow).map(([name, p]) => [name, { ...p, perRow: 1 }])),
     ...Object.fromEntries(Object.entries(OBSTACLES.lane).map(([name, p]) => [name, { ...p, perRow: LANES.count }])),
@@ -102,20 +103,20 @@ export function createObstacles(parent, chunkCount, kit) {
   }
 
   // The active obstacles of each chunk: { type, move, hitbox, distance }.
-  // Hitboxes are in the parent's (world group's) space; distance is how far
-  // along the path the row is.
+  // Hitboxes are in path space (x across, y up, z = -metres along the
+  // path), the space collisions are tested in; distance is how far along
+  // the path the row is.
   const active = Array.from({ length: chunkCount }, () => []);
   const matrix = new THREE.Matrix4();
   let nextRowDistance = 0;
   let lastRowDistance = Infinity; // no rows beyond this (the finish)
 
-  // Places a piece at (x, z) in the chunk's game-orientation frame
-  // (street along -z from the chunk's start), then into the world group.
-  function place(name, x, z, chunkMatrix, distance, list) {
+  // Places a piece x metres across the path at a distance along it: drawn
+  // in the path's frame there (straight or curved), tested in path space.
+  function place(name, x, distance, list) {
     const piece = pieces[name];
-    const matrix = chunkMatrix.clone().multiply(offset.makeTranslation(x, 0, z)).multiply(TURN);
-    // Chunks only turn in quarter turns, so the box stays an exact box.
-    const hitbox = piece.hitbox.clone().translate(new THREE.Vector3(x, 0, z)).applyMatrix4(chunkMatrix);
+    const matrix = frameAt(distance).multiply(offset.makeTranslation(x, 0, 0)).multiply(TURN);
+    const hitbox = piece.hitbox.clone().translate(new THREE.Vector3(x, 0, -distance));
     list.push({ type: name, move: piece.move, hitbox, distance, matrix });
   }
 
@@ -167,12 +168,11 @@ export function createObstacles(parent, chunkCount, kit) {
         if (r >= rowsPerChunk || distance > lastRowDistance || Math.random() >= OBSTACLES.rowChance) continue;
         if (clear.some(([from, to]) => distance > from && distance < to)) continue;
         const row = randomRow(openSquare);
-        const z = -(distance - chunkStart);
         if (row.full) {
-          place(row.full, 0, z, chunk.matrix, distance, list);
+          place(row.full, 0, distance, list);
         } else {
           row.lanes.forEach((name, lane) => {
-            if (name) place(name, laneToX(lane), z, chunk.matrix, distance, list);
+            if (name) place(name, laneToX(lane), distance, list);
           });
         }
       }

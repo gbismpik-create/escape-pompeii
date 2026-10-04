@@ -71,7 +71,7 @@ const shield = createShield();
 const player = createPlayer(scene, character, shield);
 const surge = createSurge(scene);
 // Falling tiles and pumice: bounce off the raised shield, or make him stumble.
-const falling = createFalling(scene, track, {
+const falling = createFalling(track.world, track, {
   block: () => audio.shieldBlock(),
   hit: () => {
     if (player.inStumbleGrace) return;
@@ -135,12 +135,10 @@ function updateFollowers() {
   updateCompassNeedle();
 }
 
-// A toppled statue hit the road (position in the world group's space).
-const landed = new THREE.Vector3();
+// A toppled statue hit the road (position in path space).
 function onStatueLanded(position) {
-  landed.copy(position).applyMatrix4(track.world.matrixWorld);
-  falling.puff(landed.x, landed.y + 0.2, landed.z, 24);
-  audio.smash(player.object.position.z - landed.z);
+  falling.puff(position.x, position.y + 0.2, position.z, 24);
+  audio.smash(player.object.position.z - position.z);
   shake = Math.max(shake, STUMBLE.cameraShake * 0.4);
 }
 

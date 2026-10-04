@@ -448,6 +448,7 @@ export const TRACK = {
   chunkLength: 30, // metres: one Road_30m from the kit
   chunksAhead: 6, // how many chunks exist in front of the player (6 × 30 = 180 m view)
   chunksBehind: 1, // kept behind the player so the camera never sees a gap
+  testCurve: 0, // tests only: curvature (1 / radius) given to every other chunk
 };
 
 // Junctions and turns (track.js). The street is a path of chunks, each with

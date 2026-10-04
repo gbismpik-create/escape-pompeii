@@ -51,7 +51,8 @@ function partsMesh(parts, farParts = null) {
   return group;
 }
 
-export function createStatues(world, kit) {
+// path: { frameAt(s), angleAt(s) }, where the path is s metres along it.
+export function createStatues(world, kit, path) {
   for (const type of [...TYPES, COLUMN, 'Pedestal']) if (!kit.near[type]) throw new Error(`The street kit has no "${type}"`);
   // One figure group per type per pool slot is wasteful; instead each pool
   // slot holds one group per type and shows the one it needs.
@@ -87,7 +88,7 @@ export function createStatues(world, kit) {
       root, pedestal, figures, shadow, active: false, type: null, distance: 0, slot: -1, side: 1,
       shape: SHAPES.statue, roadY: 0, // the road's height from the statue's foot
       // toppling: 'standing' | 'warning' | 'falling' | 'down'
-      willTopple: false, state: 'standing', time: 0, hitbox: new THREE.Box3(),
+      willTopple: false, state: 'standing', time: 0, hitbox: new THREE.Box3(), x: 0,
     };
   });
   const pivot = new THREE.Vector3();
@@ -126,14 +127,13 @@ export function createStatues(world, kit) {
     figure.position.copy(pivot).sub(corner.set(0, 0, 0.1).applyEuler(figure.rotation));
   }
 
-  // The fallen figure's box, in the world group's space (quarter turns
-  // only, so it stays an exact box).
+  // The fallen figure's box in path space (x across, z = -metres along):
+  // from its foot, out across the road towards the middle.
   function setHitbox(statue) {
     const f = statue.shape.fallen;
-    statue.root.updateMatrix();
-    statue.hitbox.min.set(-f.halfWidth, statue.roadY, f.from);
-    statue.hitbox.max.set(f.halfWidth, statue.roadY + f.height, f.to);
-    statue.hitbox.applyMatrix4(statue.root.matrix);
+    const a = statue.side * (statue.x - f.from), b = statue.side * (statue.x - f.to);
+    statue.hitbox.min.set(Math.min(a, b), 0, -statue.distance - f.halfWidth);
+    statue.hitbox.max.set(Math.max(a, b), f.height, -statue.distance + f.halfWidth);
   }
 
   return {
@@ -175,14 +175,13 @@ export function createStatues(world, kit) {
       statue.shadow.scale.set(f.halfWidth * 3.4, 1, f.to - f.from + 0.4);
       statue.shadow.position.set(0, statue.roadY + 0.02, (f.from + f.to) / 2);
       statue.distance = chunk.distance + spot.z;
-      // Kit space → the chunk's game frame: the street turned 180° (and
-      // mirrored if the chunk is), so x and z swap sign.
+      // Kit space → the path: the street is turned 180° (and mirrored if the
+      // chunk is), so the kit's side swaps.
       statue.side = -spot.side * (chunk.mirrored ? -1 : 1);
-      const x = column ? STATUES.column.x : forum ? STATUES.forumX : STATUES.pavementX;
-      const local = new THREE.Vector3(statue.side * x, -statue.roadY, -spot.z);
-      statue.root.position.copy(local.applyMatrix4(chunk.matrix));
+      statue.x = column ? STATUES.column.x : forum ? STATUES.forumX : STATUES.pavementX;
+      statue.root.position.set(statue.side * statue.x, -statue.roadY, 0).applyMatrix4(path.frameAt(statue.distance));
       // Face the road: the figure is built facing +z.
-      statue.root.rotation.y = -statue.side * (Math.PI / 2) + (chunk.heading * Math.PI) / 2;
+      statue.root.rotation.y = -statue.side * (Math.PI / 2) + path.angleAt(statue.distance);
       statue.root.visible = true;
       statue.figures[statue.type].visible = true;
       nextDistance = statue.distance + randomSpacing(forum);
@@ -249,7 +248,8 @@ export function createStatues(world, kit) {
               s.state = 'down';
               s.shadow.visible = false;
               setHitbox(s);
-              onLand?.(corner.set(0, s.roadY, (s.shape.fallen.from + s.shape.fallen.to) / 2).applyMatrix4(s.root.matrix));
+              // Where it landed, in path space.
+              onLand?.(corner.set(s.side * (s.x - (s.shape.fallen.from + s.shape.fallen.to) / 2), 0, -s.distance));
             }
           }
         }

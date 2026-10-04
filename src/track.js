@@ -40,13 +40,26 @@ const SQUARE = 2 * KIT.facadeX; // the junction square, wall to wall (9.2 m)
 const SQUARE_START = L - SQUARE; // where the square begins in a junction chunk
 const CENTRE = L - SQUARE / 2; // the junction's centre line, from the chunk start
 
-// Direction of a heading (0 = -z, 1 = -x i.e. a left turn, ...).
-const angleOf = (heading) => (heading * Math.PI) / 2;
-function forward(heading, target = new THREE.Vector3()) {
-  const a = angleOf(heading);
-  return target.set(-Math.sin(a), 0, -Math.cos(a));
+// Path angles (radians): 0 runs towards -z; positive bends left (towards -x).
+const QUARTER = Math.PI / 2;
+const DIR = new THREE.Vector3();
+function forward(angle, target = new THREE.Vector3()) {
+  return target.set(-Math.sin(angle), 0, -Math.cos(angle));
 }
-const mod4 = (h) => ((h % 4) + 4) % 4;
+
+// Where a path segment is, s metres along the path: a straight from its
+// start, or an arc of curvature k (1 / radius; + bends left). Returns the
+// path's angle there and writes the point into out.
+function poseOn(seg, s, out) {
+  const t = s - seg.from;
+  if (!seg.k) {
+    out.copy(seg.start).addScaledVector(forward(seg.angle, DIR), t);
+    return seg.angle;
+  }
+  const a = seg.angle + seg.k * t;
+  out.set(seg.start.x + (Math.cos(a) - Math.cos(seg.angle)) / seg.k, seg.start.y, seg.start.z - (Math.sin(a) - Math.sin(seg.angle)) / seg.k);
+  return a;
+}
 
 // A small seeded random generator, so layouts are the same every visit.
 function seeded(seed) {
@@ -258,14 +271,34 @@ const randomInterval = () => TURNS.interval[0] + Math.random() * (TURNS.interval
 export function createTrack(scene, kit) {
   const world = new THREE.Group();
   world.name = 'world';
+  world.matrixAutoUpdate = false; // placed from the path's pose each frame
   scene.add(world);
+
+  // The path's shape: segments in order of path distance, each a straight or
+  // an arc ({ from, start, angle, k }). A new one starts at each turn and at
+  // each curve. Anything placed along the path asks pose / frameAt where it is.
+  let segments = [];
+  const segmentAt = (s) => {
+    let i = segments.length - 1;
+    while (i > 0 && segments[i].from > s) i--;
+    return segments[i];
+  };
+  const pose = (s, out = new THREE.Vector3()) => poseOn(segmentAt(s), s, out);
+  const framePoint = new THREE.Vector3();
+  // The path's frame s metres along it: its point, turned to face along it.
+  // A thing x metres to the side and y up is at frameAt(s) × (x, y, 0).
+  function frameAt(s, target = new THREE.Matrix4()) {
+    const angle = pose(s, framePoint);
+    return target.makeRotationY(angle).setPosition(framePoint);
+  }
+  const path3 = { frameAt, angleAt: (s) => pose(s, framePoint) };
 
   // Slots: the path ahead and behind, plus the side streets of a junction
   // (and two spare, while the ways not taken are still in view).
   const slotCount = TRACK.chunksBehind + 1 + TRACK.chunksAhead + 5;
   const ground = createGround(scene);
-  const obstacles = createObstacles(world, slotCount, kit);
-  const statues = createStatues(world, kit);
+  const obstacles = createObstacles(world, slotCount, kit, frameAt);
+  const statues = createStatues(world, kit, path3);
   const materials = Object.values(kit.materials);
 
   // Build the layouts once.
@@ -322,10 +355,10 @@ export function createTrack(scene, kit) {
     root.add(lods.shadow);
     root.visible = false;
     world.add(root);
-    // A chunk: where it starts (world-group space), its heading, how far
+    // A chunk: where it starts (world-group space), its angle, how far
     // along the path it starts, and its kind ('street', 'T', 'X', 'open').
     // district: 'residential' | 'forum'; run: the Forum's { start, end } path distances.
-    return { slot, root, lods, start: new THREE.Vector3(), heading: 0, distance: 0, kind: 'street', district: 'residential', run: null, matrix: new THREE.Matrix4() };
+    return { slot, root, lods, start: new THREE.Vector3(), angle: 0, distance: 0, kind: 'street', district: 'residential', run: null };
   }
   const free = Array.from({ length: slotCount }, (_, slot) => createSlot(slot));
   let path = []; // chunks in order along the path
@@ -339,25 +372,29 @@ export function createTrack(scene, kit) {
   let finishDistance = null;
   let finishIndex = Infinity; // first open chunk (Escape mode)
   // Where the next chunk on the path goes (and the Forum it is in, if any).
-  const cursor = { position: new THREE.Vector3(), heading: 0, distance: 0, run: null };
+  const cursor = { position: new THREE.Vector3(), angle: 0, distance: 0, run: null };
   let cameFromForum = false;
+
+  // Curvature of the path through the chunk starting at d (0 = straight).
+  // TRACK.testCurve (tests only) bends every other chunk.
+  const curveFor = (d) => (TRACK.testCurve && Math.round(d / L) % 2 === 1 ? TRACK.testCurve : 0);
 
   // The path chunk at a distance (the street the runner is on or will be).
   const chunkAt = (d) => path.find((c) => d >= c.distance && d < c.distance + L);
   const tmp = new THREE.Vector3();
-  const up = new THREE.Vector3(0, 1, 0);
+  const toWorldFrame = new THREE.Matrix4();
 
   // Puts a chunk at a place on the path and gives it its layout and obstacles.
-  function placeChunk(chunk, position, heading, distance, kind, district = 'residential', run = null) {
+  function placeChunk(chunk, position, angle, distance, kind, district = 'residential', run = null) {
     chunk.start.copy(position);
-    chunk.heading = heading;
+    chunk.angle = angle;
     chunk.distance = distance;
     chunk.kind = kind;
     chunk.district = district;
     chunk.run = run;
     // The kit street runs along +z; turned 180° it runs along -z, then the heading.
     chunk.root.position.copy(position);
-    chunk.root.rotation.y = Math.PI + angleOf(heading);
+    chunk.root.rotation.y = Math.PI + angle;
     // Mirroring left-right doubles the variety. (The kit is double-sided, so
     // the flipped faces still draw correctly.)
     chunk.mirrored = kind === 'street' && Math.random() < 0.5;
@@ -373,8 +410,6 @@ export function createTrack(scene, kit) {
       }
     }
     chunk.lods.shadow.userData.mesh.geometry = layout.shadow;
-    // Game-orientation frame of the chunk: its start, turned to its heading.
-    chunk.matrix.makeRotationAxis(up, angleOf(heading)).setPosition(position);
     // A statue, if one is due here. One that may topple keeps the road
     // around where it would land clear of obstacle rows.
     const toppler = kind === 'street' || kind === 'T' || kind === 'X' || kind === 'forum' ? statues.place(chunk, layout.free) : null;
@@ -387,9 +422,10 @@ export function createTrack(scene, kit) {
     }
     obstacles.fill(chunk.slot, chunk, { empty: kind === 'T' || kind === 'X' || kind === 'side', clear, openSquare: district === 'forum' });
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
-      // The finish marks, in this chunk's frame.
-      finishMarks.position.copy(position).addScaledVector(forward(heading, tmp), finishDistance - distance);
-      finishMarks.rotation.y = angleOf(heading);
+      // The finish marks, on the path.
+      finishMarks.matrix.copy(frameAt(finishDistance));
+      finishMarks.matrixAutoUpdate = false;
+      finishMarks.matrixWorldNeedsUpdate = true;
       finishMarks.visible = true;
     }
   }
@@ -408,9 +444,13 @@ export function createTrack(scene, kit) {
     const d = cursor.distance;
     const inForum = cursor.run && d < cursor.run.end;
     const kind = d >= finishIndex * L ? 'open' : inForum ? 'forum' : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
-    placeChunk(chunk, cursor.position, cursor.heading, d, kind, kind === 'forum' ? 'forum' : 'residential', kind === 'forum' ? cursor.run : null);
+    // A curve (k ≠ 0): the path bends through this chunk (see curveAhead).
+    const k = curveFor(d);
+    if (k !== (segmentAt(d).k ?? 0)) segments.push({ from: d, start: cursor.position.clone(), angle: cursor.angle, k });
+    placeChunk(chunk, cursor.position, cursor.angle, d, kind, kind === 'forum' ? 'forum' : 'residential', kind === 'forum' ? cursor.run : null);
     path.push(chunk);
-    cursor.position.addScaledVector(forward(cursor.heading, tmp), L);
+    // Where the next chunk starts: along the straight or round the curve.
+    cursor.angle = poseOn(segments[segments.length - 1], d + L, cursor.position);
     cursor.distance += L;
     if (kind === 'T' || kind === 'X') openJunction(chunk);
     return true;
@@ -421,18 +461,18 @@ export function createTrack(scene, kit) {
   function openJunction(chunk) {
     junction = chunk;
     exits = {};
-    const centre = chunk.start.clone().addScaledVector(forward(chunk.heading, tmp), CENTRE);
+    const centre = chunk.start.clone().addScaledVector(forward(chunk.angle, tmp), CENTRE);
     const ways = chunk.kind === 'X' ? { left: 1, right: -1, straight: 0 } : { left: 1, right: -1 };
     for (const [way, turn] of Object.entries(ways)) {
       const side = free.pop();
       if (!side) continue;
-      const heading = mod4(chunk.heading + turn);
-      const start = turn === 0 ? cursor.position.clone() : centre.clone().addScaledVector(forward(heading, tmp), SQUARE / 2);
+      const angle = chunk.angle + turn * QUARTER;
+      const start = turn === 0 ? cursor.position.clone() : centre.clone().addScaledVector(forward(angle, tmp), SQUARE / 2);
       // Where this way leads: sometimes into the Forum (never twice running).
       const forum = !cameFromForum && Math.random() < DISTRICTS.forumChance;
       const [min, max] = DISTRICTS.forumChunks;
       const run = forum ? { start: cursor.distance, end: cursor.distance + L * (min + Math.floor(Math.random() * (max - min + 1))) } : null;
-      placeChunk(side, start, heading, cursor.distance, 'side', forum ? 'forum' : 'residential', run);
+      placeChunk(side, start, angle, cursor.distance, 'side', forum ? 'forum' : 'residential', run);
       exits[way] = side;
     }
   }
@@ -444,8 +484,13 @@ export function createTrack(scene, kit) {
     leftovers = Object.entries(exits).filter(([w]) => w !== way).map(([, side]) => side);
     releaseLeftoversAt = chosen.distance + L / 2;
     path.push(chosen);
-    cursor.heading = chosen.heading;
-    cursor.position.copy(chosen.start).addScaledVector(forward(chosen.heading, tmp), L);
+    if (chosen.angle !== cursor.angle) {
+      // The path now turns at the junction's centre and runs down the side street.
+      const centreDistance = junction.distance + CENTRE;
+      segments.push({ from: centreDistance, start: chosen.start.clone().addScaledVector(forward(chosen.angle, tmp), -SQUARE / 2), angle: chosen.angle, k: 0 });
+    }
+    cursor.angle = chosen.angle;
+    cursor.position.copy(chosen.start).addScaledVector(forward(chosen.angle, tmp), L);
     cursor.distance = chosen.distance + L;
     cursor.run = chosen.run; // into the Forum, or null
     cameFromForum = Boolean(chosen.run);
@@ -472,12 +517,11 @@ export function createTrack(scene, kit) {
     finishDistance = finish;
     finishIndex = finish ? Math.floor(finish / L) : Infinity;
     finishMarks.visible = false;
-    world.position.set(0, 0, 0);
-    world.rotation.set(0, 0, 0);
-    world.updateMatrixWorld();
     cursor.position.set(0, 0, TRACK.chunksBehind * L);
-    cursor.heading = 0;
+    cursor.angle = 0;
     cursor.distance = -TRACK.chunksBehind * L;
+    segments = [{ from: cursor.distance, start: cursor.position.clone(), angle: 0, k: 0 }];
+    placeWorld(0);
     cursor.run = null;
     cameFromForum = false;
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
@@ -488,9 +532,26 @@ export function createTrack(scene, kit) {
     for (let i = 0; i < TRACK.chunksBehind + 1 + TRACK.chunksAhead && !junction; i++) extend();
   }
 
+  // Places the world so the path at the runner (s metres along it) runs
+  // along -z through x = 0 at z = -s: the runner never turns, the town does.
+  let heading = 0;
+  let playerDistance = 0;
+  const worldTurn = new THREE.Matrix4();
+  const toStart = new THREE.Matrix4();
+  function placeWorld(s) {
+    playerDistance = s;
+    const angle = pose(s, framePoint);
+    heading = -angle;
+    toStart.makeTranslation(-framePoint.x, -framePoint.y, -framePoint.z);
+    worldTurn.makeRotationY(-angle);
+    world.matrix.makeTranslation(0, 0, -s).multiply(worldTurn).multiply(toStart);
+    world.matrixWorldNeedsUpdate = true;
+    world.updateMatrixWorld(true);
+    // Segments well behind are no longer needed.
+    while (segments.length > 1 && segments[1].from < s - 3 * L) segments.shift();
+  }
+
   const detailDistance = isLowEnd() ? GRAPHICS.detailDistance.low : GRAPHICS.detailDistance.high;
-  const inverse = new THREE.Matrix4();
-  const localBox = new THREE.Box3();
 
   reset();
 
@@ -500,16 +561,19 @@ export function createTrack(scene, kit) {
     obstacles,
     statues,
 
-    // The obstacle touching the player's hitbox (scene space), or null.
-    // The obstacles are stored in world-group space; with quarter turns a
-    // box stays an exact box, so the player's box is moved into that space.
+    // The obstacle touching the player's hitbox, or null. Collisions work in
+    // path space: x across the path, y up, z = -(metres along it). On the
+    // runner's own street that is exactly the scene, so his hitbox can be
+    // used as it is, on straights, after turns and round curves alike.
     findCollision(hitbox) {
-      inverse.copy(world.matrixWorld).invert();
-      localBox.copy(hitbox).applyMatrix4(inverse);
-      const hit = obstacles.findCollision(localBox) ?? statues.findCollision(localBox);
-      if (!hit) return null;
-      return { ...hit, hitbox: hit.hitbox.clone().applyMatrix4(world.matrixWorld) };
+      return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox);
     },
+
+    // Path space (x across, y up, z = -metres along) → the world group's space.
+    toWorld(point, target = new THREE.Vector3()) {
+      return target.set(point.x, point.y, 0).applyMatrix4(frameAt(-point.z, toWorldFrame));
+    },
+    frameAt,
 
     // How far (metres along the path) from `distance` to the nearest obstacle
     // row or statue that may topple, or 0 inside a junction's clear zone
@@ -554,15 +618,9 @@ export function createTrack(scene, kit) {
     // Returns the angle the world turned (0 for straight on).
     take(way) {
       if (!junction || !exits[way]) return 0;
-      const centre = junction.distance + CENTRE;
       chooseExit(way);
-      const angle = way === 'left' ? -Math.PI / 2 : way === 'right' ? Math.PI / 2 : 0;
-      if (angle) {
-        const pivot = tmp.set(0, 0, -centre);
-        world.position.sub(pivot).applyAxisAngle(up, angle).add(pivot);
-        world.rotation.y += angle;
-        world.updateMatrixWorld();
-      }
+      const angle = way === 'left' ? -QUARTER : way === 'right' ? QUARTER : 0;
+      placeWorld(playerDistance);
       return angle;
     },
 
@@ -577,13 +635,13 @@ export function createTrack(scene, kit) {
 
     // Which way the world faces (radians); the sky and the sun turn with it.
     get heading() {
-      return world.rotation.y;
+      return heading;
     },
 
     // fogDistance: beyond this, the fog hides everything (metres).
     update(playerZ, fogDistance = Infinity) {
       ground.update(playerZ);
-      const playerDistance = -playerZ;
+      placeWorld(-playerZ);
       // Recycle chunks that are now too far behind; lay new ones ahead.
       while (path.length && path[0].distance + L < playerDistance - TRACK.chunksBehind * L) release(path.shift());
       if (leftovers.length && playerDistance >= releaseLeftoversAt) {

@@ -156,7 +156,9 @@ function createDust(scene) {
   };
 }
 
-// track: to keep landing spots clear of obstacles.
+// parent: the track's world group (they are drawn on the path, which may
+// curve); positions are kept in path space (x across, z = -metres along).
+// track: to keep landing spots clear of obstacles, and to place things.
 // on: { block(x, y, z), hit(), smash(x, z) } callbacks for sounds and the stumble.
 export function createFalling(scene, track, on) {
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -168,6 +170,19 @@ export function createFalling(scene, track, on) {
   const shadows = instanced(scene, 'falling:shadow', new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), shadowMaterial(), max);
   for (let i = 0; i < max; i++) shadows.setColorAt(i, WHITE);
   const dust = createDust(scene);
+  // Path space → the world group: drawn where the path is at that distance.
+  const frame = new THREE.Matrix4();
+  const across = new THREE.Vector3();
+  const place = (matrix, position, rotation, scale) =>
+    matrix.compose(across.set(position.x, position.y, 0), rotation, scale).premultiply(track.frameAt(-position.z, frame));
+  const unturned = new THREE.Quaternion();
+  const flat = new THREE.Vector3();
+  const shadowScale = new THREE.Vector3();
+  const burstAt = new THREE.Vector3();
+  const burst = (x, y, z, count, sparks) => {
+    track.toWorld(burstAt.set(x, y, z), burstAt);
+    dust.burst(burstAt.x, burstAt.y, burstAt.z, count, sparks);
+  };
 
   const pool = Array.from({ length: max }, () => ({
     active: false,
@@ -249,7 +264,7 @@ export function createFalling(scene, track, on) {
       // Shadow: darkens quickly, then grows as the object gets closer.
       const k = Math.min(1, item.age / W); // W: roughly how long until it lands
       const r = FALLING.shadowRadius * (0.6 + 0.4 * k) * (1 + 0.06 * Math.sin(item.age * 25));
-      shadows.setMatrixAt(index, m.makeScale(r, 1, r).setPosition(item.position.x, 0.02, item.position.z));
+      shadows.setMatrixAt(index, place(m, flat.set(item.position.x, 0.02, item.position.z), unturned, shadowScale.set(r, 1, r)));
       shadows.setColorAt(index, color.lerpColors(WHITE, DARK, Math.min(1, item.age / FALLING.shadowFadeIn)));
 
       // Starts to fall once he is fallTime away from the shadow at his
@@ -287,16 +302,16 @@ export function createFalling(scene, track, on) {
           const side = Math.sign(item.position.x - player.position.x) || (Math.random() < 0.5 ? -1 : 1);
           item.velocity.set(side * (2.5 + Math.random() * 1.5), 3.5 + Math.random() * 1.5, player.velocityZ * 0.6);
           item.spin.multiplyScalar(3);
-          dust.burst(item.position.x, item.position.y, item.position.z, FALLING.dust.perBlock, FALLING.dust.sparksPerBlock);
+          burst(item.position.x, item.position.y, item.position.z, FALLING.dust.perBlock, FALLING.dust.sparksPerBlock);
           on.block(item.kind);
         } else {
-          dust.burst(item.position.x, item.position.y, item.position.z, FALLING.dust.perSmash);
+          burst(item.position.x, item.position.y, item.position.z, FALLING.dust.perSmash);
           on.hit(item.kind);
           finish(item, index);
           return;
         }
       } else if (f >= 1) {
-        dust.burst(item.position.x, 0.1, item.position.z, FALLING.dust.perSmash);
+        burst(item.position.x, 0.1, item.position.z, FALLING.dust.perSmash);
         on.smash(item.kind, item.position.z);
         finish(item, index);
         return;
@@ -308,13 +323,13 @@ export function createFalling(scene, track, on) {
       item.rotation.x += item.spin.x * dt;
       item.rotation.z += item.spin.z * dt;
       if (item.position.y < 0.1 || item.age > 2) {
-        dust.burst(item.position.x, 0.1, item.position.z, FALLING.dust.perSmash / 2);
+        burst(item.position.x, 0.1, item.position.z, FALLING.dust.perSmash / 2);
         finish(item, index);
         return;
       }
     }
     q.setFromEuler(item.rotation);
-    mesh.setMatrixAt(index, m.compose(item.position, q, one));
+    mesh.setMatrixAt(index, place(m, item.position, q, one));
   }
 
   function flush() {
@@ -333,7 +348,7 @@ export function createFalling(scene, track, on) {
     },
     // A puff of dust at (x, y, z) in scene space (e.g. a statue landing).
     puff(x, y, z, count) {
-      dust.burst(x, y, z, count);
+      burst(x, y, z, count);
     },
 
     reset() {
