@@ -9,7 +9,7 @@ import { PHASES } from './config.js';
 const COLOR_KEYS = ['skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround', 'ashColor'];
 const NUMBER_KEYS = [
   'fogDensity', 'sunIntensity', 'hemiIntensity', 'glowIntensity', 'distantHaze', 'ashRate', 'speedMultiplier',
-  'surgeVisibility', 'envIntensity', 'rumbleVolume', 'columnScale', 'fireGlow',
+  'surgeVisibility', 'envIntensity', 'rumbleVolume', 'columnScale', 'fireGlow', 'ashWaves',
 ];
 
 // The tension-music levels are blended too, as tensionDrone etc.

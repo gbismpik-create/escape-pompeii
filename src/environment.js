@@ -3,6 +3,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LIGHTS, GRAPHICS } from './config.js';
 import { createPhaseState, updatePhaseState } from './phases.js';
 import { createBackdrop } from './backdrop.js';
+import { ashUniforms } from './ashShader.js';
+import { ASH } from './config.js';
 import { createAsh } from './ash.js';
 import { SHADOW_LAYER } from './track.js';
 import { isLowEnd } from './device.js';
@@ -27,6 +29,8 @@ export function createEnvironment(scene, renderer) {
   pmrem.dispose();
 
   const backdrop = createBackdrop(); // sky, Vesuvius, eruption column
+  let settled = 0; // how much ash has settled on the town (0–1)
+  let lastRunTime = 0;
 
   // Exponential fog: thickens smoothly with distance, set by one density value.
   scene.fog = new THREE.FogExp2(0xffffff, 0.01);
@@ -78,7 +82,14 @@ export function createEnvironment(scene, renderer) {
       // At least thick enough to hide the end of the drawn street.
       scene.fog.density = Math.max(phase.fogDensity, FOG_REACH / viewDistance());
 
-      ash.update(runTime, camera, phase.ashRate, phase.ashColor);
+      // Ash settles on the town in proportion to how much is falling; a new
+      // run (run time going back) starts clean.
+      const falling = ash.update(runTime, camera, phase.ashRate, phase.ashColor, phase.ashWaves);
+      const dt = runTime - lastRunTime;
+      if (dt < 0) settled = 0;
+      else settled = Math.min(ASH.maxCover, settled + dt * falling * ASH.settleRate);
+      lastRunTime = runTime;
+      ashUniforms.ashCover.value = settled;
 
       hemi.color.copy(phase.hemiSky);
       hemi.groundColor.copy(phase.hemiGround);

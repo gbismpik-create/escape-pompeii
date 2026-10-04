@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TRACK, KIT, STREET, GRAPHICS, CAMERA } from './config.js';
 import { createObstacles } from './obstacles.js';
 import { isLowEnd } from './device.js';
+import { addAshCover } from './ashShader.js';
 
 // The endless street, built from the Pompeii kit.
 //
@@ -89,7 +90,7 @@ function createGround(scene) {
   const length = (TRACK.chunksAhead + TRACK.chunksBehind + 2) * L;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(STREET.sideGroundWidth, length),
-    new THREE.MeshLambertMaterial({ color: STREET.sideGroundColor }),
+    addAshCover(new THREE.MeshLambertMaterial({ color: STREET.sideGroundColor })),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.1; // just under the road

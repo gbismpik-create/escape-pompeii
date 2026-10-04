@@ -10,7 +10,8 @@ import { ASH } from './config.js';
 // around the camera wraps round to the other side, so the box is always
 // full of ash wherever the player runs, at zero CPU cost.
 //
-// The phase's ash rate just changes how many flakes are drawn.
+// The phase's ash rate just changes how many flakes are drawn, and the
+// ash comes in gusts: more flakes and stronger drift, then a lull.
 
 const vertexShader = /* glsl */ `
   attribute vec3 seed; // per flake, each 0–1
@@ -98,11 +99,18 @@ export function createAsh(scene) {
 
   const u = material.uniforms;
   return {
-    update(time, camera, rate, color) {
+    // rate: share of flakes (0–1); waves: how strongly it comes in gusts.
+    // Returns how much ash is falling right now (0–1), gusts included.
+    update(time, camera, rate, color, waves) {
       u.time.value = time;
       u.boxCentre.value.copy(camera.position).add(ASH.boxOffset);
       u.color.value.copy(color);
-      geometry.instanceCount = Math.round(ASH.maxParticles * THREE.MathUtils.clamp(rate, 0, 1));
+      const [a, b] = ASH.wavePeriods;
+      const gust = THREE.MathUtils.clamp(0.5 + 0.35 * Math.sin((2 * Math.PI * time) / a) + 0.25 * Math.sin((2 * Math.PI * time) / b + 1.7), 0, 1);
+      const amount = THREE.MathUtils.clamp(rate * (1 - waves + waves * gust * 1.4), 0, 1);
+      geometry.instanceCount = Math.round(ASH.maxParticles * amount);
+      u.drift.value = ASH.drift * (0.5 + 1.2 * gust * waves); // stronger sideways drift in a gust
+      return amount;
     },
   };
 }

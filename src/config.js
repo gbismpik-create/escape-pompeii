@@ -221,6 +221,7 @@ export const PHASES = {
       rumbleVolume: 0.2, // the earthquake/eruption rumble (see AUDIO)
       columnScale: 0.16, // size of the eruption column (1 = the kit's full 2.7 km)
       fireGlow: 0, // fires on Vesuvius's slopes (0–1)
+      ashWaves: 0.3, // how strongly the falling ash comes in gusts (0–1)
       tension: { drone: 0, heartbeat: 0, high: 0 }, // music layers (see AUDIO)
     },
     {
@@ -244,6 +245,7 @@ export const PHASES = {
       rumbleVolume: 0.5, // the earthquake/eruption rumble (see AUDIO)
       columnScale: 0.3, // size of the eruption column (1 = the kit's full 2.7 km)
       fireGlow: 0.55, // fires on Vesuvius's slopes (0–1)
+      ashWaves: 0.6, // how strongly the falling ash comes in gusts (0–1)
       tension: { drone: 0.7, heartbeat: 0.45, high: 0.15 }, // music layers (see AUDIO)
     },
     {
@@ -267,6 +269,7 @@ export const PHASES = {
       rumbleVolume: 0.9, // the earthquake/eruption rumble (see AUDIO)
       columnScale: 0.24, // size of the eruption column (1 = the kit's full 2.7 km)
       fireGlow: 1, // fires on Vesuvius's slopes (0–1)
+      ashWaves: 0.8, // how strongly the falling ash comes in gusts (0–1)
       tension: { drone: 1, heartbeat: 1, high: 0.75 }, // music layers (see AUDIO)
     },
   ],
@@ -282,6 +285,15 @@ export const ASH = {
   drift: 0.8, // sideways swaying (metres)
   size: 0.11, // flake size (metres)
   nearFade: 2.5, // flakes closer to the camera than this fade out (no blobs on the lens)
+  // Ash falls in waves: the amount and the sideways drift rise and fall in
+  // gusts. waveDepth: how deep the lulls are (0 = steady, 1 = to nothing).
+  // The gusts grow stronger in each phase (PHASES ashWaves).
+  wavePeriods: [11, 4.3], // seconds; two overlapping rhythms feel less mechanical
+  // Ash settling on the town (ashShader.js). Cover builds up with how much
+  // ash has fallen: ashRate × settleRate per second, up to maxCover.
+  settledColor: 0x9b958c,
+  settleRate: 0.006,
+  maxCover: 0.9,
   opacity: 0.85,
 };
 

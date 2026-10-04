@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { KIT, GRAPHICS } from './config.js';
 import { loadGLTF } from './assets.js';
 import { isLowEnd } from './device.js';
+import { addAshCover } from './ashShader.js';
 
 // The Pompeii street kit: road, kerbs, houses, props and obstacles, each a
 // named piece in a glTF file (made with tools/build-pompeii-kit.mjs).
@@ -39,13 +40,13 @@ function gameMaterial(source, envMap) {
     transparent: source.transparent,
     opacity: source.opacity,
   };
-  if (isLowEnd() && GRAPHICS.lambertOnLowEnd) return new THREE.MeshLambertMaterial(shared);
-  return new THREE.MeshStandardMaterial({
+  if (isLowEnd() && GRAPHICS.lambertOnLowEnd) return addAshCover(new THREE.MeshLambertMaterial(shared));
+  return addAshCover(new THREE.MeshStandardMaterial({
     ...shared,
     roughness: source.roughness,
     metalness: source.metalness,
     envMap: source.metalness > 0.3 ? envMap : null,
-  });
+  }));
 }
 
 function readPieces(gltf, materials, envMap) {
