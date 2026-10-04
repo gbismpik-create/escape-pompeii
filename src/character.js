@@ -5,7 +5,7 @@ import { createLegionary } from './legionary.js';
 
 // The player's model: a skinned glTF legionary played with an
 // AnimationMixer, with short cross-fades between Run, Jump, Slide and
-// Stumble. It only shows the player; collisions use the player's own
+// Stumble (and Idle on the game-over screen). It only shows the player; collisions use the player's own
 // hitbox (player.js), never the model.
 
 // Phones and tablets (touch screens) get the low-poly file, and so do very
@@ -17,18 +17,22 @@ function prefersLowPoly() {
   return touch || weak;
 }
 
-// Loads the right model for this device. Returns a character, or the
-// built-in procedural legionary if the file is missing or broken.
+// Loads the right model for this device. If the low-poly file is missing,
+// tries the detailed one; if no file loads, uses the built-in procedural
+// legionary, so the game always has a player.
 // envMap: reflections for the armour (see environment.js).
 export async function loadCharacter(envMap) {
-  const url = prefersLowPoly() ? CHARACTER.lowModel : CHARACTER.hdModel;
-  try {
-    const gltf = await new GLTFLoader().loadAsync(url);
-    return createCharacter(gltf, envMap);
-  } catch (error) {
-    console.warn(`Could not load ${url}; using the built-in legionary instead.`, error);
-    return createLegionary();
+  const urls = prefersLowPoly() ? [CHARACTER.lowModel, CHARACTER.hdModel] : [CHARACTER.hdModel];
+  const loader = new GLTFLoader();
+  for (const url of urls) {
+    try {
+      return createCharacter(await loader.loadAsync(url), envMap);
+    } catch (error) {
+      console.warn(`Could not load ${url}.`, error);
+    }
   }
+  console.warn('Using the built-in legionary instead.');
+  return createLegionary();
 }
 
 // Seconds a jump spends in the air: up and down under gravity.
@@ -67,6 +71,7 @@ function createCharacter(gltf, envMap) {
     jump: mixer.clipAction(clip('Jump')),
     slide: mixer.clipAction(clip('Slide')),
     stumble: mixer.clipAction(clip('Stumble')),
+    idle: mixer.clipAction(clip('Idle')),
   };
   for (const name of ['jump', 'slide', 'stumble']) {
     actions[name].setLoop(THREE.LoopOnce, 1);
@@ -100,6 +105,21 @@ function createCharacter(gltf, envMap) {
   }
   let current = null;
   let stumbleTimeLeft = 0;
+
+  // Advances the animation by dt. The mixer only rewrites a bone when its
+  // animated value changes, so last frame's slide correction is taken off
+  // first (otherwise it would pile up while the slide pose is held), then
+  // this frame's is added on top.
+  function step(dt) {
+    for (const fix of slideFixes) fix.bone.quaternion.multiply(fix.applied.invert());
+    mixer.update(dt);
+    const depth = slideDepth();
+    for (const fix of slideFixes) {
+      const r = fix.rotation;
+      fix.applied.setFromEuler(fixEuler.set(r.x * depth, r.y * depth, r.z * depth));
+      fix.bone.quaternion.multiply(fix.applied);
+    }
+  }
 
   function play(name, fade) {
     if (current === name) return;
@@ -141,6 +161,17 @@ function createCharacter(gltf, envMap) {
 
     reset,
 
+    // Game over: settle into the Idle animation (breathing, looking about).
+    idle() {
+      play('idle', CHARACTER.idleFade);
+      root.rotation.set(0, 0, 0);
+    },
+
+    // Keeps the animation moving while the game itself is paused (game over).
+    tick(dt) {
+      step(dt);
+    },
+
     // Same inputs as the procedural legionary: { moved, grounded, sliding, sideSpeed }
     update(dt, { moved, grounded, sliding, sideSpeed }) {
       stumbleTimeLeft = Math.max(0, stumbleTimeLeft - dt);
@@ -150,19 +181,7 @@ function createCharacter(gltf, envMap) {
       // Legs keep pace with the ground: one Run cycle per runCycleLength metres.
       const speed = dt > 0 ? moved / dt : 0;
       actions.run.timeScale = (speed * runDuration) / CHARACTER.runCycleLength;
-      // The mixer only rewrites a bone when its animated value changes, so
-      // take last frame's slide correction off first; otherwise it would
-      // pile up while the slide pose is held.
-      for (const fix of slideFixes) fix.bone.quaternion.multiply(fix.applied.invert());
-      mixer.update(dt);
-
-      // Add this frame's slide correction on top of the animation.
-      const depth = slideDepth();
-      for (const fix of slideFixes) {
-        const r = fix.rotation;
-        fix.applied.setFromEuler(fixEuler.set(r.x * depth, r.y * depth, r.z * depth));
-        fix.bone.quaternion.multiply(fix.applied);
-      }
+      step(dt);
 
       // Lane change: lean into the turn and look where he is going.
       const k = 1 - Math.exp(-LEGIONARY.poseBlendSpeed * dt);

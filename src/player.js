@@ -41,6 +41,17 @@ export function createPlayer(scene, model) {
     previousHitbox,
     reset,
 
+    // Game over: put him back on his feet on the road and let him idle.
+    settle() {
+      object.position.y = 0;
+      legionary.idle?.(); // the built-in legionary has no idle animation
+    },
+
+    // Keeps his animation going after the game has stopped.
+    tick(dt) {
+      legionary.tick?.(dt);
+    },
+
     // True just after a stumble: obstacles can't hit again for a moment.
     get inStumbleGrace() {
       return stumbleTimeLeft > STUMBLE.duration - STUMBLE.grace;

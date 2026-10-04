@@ -728,8 +728,13 @@ const run = sampleClip('Run', 0.66, 30, u => {
 const crouch = { hipsY: 0.82, Spine: [0.35, 0, 0], Head: [-0.25, 0, 0], Thigh_L: [-0.7, 0, 0], Thigh_R: [-0.7, 0, 0], Shin_L: [1.2, 0, 0], Shin_R: [1.2, 0, 0], Shoulder_L: [0.3, 0, 0.25], Shoulder_R: [0.5, 0, -0.2], Elbow_L: [-0.8, 0, 0], Elbow_R: [-0.6, 0, 0] };
 const tuck = { hipsY: 0.98, Spine: [0.15, 0, 0], Head: [-0.1, 0, 0], Thigh_L: [-1.1, 0, 0.05], Thigh_R: [-0.5, 0, -0.05], Shin_L: [1.7, 0, 0], Shin_R: [1.2, 0, 0], Shoulder_L: [-0.9, 0, 0.35], Shoulder_R: [-1.6, 0, -0.35], Elbow_L: [-1.0, 0, 0], Elbow_R: [-0.5, 0, 0] };
 const jump = sampleClip('Jump', 0.9, 30, keyed([{ t: 0, pose: {} }, { t: 0.12, pose: crouch }, { t: 0.3, pose: tuck }, { t: 0.7, pose: tuck }, { t: 0.88, pose: crouch }, { t: 1, pose: {} }]));
-const slideLow = { hipsY: 0.42, Spine: [-0.95, 0, 0], Head: [0.55, 0, 0], Thigh_L: [-1.45, 0, 0.06], Thigh_R: [-1.2, 0, -0.06], Shin_L: [0.25, 0, 0], Shin_R: [0.9, 0, 0], Shoulder_L: [-0.4, 0, 0.7], Shoulder_R: [0.6, 0, -0.9], Elbow_L: [-0.9, 0, 0], Elbow_R: [-0.3, 0, 0] };
-const slide = sampleClip('Slide', 0.9, 30, keyed([{ t: 0, pose: {} }, { t: 0.18, pose: slideLow }, { t: 0.8, pose: slideLow }, { t: 1, pose: {} }]));
+// Slide: Thigh_R and Shoulder_L are tuned so the whole figure stays between
+// the road and 1.16 m (the game's beams start at 1.2 m): earlier values held
+// the shield up to 1.43 m and pushed the right foot 0.25 m into the road.
+// The shield's angle is given explicitly so it stays as it was.
+const slideLow = { hipsY: 0.42, Spine: [-0.95, 0, 0], Head: [0.55, 0, 0], Thigh_L: [-1.45, 0, 0.06], Thigh_R: [-1.699, 0.029, -0.053], Shin_L: [0.25, 0, 0], Shin_R: [0.9, 0, 0], Shoulder_L: [0.267, 0.48, 0.531], Shoulder_R: [0.6, 0, -0.9], Elbow_L: [-0.9, 0, 0], Elbow_R: [-0.3, 0, 0], Scutum: [1.9125, 0, -0.42] };
+const slideRest = { Scutum: [0.425, 0, -0.072] }; // the shield's usual resting angle
+const slide = sampleClip('Slide', 0.9, 30, keyed([{ t: 0, pose: slideRest }, { t: 0.18, pose: slideLow }, { t: 0.8, pose: slideLow }, { t: 1, pose: slideRest }]));
 const trip = { hipsY: 0.86, Spine: [0.75, 0.2, 0.1], Head: [-0.45, 0, 0], Thigh_L: [-0.9, 0, 0], Thigh_R: [0.5, 0, 0], Shin_L: [0.6, 0, 0], Shin_R: [1.1, 0, 0], Shoulder_L: [-1.3, 0, 0.9], Shoulder_R: [-1.0, 0, -1.2], Elbow_L: [-0.4, 0, 0], Elbow_R: [-0.3, 0, 0] };
 const recover = { hipsY: 0.9, Spine: [0.4, -0.1, -0.05], Head: [-0.25, 0, 0], Thigh_L: [0.3, 0, 0], Thigh_R: [-0.6, 0, 0], Shin_L: [0.9, 0, 0], Shin_R: [0.4, 0, 0], Shoulder_L: [0.4, 0, 0.5], Shoulder_R: [-0.4, 0, -0.6], Elbow_L: [-0.9, 0, 0], Elbow_R: [-0.9, 0, 0] };
 const stumble = sampleClip('Stumble', 0.6, 30, keyed([{ t: 0, pose: {} }, { t: 0.3, pose: trip }, { t: 0.65, pose: recover }, { t: 1, pose: {} }]));

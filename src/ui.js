@@ -40,6 +40,12 @@ export function updateDistance(distance) {
   hudDistance.textContent = `${distance} m`;
 }
 
+// While the player's model downloads, the distance display says so.
+export function setLoading(loading) {
+  hudDistance.textContent = loading ? 'Loading…' : '0 m';
+  shownDistance = loading ? -1 : 0;
+}
+
 export function showBest(best) {
   hudBest.textContent = best > 0 ? `Best ${best} m` : '';
 }

@@ -9,7 +9,7 @@ import { nextPhaseStart } from './phases.js';
 import { createTiles } from './tiles.js';
 import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
-import { updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade } from './ui.js';
+import { updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading } from './ui.js';
 import { createSurge } from './surge.js';
 import { isSideClip } from './obstacles.js';
 import { loadBest, saveBest } from './storage.js';
@@ -36,7 +36,9 @@ const camera = new THREE.PerspectiveCamera(
 // Game objects
 const environment = createEnvironment(scene, renderer);
 const track = createTrack(scene);
+setLoading(true);
 const character = await loadCharacter(environment.envMap);
+setLoading(false);
 const player = createPlayer(scene, character);
 const tiles = createTiles(scene, track);
 const surge = createSurge(scene);
@@ -77,6 +79,7 @@ const currentDistance = () => Math.floor(-player.object.position.z);
 function gameOver(reason = '') {
   isGameOver = true;
   isCaught = false;
+  player.settle();
   timeSinceGameOver = 0;
   const distance = currentDistance();
   const isNewBest = distance > best;
@@ -146,7 +149,8 @@ renderer.setAnimationLoop((timestamp) => {
   for (const action of consumeActions()) handleAction(action);
 
   if (isGameOver) {
-    timeSinceGameOver += dt; // the world freezes; only the overlay is live
+    timeSinceGameOver += dt; // the world freezes; only the overlay and the legionary move
+    player.tick(dt);
   } else if (isCaught) {
     // The cloud rolls over the player and the screen fades to ash.
     surge.update(dt, player.object.position, 1);

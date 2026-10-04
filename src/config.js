@@ -51,17 +51,18 @@ export const LEGIONARY = {
 };
 
 // The player's 3D model (glTF files in public/assets, made with tools/).
-// Each needs the animations Run, Jump, Slide and Stumble.
+// Each needs the animations Run, Jump, Slide, Stumble and Idle.
 export const CHARACTER = {
   hdModel: 'assets/legionary-hd.glb', // ~70k triangles: desktop
   lowModel: 'assets/legionary.glb', // low-poly: phones and weaker devices
   // 'auto' picks by device; 'hd' or 'low' forces one (handy for testing).
-  // If a file is missing or fails to load, the game falls back to the
-  // built-in low-poly legionary (legionary.js).
+  // If the low-poly file is missing, the detailed one is tried; if no file
+  // loads, the game uses the built-in legionary (legionary.js).
   quality: 'auto',
   facing: Math.PI, // the models face +z; the game runs towards -z
   crossFade: 0.12, // seconds to blend between run / jump / slide
   stumbleFade: 0.06, // a quicker blend into the stumble
+  idleFade: 0.4, // a slow settle into Idle on the game-over screen
   // Metres covered per Run cycle (two steps). Ties leg speed to run speed.
   runCycleLength: 5.5,
   // The Jump clip starts with a crouch; the player is already airborne, so
