@@ -23,10 +23,15 @@ export function createPlayer(scene, model, shield = createShield()) {
 
   let lane, feetY, velocityY, slideTimeLeft, slideOnLanding;
   let stumbleTimeLeft = 0;
+  // The floor under him: 0 on a street, a step's height where the lanes are
+  // steps. floorAt(x, z) is set by main.js (from the track).
+  let floor = 0;
+  let floorAt = () => 0;
 
   function reset() {
     lane = Math.floor(LANES.count / 2);
     feetY = 0; // height of the player's feet above the ground
+    floor = 0;
     velocityY = 0;
     slideTimeLeft = 0;
     slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
@@ -37,7 +42,7 @@ export function createPlayer(scene, model, shield = createShield()) {
   }
   reset();
 
-  const isGrounded = () => feetY <= 0;
+  const isGrounded = () => feetY <= floor + 1e-4;
 
   return {
     object,
@@ -54,6 +59,16 @@ export function createPlayer(scene, model, shield = createShield()) {
     // Turning at a junction: the model faces yaw radians off the street.
     setTurn(yaw) {
       legionary.setTurn?.(yaw);
+    },
+
+    // Where the floor is (path space x, z → height), for lanes that are steps.
+    setFloor(fn) {
+      floorAt = fn;
+    },
+
+    // The floor height under him now.
+    get floor() {
+      return floor;
     },
 
     // Keeps his animation going after the game has stopped.
@@ -128,11 +143,16 @@ export function createPlayer(scene, model, shield = createShield()) {
       // Vertical motion: gravity changes velocity, velocity changes height.
       // The ½·g·dt² term makes the arc exact, so jumps reach the same height
       // at any frame rate.
-      if (!isGrounded() || velocityY > 0) {
+      // Steps: onto a higher one he rises quickly (a step up); off a lower
+      // one he simply drops, under gravity.
+      floor = floorAt(object.position.x, object.position.z);
+      if (feetY < floor && velocityY <= 0) {
+        feetY = Math.min(floor, feetY + PLAYER.stepUpSpeed * dt);
+      } else if (!isGrounded() || velocityY > 0) {
         feetY += velocityY * dt - 0.5 * PLAYER.gravity * dt * dt;
         velocityY -= PLAYER.gravity * dt;
-        if (feetY <= 0) {
-          feetY = 0;
+        if (feetY <= floor && velocityY <= 0) {
+          feetY = floor;
           velocityY = 0;
           if (slideOnLanding) {
             slideOnLanding = false;

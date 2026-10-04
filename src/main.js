@@ -69,6 +69,8 @@ environment.addVolcano(kit);
 setLoading(false);
 const shield = createShield();
 const player = createPlayer(scene, character, shield);
+// Where the lanes are steps (the theatre's tiers), the floor comes from the track.
+player.setFloor((x, z) => track.floorAt(-z, x));
 const surge = createSurge(scene);
 // Falling tiles and pumice: bounce off the raised shield, or make him stumble.
 const falling = createFalling(track.world, track, {
@@ -112,13 +114,17 @@ function updateTurnEase(dt) {
   player.setTurn(turnYaw);
 }
 
+// The floor height the camera follows (eased), for lanes that are steps.
+let cameraFloor = 0;
+
 function updateFollowers() {
   const p = player.object.position;
 
   const camX = p.x * CAMERA.sideFollow;
-  // Height is fixed (not p.y) so the camera stays steady during jumps and slides.
-  camera.position.set(camX + CAMERA.offset.x, CAMERA.offset.y, p.z + CAMERA.offset.z);
-  camTarget.set(camX + CAMERA.lookAhead.x, CAMERA.lookAhead.y, p.z + CAMERA.lookAhead.z);
+  // Height ignores jumps and slides so the camera stays steady; it follows
+  // only the floor (steps), smoothly.
+  camera.position.set(camX + CAMERA.offset.x, CAMERA.offset.y + cameraFloor, p.z + CAMERA.offset.z);
+  camTarget.set(camX + CAMERA.lookAhead.x, CAMERA.lookAhead.y + cameraFloor, p.z + CAMERA.lookAhead.z);
   if (turnYaw !== 0) {
     // Swing round the runner.
     camPivot.set(p.x, 0, p.z);
@@ -335,6 +341,7 @@ function updateDistrict() {
 
 function restart() {
   district = null;
+  cameraFloor = 0;
   isGameOver = false;
   isFinishing = false;
   queuedTurn = null;
@@ -500,6 +507,7 @@ renderer.setAnimationLoop((timestamp) => {
     checkCollisions();
     if (!isGameOver) updateJunction();
     updateTurnEase(dt);
+    cameraFloor += (player.floor - cameraFloor) * (1 - Math.exp(-dt * 5));
     const speed = speedAt(currentDistance()) * speedMultiplier;
     fallingTarget.shieldRaised = shield.isRaised;
     fallingTarget.velocityZ = -speed * shield.speedFactor;

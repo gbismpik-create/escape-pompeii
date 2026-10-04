@@ -375,6 +375,18 @@ export function createTrack(scene, kit) {
   const cursor = { position: new THREE.Vector3(), angle: 0, distance: 0, run: null };
   let cameFromForum = false;
 
+  // Stretches where the lanes are steps: { from, to, heights: [lane 0, 1, 2] }.
+  // The steps rise from flat over TRACK.stepRamp metres and sink back at the end.
+  let steps = [];
+  function floorAt(d, x) {
+    const run = steps.find((r) => d >= r.from && d < r.to);
+    if (!run) return 0;
+    const lane = THREE.MathUtils.clamp(Math.round(x / LANES.width + (LANES.count - 1) / 2), 0, LANES.count - 1);
+    const k = THREE.MathUtils.clamp(Math.min(d - run.from, run.to - d) / TRACK.stepRamp, 0, 1);
+    return run.heights[lane] * k;
+  }
+  const steppedAt = (from, to) => steps.some((r) => r.from < to && r.to > from);
+
   // Curvature of the path through the chunk starting at d (0 = straight).
   // TRACK.testCurve (tests only) bends every other chunk.
   const curveFor = (d) => (TRACK.testCurve && Math.round(d / L) % 2 === 1 ? TRACK.testCurve : 0);
@@ -420,7 +432,14 @@ export function createTrack(scene, kit) {
       const metres = STATUES.clearance * speedAt(toppler) * MAX_SPEED_MULTIPLIER;
       clear.push([toppler - metres, toppler + metres]);
     }
-    obstacles.fill(chunk.slot, chunk, { empty: kind === 'T' || kind === 'X' || kind === 'side', clear, openSquare: district === 'forum' });
+    obstacles.fill(chunk.slot, chunk, {
+      empty: kind === 'T' || kind === 'X' || kind === 'side',
+      clear,
+      openSquare: district === 'forum',
+      // On steps: each piece stands on its own step, and nothing spans the lanes.
+      stepped: steppedAt(distance, distance + L),
+      floorAt,
+    });
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, on the path.
       finishMarks.matrix.copy(frameAt(finishDistance));
@@ -444,7 +463,9 @@ export function createTrack(scene, kit) {
     const d = cursor.distance;
     const inForum = cursor.run && d < cursor.run.end;
     const kind = d >= finishIndex * L ? 'open' : inForum ? 'forum' : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
-    // A curve (k ≠ 0): the path bends through this chunk (see curveAhead).
+    // Tests only: a stepped stretch every fourth pair of chunks.
+    if (TRACK.testSteps && Math.round(d / L) % 8 === 4) steps.push({ from: d, to: d + 2 * L, heights: TRACK.testSteps });
+    // A curve (k ≠ 0): the path bends through this chunk.
     const k = curveFor(d);
     if (k !== (segmentAt(d).k ?? 0)) segments.push({ from: d, start: cursor.position.clone(), angle: cursor.angle, k });
     placeChunk(chunk, cursor.position, cursor.angle, d, kind, kind === 'forum' ? 'forum' : 'residential', kind === 'forum' ? cursor.run : null);
@@ -521,6 +542,7 @@ export function createTrack(scene, kit) {
     cursor.angle = 0;
     cursor.distance = -TRACK.chunksBehind * L;
     segments = [{ from: cursor.distance, start: cursor.position.clone(), angle: 0, k: 0 }];
+    steps = [];
     placeWorld(0);
     cursor.run = null;
     cameFromForum = false;
@@ -549,6 +571,7 @@ export function createTrack(scene, kit) {
     world.updateMatrixWorld(true);
     // Segments well behind are no longer needed.
     while (segments.length > 1 && segments[1].from < s - 3 * L) segments.shift();
+    steps = steps.filter((r) => r.to > s - 3 * L);
   }
 
   const detailDistance = isLowEnd() ? GRAPHICS.detailDistance.low : GRAPHICS.detailDistance.high;
@@ -568,6 +591,9 @@ export function createTrack(scene, kit) {
     findCollision(hitbox) {
       return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox);
     },
+
+    // The floor height at a path distance, x across (0 except on steps).
+    floorAt,
 
     // Path space (x across, y up, z = -metres along) → the world group's space.
     toWorld(point, target = new THREE.Vector3()) {

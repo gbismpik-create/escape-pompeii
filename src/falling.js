@@ -191,6 +191,7 @@ export function createFalling(scene, track, on) {
     stage: 'warning',
     fallAge: 0,
     fallStartZ: 0,
+    ground: 0, // the floor where it lands (a step, where the lanes are steps)
     position: new THREE.Vector3(),
     velocity: new THREE.Vector3(),
     rotation: new THREE.Euler(),
@@ -226,6 +227,7 @@ export function createFalling(scene, track, on) {
       item.age = 0;
       item.stage = 'warning';
       item.position.set(laneToX(lane), FALLING.dropHeight, z);
+      item.ground = track.floorAt(-z, laneToX(lane)); // a step, where the lanes are steps
       item.velocity.set(0, 0, 0);
       item.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
       item.spin.set(Math.random() * 6 - 3, Math.random() * 4 - 2, Math.random() * 6 - 3);
@@ -288,7 +290,7 @@ export function createFalling(scene, track, on) {
         const aimZ = player.position.z - speed * (1 - f) * FALLING.fallTime;
         item.position.z = THREE.MathUtils.lerp(item.fallStartZ, aimZ, f);
       }
-      item.position.y = FALLING.dropHeight * (1 - f * f);
+      item.position.y = item.ground + (FALLING.dropHeight - item.ground) * (1 - f * f);
       item.rotation.x += item.spin.x * dt;
       item.rotation.y += item.spin.y * dt;
       item.rotation.z += item.spin.z * dt;
@@ -311,7 +313,7 @@ export function createFalling(scene, track, on) {
           return;
         }
       } else if (f >= 1) {
-        burst(item.position.x, 0.1, item.position.z, FALLING.dust.perSmash);
+        burst(item.position.x, item.ground + 0.1, item.position.z, FALLING.dust.perSmash);
         on.smash(item.kind, item.position.z);
         finish(item, index);
         return;
@@ -322,8 +324,8 @@ export function createFalling(scene, track, on) {
       item.position.addScaledVector(item.velocity, dt);
       item.rotation.x += item.spin.x * dt;
       item.rotation.z += item.spin.z * dt;
-      if (item.position.y < 0.1 || item.age > 2) {
-        burst(item.position.x, 0.1, item.position.z, FALLING.dust.perSmash / 2);
+      if (item.position.y < item.ground + 0.1 || item.age > 2) {
+        burst(item.position.x, item.ground + 0.1, item.position.z, FALLING.dust.perSmash / 2);
         finish(item, index);
         return;
       }

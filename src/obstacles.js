@@ -113,10 +113,10 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
 
   // Places a piece x metres across the path at a distance along it: drawn
   // in the path's frame there (straight or curved), tested in path space.
-  function place(name, x, distance, list) {
+  function place(name, x, distance, list, y = 0) {
     const piece = pieces[name];
-    const matrix = frameAt(distance).multiply(offset.makeTranslation(x, 0, 0)).multiply(TURN);
-    const hitbox = piece.hitbox.clone().translate(new THREE.Vector3(x, 0, -distance));
+    const matrix = frameAt(distance).multiply(offset.makeTranslation(x, y, 0)).multiply(TURN);
+    const hitbox = piece.hitbox.clone().translate(new THREE.Vector3(x, y, -distance));
     list.push({ type: name, move: piece.move, hitbox, distance, matrix });
   }
 
@@ -154,8 +154,9 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
     // chunk: { distance (along the path where it starts), matrix (its frame) }.
     // empty: no rows, and the running distance is left alone (junctions,
     // side streets, freed slots). clear: [from, to] distance ranges with no
-    // rows. openSquare: the Forum (no roof beams).
-    fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false } = {}) {
+    // rows. openSquare: the Forum (no roof beams). stepped: the lanes are
+    // steps (floorAt(distance, x) gives each one's height; no full rows).
+    fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false, stepped = false, floorAt = () => 0 } = {}) {
       const list = (active[chunkSlot] = []);
 
       const chunkStart = chunk.distance;
@@ -167,12 +168,13 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
         nextRowDistance += rowSpeed(distance) * OBSTACLES.rowSpacingTime;
         if (r >= rowsPerChunk || distance > lastRowDistance || Math.random() >= OBSTACLES.rowChance) continue;
         if (clear.some(([from, to]) => distance > from && distance < to)) continue;
-        const row = randomRow(openSquare);
+        let row = randomRow(openSquare);
+        while (stepped && row.full) row = randomRow(openSquare);
         if (row.full) {
           place(row.full, 0, distance, list);
         } else {
           row.lanes.forEach((name, lane) => {
-            if (name) place(name, laneToX(lane), distance, list);
+            if (name) place(name, laneToX(lane), distance, list, floorAt(distance, laneToX(lane)));
           });
         }
       }

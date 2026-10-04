@@ -34,6 +34,7 @@ export const PLAYER = {
   // With jumpHeight 2.2 and gravity 50 a jump lasts about 0.6 s.
   gravity: 50,
   fastFallSpeed: 30, // downward speed when pressing down mid-air (units/s)
+  stepUpSpeed: 7, // m/s he rises onto a higher step (lanes as steps, e.g. the theatre's tiers)
 
   slideDuration: 0.8, // seconds
   slideHeight: 0.8, // player (and hitbox) height while sliding
@@ -449,6 +450,8 @@ export const TRACK = {
   chunksAhead: 6, // how many chunks exist in front of the player (6 × 30 = 180 m view)
   chunksBehind: 1, // kept behind the player so the camera never sees a gap
   testCurve: 0, // tests only: curvature (1 / radius) given to every other chunk
+  testSteps: null, // tests only: e.g. [0, 0.5, 1] lane floor heights on every fourth pair of chunks
+  stepRamp: 6, // metres over which a stepped stretch rises from flat and sinks back
 };
 
 // Junctions and turns (track.js). The street is a path of chunks, each with
