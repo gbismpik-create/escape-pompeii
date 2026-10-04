@@ -1,4 +1,4 @@
-// Turns raw keyboard events into game actions ('left', 'right').
+// Turns raw keyboard events into game actions ('left', 'right', 'jump', 'down').
 // Actions are queued so a quick tap is never missed between frames.
 
 const KEY_ACTIONS = {
@@ -6,6 +6,11 @@ const KEY_ACTIONS = {
   KeyA: 'left',
   ArrowRight: 'right',
   KeyD: 'right',
+  ArrowUp: 'jump',
+  KeyW: 'jump',
+  Space: 'jump',
+  ArrowDown: 'down',
+  KeyS: 'down',
 };
 
 const queue = [];

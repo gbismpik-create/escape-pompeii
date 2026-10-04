@@ -45,7 +45,8 @@ function updateFollowers() {
   const p = player.mesh.position;
 
   const camX = p.x * CAMERA.sideFollow;
-  camera.position.set(camX + CAMERA.offset.x, p.y + CAMERA.offset.y, p.z + CAMERA.offset.z);
+  // Height is fixed (not p.y) so the camera stays steady during jumps and slides.
+  camera.position.set(camX + CAMERA.offset.x, CAMERA.offset.y, p.z + CAMERA.offset.z);
   camera.lookAt(camX + CAMERA.lookAhead.x, CAMERA.lookAhead.y, p.z + CAMERA.lookAhead.z);
 
   const o = LIGHTS.sun.offset;

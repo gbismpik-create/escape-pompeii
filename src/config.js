@@ -17,6 +17,15 @@ export const PLAYER = {
   // How quickly the player slides into a new lane. Higher = snappier.
   // ~12 means the move is mostly done in about 0.25 s.
   laneChangeSharpness: 12,
+
+  jumpHeight: 2.2, // peak height of a jump (units)
+  // Game gravity is much stronger than real gravity (9.8) so jumps feel snappy.
+  // With jumpHeight 2.2 and gravity 50 a jump lasts about 0.6 s.
+  gravity: 50,
+  fastFallSpeed: 30, // downward speed when pressing down mid-air (units/s)
+
+  slideDuration: 0.8, // seconds
+  slideHeight: 0.8, // player (and hitbox) height while sliding
 };
 
 export const CAMERA = {
