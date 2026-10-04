@@ -1,18 +1,18 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
 import { createEnvironment } from './environment.js';
-import { nextPhaseStart } from './phases.js';
+import { nextPhaseStart, journeyPhaseTime } from './phases.js';
 import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
@@ -95,7 +95,7 @@ function updateFollowers() {
     camera.position.y += (Math.random() - 0.5) * shake;
   }
 
-  environment.update(runTime, p, camera);
+  environment.update(runTime, p, camera, phaseTime());
 }
 
 // Resize
@@ -111,8 +111,19 @@ let isGameOver = false;
 let timeSinceGameOver = 0;
 let runTime = 0; // seconds since this run started; drives the eruption phases
 let isCaught = false; // the surge is rolling over the player; game over follows
+// 'escape': a journey of JOURNEY.length metres to the sea. 'endless': no end.
+let mode = 'escape';
+let debugPhaseSkip = 0; // the P key's jump ahead in phase time (Escape mode)
+
+// What sets the eruption phase: progress to the sea, or time in Endless.
+function phaseTime() {
+  if (mode === 'endless') return runTime;
+  return journeyPhaseTime(currentDistance() / JOURNEY.length) + debugPhaseSkip;
+}
 let best = loadBest();
-showBest(best);
+// The best distance only means something in Endless mode.
+const showModeBest = () => showBest(mode === 'endless' ? best : 0);
+showModeBest();
 
 const currentDistance = () => Math.floor(-player.object.position.z);
 
@@ -128,7 +139,7 @@ function gameOver(reason = '') {
   if (isNewBest) {
     best = distance;
     saveBest(best);
-    showBest(best);
+    showModeBest();
   }
   showGameOver(distance, best, isNewBest, reason);
 }
@@ -136,6 +147,9 @@ function gameOver(reason = '') {
 function restart() {
   isGameOver = false;
   runTime = 0;
+  debugPhaseSkip = 0;
+  setJourney(mode === 'escape' ? JOURNEY.length : null);
+  showModeBest();
   audio.setGameOver(false);
   hideGameOver();
   player.reset();
@@ -162,7 +176,10 @@ function handleAction(action) {
       restart();
     }
   } else if (action === 'debugNextPhase') {
-    if (DEBUG.phaseKey && !isGameOver) runTime = nextPhaseStart(runTime);
+    if (DEBUG.phaseKey && !isGameOver) {
+      if (mode === 'endless') runTime = nextPhaseStart(runTime);
+      else debugPhaseSkip += nextPhaseStart(phaseTime()) - phaseTime(); // skip the look, not the road
+    }
   } else if (!isGameOver && !isCaught) {
     player.handleAction(action === 'tap' ? 'shield' : action); // a tap in a run raises the shield
   } else if ((action === 'restart' || action === 'tap') && timeSinceGameOver >= GAME.restartDelay) {

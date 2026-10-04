@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PHASES } from './config.js';
+import { PHASES, JOURNEY } from './config.js';
 
 // Turns "seconds since the run started" into the current state of the
 // eruption: sky, fog, light, falling ash, and a speed multiplier.
@@ -48,6 +48,25 @@ export function updatePhaseState(state, time) {
   for (const k of COLOR_KEYS) state[k].lerpColors(previous[k], current[k], blend);
   for (const k of NUMBER_KEYS) state[k] = previous[k] + (current[k] - previous[k]) * blend;
   return state;
+}
+
+// Escape mode: turns progress along the journey (0–1) into a "phase time"
+// that updatePhaseState understands. Each phase covers its share of the
+// journey (JOURNEY.phaseShares) and, inside it, phase time runs from its
+// start to the next phase's start. The last phase runs for as long as the
+// one before it.
+export function journeyPhaseTime(progress) {
+  let from = 0;
+  for (let i = 0; i < phases.length; i++) {
+    const share = JOURNEY.phaseShares[i];
+    const start = phases[i].start;
+    const end = i + 1 < phases.length ? phases[i + 1].start : start + (start - phases[i - 1].start);
+    if (progress < from + share || i === phases.length - 1) {
+      return start + (end - start) * Math.min(1, Math.max(0, (progress - from) / share));
+    }
+    from += share;
+  }
+  return 0;
 }
 
 // The run time at which the phase after the current one starts; after

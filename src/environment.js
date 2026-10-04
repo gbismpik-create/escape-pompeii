@@ -74,8 +74,10 @@ export function createEnvironment(scene, renderer) {
       return FOG_REACH / scene.fog.density;
     },
 
-    update(runTime, playerPosition, camera) {
-      updatePhaseState(phase, runTime);
+    // phaseTime: what sets the eruption phase. Endless mode: the run time.
+    // Escape mode: progress along the journey (see journeyPhaseTime).
+    update(runTime, playerPosition, camera, phaseTime = runTime) {
+      updatePhaseState(phase, phaseTime);
       const p = playerPosition;
 
       scene.fog.color.copy(phase.skyHorizon);

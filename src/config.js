@@ -156,6 +156,16 @@ export const AUDIO = {
   landingVolume: 1.4, // landing from a jump is a heavier step
 };
 
+// Escape mode: a run is a journey through the town to the sea.
+// (Endless mode keeps the phase start times in PHASES.)
+export const JOURNEY = {
+  length: 1600, // metres from the start to the sea
+  // Share of the journey each eruption phase takes (pumice, ash, surge).
+  // Phases follow distance here, so stumbles and the shield's slowdown don't
+  // shift them, and the last stretch is always the surge.
+  phaseShares: [0.35, 0.35, 0.3],
+};
+
 export const GAME = {
   // After a crash, ignore restart input for this long so a swipe that was
   // already in progress doesn't skip the game-over screen.

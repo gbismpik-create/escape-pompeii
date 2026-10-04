@@ -12,7 +12,15 @@ const SHIELD_ICON = `<svg viewBox="0 0 44 44" aria-hidden="true">
   <path class="trim" d="M22 11v22M16 22h12" />
   <circle class="boss" cx="22" cy="22" r="2.6" />
 </svg>`;
-hud.innerHTML = `<div class="distance">0 m</div><div class="best"></div><div class="shield" data-state="ready">${SHIELD_ICON}</div>`;
+// Escape mode: progress from Pompeii to the sea. The marker is a small
+// scutum; the right end has a wave.
+const WAVE = '<svg viewBox="0 0 24 12" aria-hidden="true"><path d="M1 8c3-4 5-4 7 0s5 4 7 0 5-4 8 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const JOURNEY_BAR = `<div class="journey" hidden>
+  <span class="from">Pompeii</span>
+  <div class="track"><div class="fill"></div><div class="marker"></div></div>
+  <span class="to">${WAVE}the sea</span>
+</div>`;
+hud.innerHTML = `<div class="distance">0 m</div>${JOURNEY_BAR}<div class="best"></div><div class="shield" data-state="ready">${SHIELD_ICON}</div>`;
 document.body.appendChild(hud);
 const shieldIcon = hud.querySelector('.shield');
 const shieldRing = shieldIcon.querySelector('.ring');
@@ -160,10 +168,33 @@ let shownDistance = -1;
 
 // Called every frame, but only touches the page when the number changes:
 // updating the page is much slower than checking a number.
+const journeyBar = hud.querySelector('.journey');
+const journeyFill = journeyBar.querySelector('.fill');
+const journeyMarker = journeyBar.querySelector('.marker');
+let journeyLength = null;
+const metres = (m) => m.toLocaleString('en-US'); // 1600 → "1,600"
+
+// length: the journey in metres (Escape mode), or null (Endless: no bar).
+export function setJourney(length) {
+  journeyLength = length;
+  journeyBar.hidden = !length;
+  shownDistance = -1;
+}
+
 export function updateDistance(distance) {
   if (distance === shownDistance) return;
   shownDistance = distance;
-  hudDistance.textContent = `${distance} m`;
+  if (!journeyLength) {
+    hudDistance.textContent = `${distance} m`;
+    return;
+  }
+  const shown = Math.min(distance, journeyLength);
+  // The distance run stays big; the journey's length is small beside it.
+  hudDistance.innerHTML = `${metres(shown)}<small> / ${metres(journeyLength)} m</small>`;
+  // transform (not width/left) so the browser can move it without re-layout
+  const progress = shown / journeyLength;
+  journeyFill.style.transform = `scaleX(${progress})`;
+  journeyMarker.style.transform = `translateX(${(progress * 100).toFixed(2)}cqw)`;
 }
 
 // While the player's model downloads, the distance display says so.

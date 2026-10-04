@@ -81,6 +81,70 @@ body {
   opacity: 0.8;
 }
 
+#hud .distance small {
+  font-size: 0.5em;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+#hud .journey {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(78vw, 420px);
+  margin: 4px auto 2px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+#hud .journey[hidden] {
+  display: none;
+}
+
+#hud .journey .to {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #bfe3ea;
+}
+
+#hud .journey .to svg {
+  width: 16px;
+  height: 8px;
+}
+
+#hud .journey .track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+  container-type: inline-size; /* lets the marker move in % of the track (cqw) */
+}
+
+#hud .journey .fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #d8b25a, #e8c46a);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+#hud .journey .marker {
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  width: 10px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 2px;
+  background: #9a2026;
+  box-shadow: 0 0 0 1.5px #e8c46a, 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
 #hud .shield {
   width: 44px;
   height: 44px;
