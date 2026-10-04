@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { STATUES, TRACK } from './config.js';
+import { STATUES, TRACK, GRAPHICS } from './config.js';
+import { isLowEnd } from './device.js';
 
 // Statues on pedestals along the street (models from the street kit).
 //
@@ -24,8 +25,15 @@ const WHITE = new THREE.Color(1, 1, 1);
 const SHADOW = new THREE.Color().setScalar(STATUES.shadowDarkness);
 const randomSpacing = () => STATUES.spacing[0] + Math.random() * (STATUES.spacing[1] - STATUES.spacing[0]);
 
-function partsMesh(parts) {
+// near and far: the kit's full and simplified versions. Both go in one
+// group; update() shows one or the other by distance (like the street).
+function partsMesh(parts, farParts = null) {
   const group = new THREE.Group();
+  if (farParts) {
+    group.userData.lod = { near: partsMesh(parts), far: partsMesh(farParts) };
+    group.add(group.userData.lod.near, group.userData.lod.far);
+    return group;
+  }
   for (const { geometry, material } of parts) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = true;
@@ -44,7 +52,7 @@ export function createStatues(world, kit) {
     root.add(partsMesh(kit.near.Pedestal));
     const figures = {};
     for (const type of TYPES) {
-      const figure = partsMesh(kit.near[type]);
+      const figure = partsMesh(kit.near[type], kit.far[type] ?? kit.near[type]);
       figure.position.y = STATUES.pedestalHeight;
       figure.visible = false;
       root.add(figure);
@@ -77,6 +85,7 @@ export function createStatues(world, kit) {
   const corner = new THREE.Vector3();
 
   let nextDistance = randomSpacing();
+  const detailDistance = isLowEnd() ? GRAPHICS.detailDistance.low : GRAPHICS.detailDistance.high;
 
   function free(statue) {
     statue.active = false;
@@ -185,6 +194,10 @@ export function createStatues(world, kit) {
       for (const s of pool) {
         if (!s.active) continue;
         const ahead = s.distance - playerDistance;
+        // Full detail close by, the simplified version further away.
+        const lod = s.figures[s.type].userData.lod;
+        lod.near.visible = Math.abs(ahead) < detailDistance;
+        lod.far.visible = !lod.near.visible;
         if (s.state === 'standing' && s.willTopple && canTopple && ahead > 0 && ahead < speed * STATUES.triggerTime) {
           if (isClear(s.distance)) {
             s.state = 'warning';

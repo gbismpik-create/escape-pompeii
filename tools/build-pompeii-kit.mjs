@@ -611,77 +611,217 @@ function rubble(P, cx, cz, w, h, n) {
 
 // ================================================================== STATUES (on pedestals; the figure is its own piece so it can topple)
 // Figures are modelled about 1.8 m tall facing +z (left hand at +x), feet at
-// y = 0, then scaled by FIG to slightly larger than life. Smooth shapes:
-// tapered limbs with ball joints, a lathe-turned torso, draped cloth.
+// y = 0, then scaled by FIG to slightly larger than life. Sculpted from
+// smooth shapes: an anatomical torso, limbs that swell and taper like
+// muscles, heads with features and curly hair, hands with fingers, and
+// cloth with deep folds.
 {
   const FIG = 1.12;
   const Y = V(0, 1, 0);
-  const marble = C(0xe6e0d4), marbleShade = C(0xc9c1b2), purple = C(0x5b2a5e);
+  const marble = C(0xe8e2d6), marbleShade = C(0xc7bfb0), purple = C(0x5b2a5e);
   // Old bronze: dark brown, streaked green where rain ran down it.
   const bronzeDark = C(0x3f3021), verdigris = C(0x4f7a66);
   const bronzeFn = p => bronzeDark.clone().lerp(verdigris, clamp((fbm(p.x * 7, p.y * 2.5, p.z * 7) - 0.42) * 2.4) * 0.7)
     .multiplyScalar(0.9 + 0.2 * clamp(p.y / 2.2));
   const marbleFn = p => marble.clone().lerp(marbleShade, clamp((fbm(p.x * 9 + 3, p.y * 3, p.z * 9) - 0.5) * 2.5) * 0.6)
     .lerp(COL.ash, clamp(1 - p.y / 0.6) * 0.25);
-  // a tapered limb from a to b (radius r0 at a, r1 at b)
-  const limb = (a, b, r0, r1) => {
-    const A = V(...a), d = V(...b).sub(A), len = d.length();
-    const g = new THREE.CylinderGeometry(r1, r0, len, 12, 2, true);
-    g.translate(0, len / 2, 0);
-    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()));
-    return g.translate(A.x, A.y, A.z);
-  };
-  const ball = (c, r, s = [1, 1, 1]) => xf(new THREE.SphereGeometry(r, 14, 10), c, [0, 0, 0], s);
-  // torso: hips (at `hip`) up to the neck, oval in section, leaning by `tilt` (x, z radians)
-  const torso = (hip, tilt = [0, 0]) => xf(
-    lathe([[0, -0.04], [0.15, 0], [0.135, 0.16], [0.165, 0.36], [0.19, 0.5], [0.15, 0.58], [0.06, 0.63], [0, 0.63]], 24),
-    hip, [tilt[0], 0, tilt[1]], [1, 1, 0.68]);
+  // a deterministic 0–1 sequence (golden ratio), for curls
+  const seq = (i, k = 0) => ((i + 1) * (0.6180339887 + k * 0.1234567) + k * 0.31) % 1;
 
-  // A figure from joint positions. `skip` leaves out parts covered by clothes.
-  function figure(P, j, mat, colorFn, skip = {}) {
-    const add = (g) => P.add(xf(g, [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), mat, { colorFn: (p) => colorFn(p), noise: 0.05, freq: 8 });
-    if (!skip.torso) { add(torso(j.hip, j.tilt)); add(ball(j.hip, 0.16, [1.1, 0.8, 0.8])); }
-    add(limb(j.neck, j.head, 0.06, 0.055));
-    add(ball(j.head, 0.115, [0.92, 1.12, 1]));
-    add(ball([j.head[0], j.head[1] - 0.02, j.head[2] + 0.1], 0.025, [0.8, 1.2, 1])); // nose
-    add(ball([j.head[0], j.head[1] + 0.05, j.head[2] - 0.015], 0.118, [0.98, 0.8, 1.02])); // hair
+  // A frame (two axes across) for a direction d.
+  const across = (d) => {
+    const ref = Math.abs(d.y) > 0.9 ? V(0, 0, 1) : V(0, 1, 0);
+    const u = new THREE.Vector3().crossVectors(d, ref).normalize();
+    return [u, new THREE.Vector3().crossVectors(u, d).normalize()];
+  };
+  // A limb from a to b whose radius follows `radii` (muscle swell), slightly
+  // flattened across `flat`. Open ends: joints are covered by balls.
+  const tube = (a, b, radii, flat = 0.88, around = 14) => {
+    const A = V(...a), d = V(...b).sub(A), len = d.length();
+    d.normalize();
+    const [u, v] = across(d);
+    const n = radii.length - 1, rows = n * 3;
+    return grid(around, rows, (s, t) => {
+      const x = t * n, i = Math.min(n - 1, Math.floor(x)), f = smooth(x - i);
+      const r = lerp(radii[i], radii[i + 1], f), a2 = s * TAU;
+      return A.clone().addScaledVector(d, t * len).addScaledVector(u, Math.cos(a2) * r).addScaledVector(v, Math.sin(a2) * r * flat);
+    }, true);
+  };
+  const ball = (c, r, s = [1, 1, 1], rot = [0, 0, 0]) => xf(new THREE.SphereGeometry(r, 14, 10), c, rot, s);
+  const bead = (c, r, s = [1, 1, 1]) => xf(new THREE.IcosahedronGeometry(r, 0), c, [0, 0, 0], s); // small and cheap: curls, fingertips
+  // an ellipsoid stretched along the direction from a to b
+  const pod = (a, b, r, s = [1, 1]) => {
+    const A = V(...a), d = V(...b).sub(A), len = d.length();
+    const g = new THREE.SphereGeometry(1, 12, 8);
+    g.scale(r * s[0], len / 2, r * s[1]);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()));
+    return g.translate(...A.addScaledVector(d, len / 2).toArray());
+  };
+
+  // The torso, hips to neck, as a surface: oval sections of the right width
+  // and depth at each height, with the chest, shoulder blades, belly and
+  // buttocks pushing out. `clothed` smooths it (a tunic).
+  function torso(hip, tilt = [0, 0], clothed = false) {
+    const H = [ // height above the hips: half-width, half-depth
+      [-0.1, 0.11, 0.1], [0, 0.165, 0.12], [0.1, 0.155, 0.11], [0.2, 0.14, 0.104],
+      [0.3, 0.15, 0.112], [0.4, 0.168, 0.12], [0.48, 0.18, 0.118], [0.54, 0.19, 0.1], [0.6, 0.11, 0.07], [0.64, 0.065, 0.06],
+    ];
+    const g = grid(40, 30, (s, t) => {
+      const y = lerp(H[0][0], H[H.length - 1][0], t);
+      let k = 0;
+      while (k < H.length - 2 && H[k + 1][0] < y) k++;
+      const f = smooth((y - H[k][0]) / (H[k + 1][0] - H[k][0]));
+      const w = lerp(H[k][1], H[k + 1][1], f), dpt = lerp(H[k][2], H[k + 1][2], f);
+      const a = s * TAU, cx = Math.sin(a), cz = Math.cos(a);
+      let x = cx * w, z = cz * dpt;
+      if (!clothed) {
+        const front = Math.max(0, cz), back = Math.max(0, -cz);
+        z += front * 0.022 * Math.exp(-(((y - 0.44) / 0.05) ** 2)) * Math.exp(-(((Math.abs(x) - 0.085) / 0.06) ** 2)); // chest
+        z += front * 0.006 * Math.sin(y * 42) * (y > 0.12 && y < 0.34 ? 1 : 0) * Math.exp(-((x / 0.05) ** 2)); // belly
+        z -= front * 0.008 * Math.exp(-((x / 0.012) ** 2)) * (y > 0.1 && y < 0.4 ? 1 : 0); // the line down the middle
+        z -= back * 0.025 * Math.exp(-(((y - 0.03) / 0.07) ** 2)) * Math.exp(-(((Math.abs(x) - 0.07) / 0.06) ** 2)); // buttocks
+        z -= back * 0.012 * Math.exp(-(((y - 0.46) / 0.07) ** 2)) * Math.exp(-(((Math.abs(x) - 0.09) / 0.05) ** 2)); // shoulder blades
+        z += back * 0.01 * Math.exp(-((x / 0.015) ** 2)) * (y > 0.1 && y < 0.5 ? 1 : 0); // the spine's groove
+      } else {
+        z += Math.max(0, cz) * 0.008 * Math.sin(a * 9 + y * 6); // soft folds
+      }
+      return V(x, y, z);
+    }, true);
+    return xf(g, hip, [tilt[0], 0, tilt[1]]);
+  }
+
+  // A head facing +z with skull, jaw, brow, nose, lips, cheeks, ears and
+  // hair of `curl` size (0 = short and close). rot: [x, y, z] turn.
+  function head(center, rot, hair = { curl: 0.024, n: 60, beard: false }) {
+    const parts = [
+      ball([0, 0.02, -0.01], 0.104, [0.9, 1.08, 1.04]), // skull
+      ball([0, -0.03, 0.035], 0.08, [0.82, 1.08, 0.88]), // face
+      ball([0, -0.078, 0.03], 0.058, [1.0, 0.62, 0.9]), // jaw
+      ball([0, -0.098, 0.066], 0.024, [1.1, 0.9, 0.9]), // chin
+      ball([0, 0.026, 0.084], 0.05, [1.2, 0.24, 0.4]), // brow
+      ball([0, -0.012, 0.104], 0.018, [0.75, 1.55, 0.95], [-0.25, 0, 0]), // nose
+      ball([0, -0.062, 0.093], 0.02, [1.45, 0.5, 0.6]), // lips
+    ];
+    for (const s of [1, -1]) {
+      parts.push(ball([s * 0.046, -0.022, 0.07], 0.03, [1, 0.8, 0.8])); // cheek
+      parts.push(ball([s * 0.096, -0.005, -0.005], 0.03, [0.38, 1.05, 0.7])); // ear
+    }
+    // hair: a cap over the top and back of the skull, covered in curls,
+    // with the hairline across the forehead
+    const cap = V(0, 0.042, -0.022), capR = V(0.1, 0.108, 0.108);
+    parts.push(ball(cap.toArray(), 1, capR.toArray()));
+    for (let i = 0; i < hair.n; i++) {
+      const yv = lerp(-0.2, 1, seq(i)), az = seq(i, 1) * TAU;
+      const r = Math.sqrt(1 - yv * yv), dir = V(Math.sin(az) * r, yv, Math.cos(az) * r);
+      if (dir.z > 0.55 && dir.y < 0.35) continue; // the face
+      const size = (hair.curl || 0.014) * (0.8 + 0.4 * seq(i, 2));
+      const at = cap.clone().add(V(dir.x * capR.x, dir.y * capR.y, dir.z * capR.z)).addScaledVector(dir, size * 0.25);
+      parts.push(bead(at.toArray(), size, [1, 0.8, 1]));
+    }
+    if (hair.beard) for (let i = 0; i < 26; i++) {
+      const a = lerp(-1.4, 1.4, seq(i, 3)), down = seq(i, 4);
+      parts.push(bead([Math.sin(a) * 0.06, -0.06 - down * 0.05, 0.03 + Math.cos(a) * 0.045], 0.016));
+    }
+    const m = new THREE.Matrix4().compose(V(...center), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), V(1, 1, 1));
+    return parts.map((g) => g.applyMatrix4(m));
+  }
+
+  // A hand at the end of the forearm (elbow → wrist): palm and fingers
+  // carry on along the arm, slightly curled; the thumb along `thumbSide`.
+  function hand(elbow, wrist, curl = 0.4, thumbSide = 1) {
+    const W = V(...wrist), d = W.clone().sub(V(...elbow)).normalize();
+    const [u, v] = across(d);
+    const at = (along, side, lift) => W.clone().addScaledVector(d, along).addScaledVector(u, side).addScaledVector(v, lift);
+    const parts = [pod(at(0, 0, 0).toArray(), at(0.09, 0, 0).toArray(), 0.034, [1.25, 0.55])];
+    for (let k = 0; k < 4; k++) {
+      const side = (k - 1.5) * 0.017;
+      const base = at(0.085, side, 0);
+      const mid = base.clone().addScaledVector(d, 0.04).addScaledVector(v, curl * 0.02);
+      const tip = mid.clone().addScaledVector(d, 0.03 * (1 - curl * 0.5)).addScaledVector(v, curl * 0.03);
+      parts.push(tube(base.toArray(), mid.toArray(), [0.009, 0.008], 1, 5), tube(mid.toArray(), tip.toArray(), [0.008, 0.007], 1, 5), bead(tip.toArray(), 0.007));
+    }
+    const tb = at(0.02, thumbSide * 0.03, 0.005), tt = tb.clone().addScaledVector(d, 0.045).addScaledVector(u, thumbSide * 0.02).addScaledVector(v, 0.012);
+    parts.push(tube(tb.toArray(), tt.toArray(), [0.011, 0.008], 1, 5), bead(tt.toArray(), 0.008));
+    return parts;
+  }
+
+  // A foot from the ankle towards `toe` (a point on or near the ground).
+  function foot(ankle, toe, sandal = false) {
+    const A = V(...ankle), T = V(...toe);
+    const heel = A.clone().add(V(0, -0.045, -0.035));
+    const parts = [
+      ball(A.toArray(), 0.033, [1, 0.9, 1.1]),
+      ball(heel.toArray(), 0.034, [0.9, 0.8, 1]),
+      pod(heel.toArray(), T.toArray(), 0.04, [1.15, 0.6]),
+      ball(T.clone().add(V(0, 0.005, 0)).toArray(), 0.028, [1.5, 0.6, 1]),
+    ];
+    if (sandal) parts.push(pod(heel.clone().add(V(0, -0.025, -0.02)).toArray(), T.clone().add(V(0, -0.02, 0.02)).toArray(), 0.05, [1.15, 0.14]));
+    return parts;
+  }
+
+  // A whole figure from joint positions. clothed: { torso, legs } parts
+  // covered by clothes are left out.
+  function figure(P, j, mat, colorFn, opts = {}) {
+    const add = (g) => P.add(xf(g, [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), mat, { colorFn, noise: 0.04, freq: 8 });
+    if (!opts.noTorso) add(torso(j.hip, j.tilt, opts.tunic));
+    add(tube(j.neck, [j.head[0], j.head[1] - 0.09, j.head[2] - 0.01], [0.066, 0.058, 0.055]));
+    head(j.head, j.headRot ?? [0, 0, 0], opts.hair).forEach(add);
     for (const s of ['L', 'R']) {
       const sh = j['sh' + s], el = j['el' + s], ha = j['ha' + s];
-      add(ball(sh, 0.065));
-      add(limb(sh, el, 0.058, 0.046)); add(ball(el, 0.046));
-      add(limb(el, ha, 0.046, 0.035)); add(ball(ha, 0.045, [0.8, 1.2, 0.9]));
-      if (skip.legs) continue;
+      add(ball(sh, 0.064, [1.12, 1, 0.95])); // shoulder muscle
+      add(tube(sh, el, [0.062, 0.058, 0.054, 0.045]));
+      add(ball(el, 0.043));
+      add(tube(el, ha, [0.045, 0.047, 0.04, 0.032]));
+      hand(el, ha, opts.curl?.[s] ?? 0.4, s === 'L' ? -1 : 1).forEach(add);
+      if (opts.noLegs) continue;
       const hp = j['hp' + s], kn = j['kn' + s], an = j['an' + s];
-      add(limb(hp, kn, 0.09, 0.062)); add(ball(kn, 0.062));
-      add(limb(kn, an, 0.06, 0.04));
+      add(ball(hp, 0.1, [1, 1.1, 1])); // where the thigh meets the hip
+      add(tube(hp, kn, [0.1, 0.094, 0.082, 0.066, 0.058]));
+      add(ball(kn, 0.054, [1, 1, 1.05]));
+      add(tube(kn, an, [0.052, 0.058, 0.056, 0.044, 0.036, 0.034]));
     }
-    for (const s of ['L', 'R']) { // feet, pointing forward (or down onto the toes)
-      const an = j['an' + s], toe = j['toe' + s] ?? [an[0], 0.03, an[2] + 0.17];
-      add(limb(an, toe, 0.045, 0.035)); add(ball(toe, 0.037, [1, 0.7, 1.2])); add(ball(an, 0.045));
+    for (const s of ['L', 'R']) {
+      const an = j['an' + s], toe = j['toe' + s] ?? [an[0] * 1.05, 0.02, an[2] + 0.17];
+      foot(an, toe, opts.sandals).forEach(add);
     }
   }
+
+  // Cloth hanging in folds: a sheet given by sheet(u, v) → point, with folds
+  // running down it. Used for cloaks and the toga's overfold.
+  const cloth = (nu, nv, sheet) => grid(nu, nv, sheet);
 
   // ---- Apollo: bronze, weight on the right leg, bow held out in the left hand
   {
     const P = new Piece('Statue_Apollo');
     const j = {
-      hip: [0.01, 0.95, 0], tilt: [0, 0.05], neck: [0.0, 1.55, 0.0], head: [-0.02, 1.7, 0.02],
-      shL: [0.2, 1.48, 0], elL: [0.3, 1.38, 0.2], haL: [0.31, 1.33, 0.46],
-      shR: [-0.2, 1.47, 0], elR: [-0.27, 1.21, -0.02], haR: [-0.26, 0.98, 0.06],
-      hpL: [0.1, 0.95, 0], knL: [0.08, 0.5, 0.09], anL: [0.13, 0.1, -0.06],
-      hpR: [-0.1, 0.95, 0], knR: [-0.1, 0.5, 0.02], anR: [-0.11, 0.08, 0.0],
+      hip: [0.015, 0.95, 0], tilt: [0, 0.05], neck: [0.0, 1.55, 0.0], head: [-0.015, 1.7, 0.02], headRot: [0.05, 0.35, 0],
+      shL: [0.19, 1.48, 0], elL: [0.29, 1.39, 0.2], haL: [0.31, 1.35, 0.44],
+      shR: [-0.19, 1.47, 0], elR: [-0.26, 1.21, -0.02], haR: [-0.25, 0.98, 0.06],
+      hpL: [0.095, 0.93, 0], knL: [0.075, 0.5, 0.09], anL: [0.13, 0.1, -0.06],
+      hpR: [-0.095, 0.93, 0], knR: [-0.1, 0.5, 0.02], anR: [-0.11, 0.08, 0.0],
     };
-    figure(P, j, 'metal', bronzeFn);
+    figure(P, j, 'metal', bronzeFn, { hair: { curl: 0.02, n: 130 }, curl: { L: 0.9, R: 0.3 } });
     // the bow: held upright in the outstretched left hand, bowed forward, and its string
     const [hx, hy, hz] = j.haL.map((c) => c * FIG);
     const bowCurve = new THREE.CatmullRomCurve3(Array.from({ length: 9 }, (_, i) => {
       const t = i / 4 - 1;
-      return V(hx, hy + t * 0.62, hz + 0.16 * (1 - t * t) - 0.02);
+      return V(hx + 0.06, hy + t * 0.62, hz + 0.16 * (1 - t * t) + 0.04);
     }));
     P.add(new THREE.TubeGeometry(bowCurve, 24, 0.016, 6, false), 'metal', { colorFn: bronzeFn, noise: 0.05 });
-    P.add(limb([hx, hy - 0.6, hz - 0.02], [hx, hy + 0.6, hz - 0.02], 0.004, 0.004), 'metal', { colorFn: bronzeFn });
-    // a short cloak (chlamys) over the left shoulder
-    P.add(xf(grid(10, 8, (u, v) => V(0.24 - u * 0.12, 1.5 - v * 0.55, -0.1 - 0.06 * Math.sin(u * Math.PI) - 0.02 * Math.sin(v * 9)), false), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'metal', { colorFn: bronzeFn, noise: 0.06 });
+    P.add(tube([hx + 0.06, hy - 0.6, hz + 0.04], [hx + 0.06, hy + 0.6, hz + 0.04], [0.004, 0.004], 1, 4), 'metal', { colorFn: bronzeFn });
+    // a short cloak (chlamys) over the shoulders, hanging down the back in
+    // folds, its end thrown over the left forearm
+    P.add(xf(cloth(24, 14, (u, v) => {
+      const a = lerp(Math.PI - 1.35, Math.PI + 1.35, u); // round the back
+      const y = lerp(1.5, 1.02 + 0.22 * (1 - u), v);
+      const r = 0.21 + 0.025 + 0.025 * v * Math.sin(u * 14 + v * 2) + 0.03 * v;
+      return V(Math.sin(a) * r * 1.05 + 0.015, y, Math.cos(a) * r * 0.62);
+    }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'metal', { colorFn: bronzeFn, noise: 0.05 });
+    const fa = V(...j.elL), fb = V(...j.haL);
+    P.add(xf(cloth(10, 10, (u, v) => {
+      const on = fa.clone().lerp(fb, lerp(0.15, 0.75, u)); // along the forearm
+      return V(on.x + 0.02 * Math.sin(v * 7), on.y + 0.03 - v * 0.38, on.z + 0.015 * Math.sin(u * 12 + v * 3));
+    }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'metal', { colorFn: bronzeFn, noise: 0.05 });
     pieces.push(P);
   }
 
@@ -689,26 +829,46 @@ function rubble(P, cx, cz, w, h, n) {
   {
     const P = new Piece('Statue_Emperor');
     const j = {
-      hip: [0, 0.95, 0], tilt: [0, 0], neck: [0, 1.55, 0], head: [0, 1.7, 0.01],
+      hip: [0, 0.95, 0], tilt: [0, 0], neck: [0, 1.55, 0], head: [0, 1.7, 0.01], headRot: [0, -0.2, 0],
       shL: [0.2, 1.48, 0], elL: [0.27, 1.2, 0.06], haL: [0.2, 1.06, 0.24],
       shR: [-0.2, 1.48, 0], elR: [-0.36, 1.62, 0.12], haR: [-0.43, 1.86, 0.17],
       anL: [0.1, 0.08, 0.04], anR: [-0.11, 0.08, 0.02],
     };
-    figure(P, j, 'stone', marbleFn, { torso: true, legs: true });
-    // the toga: a long draped body from the shoulders to the ankles, deep folds
-    const toga = grid(64, 30, (u, v) => {
-      const a = u * TAU, y = lerp(1.52, 0.1, v);
-      const r = lerp(0.2, 0.31, smooth(v * 1.3)) * (1 + 0.06 * Math.sin(a * 9 + v * 3) * v) + (y > 1.3 ? -0.03 * (y - 1.3) / 0.2 : 0);
-      return V(Math.sin(a) * r, y, Math.cos(a) * r * 0.72);
-    }, true);
-    const togaFn = p => {
-      // purple border along the hem and down the diagonal fold (toga praetexta)
-      const diag = Math.abs((p.y - 1.45 * FIG) + 0.9 * (p.x + 0.2 * FIG)) < 0.06 && p.z > 0;
-      return (p.y < 0.2 * FIG || diag ? purple.clone() : marbleFn(p));
+    figure(P, j, 'stone', marbleFn, { noTorso: true, noLegs: true, sandals: true, hair: { curl: 0.013, n: 140 }, curl: { L: 0.7, R: 0.1 } });
+    // the toga's outline: how far it stands out from the body at a height
+    // (round over the shoulders, close at the waist, wide at the hem)
+    const togaR = (y) => {
+      if (y > 1.45) return lerp(0.21, 0.08, smooth((y - 1.45) / 0.12));
+      if (y > 1.0) return lerp(0.2, 0.215, (1.45 - y) / 0.45);
+      return lerp(0.215, 0.3, smooth((1.0 - y) / 0.9));
     };
-    P.add(xf(toga, [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: togaFn, noise: 0.05, freq: 8 });
-    // the fold (sinus) hanging over the left forearm
-    P.add(xf(grid(8, 10, (u, v) => V(0.2 + u * 0.12, 1.08 - v * 0.42, 0.22 + 0.05 * Math.sin(u * Math.PI) + 0.02 * Math.sin(v * 8)), false), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.05 });
+    // the toga: neck to ankles, deep folds that fan out towards the bottom and an uneven hem
+    const toga = grid(72, 36, (u, v) => {
+      const a = u * TAU, y = lerp(1.57, 0.07 + 0.035 * Math.sin(a * 5 + 1), v);
+      const fold = (0.008 + 0.04 * v) * Math.sin(a * 11 + v * 2.5) + 0.012 * Math.sin(a * 23 + v * 6) * v;
+      const r = togaR(y) + fold;
+      return V(Math.sin(a) * r * 1.05, y, Math.cos(a) * r * 0.7);
+    }, true);
+    P.add(xf(toga, [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: (p) => (p.y < 0.17 * FIG ? purple.clone() : marbleFn(p)), noise: 0.04, freq: 8 });
+    // the overfold (sinus): from the left shoulder down across the front to
+    // the right hip and round the back, sagging, with its purple edge
+    P.add(xf(cloth(40, 8, (u, v) => {
+      const a = lerp(-0.6, 3.6, u); // round from the left shoulder, over the front, to the back
+      const yTop = lerp(1.5, 0.98, smooth(u * 1.5)) + 0.08 * Math.max(0, u - 0.66) * 3;
+      const y = yTop - v * 0.2 - 0.07 * Math.sin(u * Math.PI);
+      const r = togaR(y) + 0.035 + 0.015 * v + 0.012 * Math.sin(u * 30) * v;
+      return V(Math.sin(a) * r * 1.05, y, Math.cos(a) * r * 0.7);
+    }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.04 });
+    // the purple border of that fold (toga praetexta)
+    const edge = new THREE.CatmullRomCurve3(Array.from({ length: 12 }, (_, i) => {
+      const u = i / 11, a = lerp(-0.6, 3.6, u);
+      const y = lerp(1.5, 0.98, smooth(u * 1.5)) + 0.08 * Math.max(0, u - 0.66) * 3 - 0.2 - 0.07 * Math.sin(u * Math.PI);
+      const r = togaR(y) + 0.052;
+      return V(Math.sin(a) * r * 1.05 * FIG, y * FIG, Math.cos(a) * r * 0.7 * FIG);
+    }));
+    P.add(new THREE.TubeGeometry(edge, 48, 0.012, 5, false), 'stone', { color: purple, noise: 0.03 });
+    // the fold hanging over the left forearm
+    P.add(xf(cloth(10, 12, (u, v) => V(0.19 + u * 0.13 + 0.012 * Math.sin(v * 10), 1.1 - v * 0.48, 0.2 + 0.06 * Math.sin(u * Math.PI) + 0.02 * Math.sin(u * 14))), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.04 });
     pieces.push(P);
   }
 
@@ -716,43 +876,48 @@ function rubble(P, cx, cz, w, h, n) {
   {
     const P = new Piece('Statue_Faun');
     const j = {
-      hip: [0, 0.92, 0], tilt: [-0.12, -0.05], neck: [0.03, 1.5, -0.05], head: [0.05, 1.63, -0.1],
-      shL: [0.2, 1.44, -0.04], elL: [0.34, 1.68, 0.02], haL: [0.31, 1.92, 0.08],
-      shR: [-0.19, 1.45, -0.05], elR: [-0.36, 1.64, -0.04], haR: [-0.42, 1.87, 0.04],
-      hpL: [0.1, 0.92, 0], knL: [0.11, 0.49, 0.02], anL: [0.12, 0.08, -0.02],
-      hpR: [-0.1, 0.92, 0], knR: [-0.12, 0.55, 0.14], anR: [-0.13, 0.2, 0.02], toeR: [-0.13, 0.03, 0.12],
+      hip: [0, 0.92, 0], tilt: [-0.12, -0.05], neck: [0.03, 1.5, -0.05], head: [0.05, 1.63, -0.1], headRot: [-0.45, 0.2, 0.1],
+      shL: [0.2, 1.44, -0.04], elL: [0.34, 1.67, 0.03], haL: [0.31, 1.9, 0.1],
+      shR: [-0.19, 1.45, -0.05], elR: [-0.36, 1.63, -0.03], haR: [-0.42, 1.86, 0.06],
+      hpL: [0.095, 0.91, 0], knL: [0.11, 0.49, 0.03], anL: [0.12, 0.08, -0.02],
+      hpR: [-0.095, 0.91, 0], knR: [-0.12, 0.55, 0.15], anR: [-0.13, 0.2, 0.02], toeR: [-0.13, 0.03, 0.13],
     };
-    figure(P, j, 'metal', bronzeFn);
+    figure(P, j, 'metal', bronzeFn, { hair: { curl: 0.024, n: 130 }, curl: { L: 0.6, R: 0.6 } });
     // pointed ears and a little tail
-    for (const s of [1, -1]) P.add(xf(new THREE.ConeGeometry(0.025, 0.08, 8), [(0.05 + s * 0.11) * FIG, 1.67 * FIG, -0.1 * FIG], [0, 0, -s * 0.6]), 'metal', { colorFn: bronzeFn });
-    P.add(limb([0, 0.95 * FIG, -0.13 * FIG], [0, 0.85 * FIG, -0.24 * FIG], 0.025, 0.012), 'metal', { colorFn: bronzeFn });
+    for (const s of [1, -1]) P.add(xf(new THREE.ConeGeometry(0.022, 0.085, 8), [(0.05 + s * 0.105) * FIG, 1.67 * FIG, -0.11 * FIG], [-0.3, 0, -s * 0.7]), 'metal', { colorFn: bronzeFn });
+    P.add(xf(tube([0, 0.95, -0.14], [0, 0.86, -0.25], [0.025, 0.014], 1, 8), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'metal', { colorFn: bronzeFn });
     pieces.push(P);
   }
 
-  // ---- Seated notable: marble, on a chair with a curved back, scroll in hand
+  // ---- Seated notable: marble, in a tunic and cloak on a chair, scroll in hand, bearded
   {
     const P = new Piece('Statue_Notable');
     const j = {
-      hip: [0, 0.55, -0.08], tilt: [0.04, 0], neck: [0, 1.16, -0.06], head: [0, 1.3, -0.04],
+      hip: [0, 0.55, -0.08], tilt: [0.04, 0], neck: [0, 1.16, -0.06], head: [0, 1.3, -0.04], headRot: [0.12, 0.15, 0],
       shL: [0.2, 1.08, -0.07], elL: [0.27, 0.84, 0.0], haL: [0.16, 0.6, 0.3],
       shR: [-0.2, 1.08, -0.07], elR: [-0.27, 0.85, 0.05], haR: [-0.18, 0.78, 0.3],
       hpL: [0.1, 0.55, -0.02], knL: [0.12, 0.56, 0.38], anL: [0.13, 0.08, 0.42],
       hpR: [-0.1, 0.55, -0.02], knR: [-0.12, 0.56, 0.38], anR: [-0.14, 0.08, 0.44],
     };
-    figure(P, j, 'stone', marbleFn);
-    // cloak (himation) over the lap and down between the shins
-    P.add(xf(grid(12, 10, (u, v) => {
-      const x = lerp(-0.24, 0.24, u);
-      const z = v < 0.5 ? lerp(-0.05, 0.44, v * 2) : 0.46;
-      const y = v < 0.5 ? 0.66 + 0.02 * Math.sin(u * 12) : lerp(0.66, 0.2, (v - 0.5) * 2);
-      return V(x * (v < 0.5 ? 1 : 0.85), y, z + 0.015 * Math.sin(u * 15));
-    }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.05 });
+    figure(P, j, 'stone', marbleFn, { tunic: true, sandals: true, hair: { curl: 0.014, n: 130, beard: true }, curl: { L: 0.5, R: 0.9 } });
+    // cloak (himation): over the left shoulder, down the back, across the lap
+    // and hanging between the shins, in folds
+    P.add(xf(cloth(16, 14, (u, v) => {
+      const x = lerp(-0.25, 0.25, u);
+      const lap = v < 0.5;
+      const z = lap ? lerp(-0.06, 0.45, v * 2) : 0.47 + 0.02 * Math.sin(u * 9);
+      const y = lap ? 0.67 + 0.02 * Math.sin(u * 13) : lerp(0.67, 0.18, (v - 0.5) * 2);
+      return V(x * (lap ? 1 : 0.85 - 0.1 * (v - 0.5)), y, z + 0.018 * Math.sin(u * 17 + v * 3));
+    }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.04 });
+    P.add(xf(cloth(10, 12, (u, v) => V(lerp(0.08, 0.26, u), lerp(1.12, 0.62, v), -0.15 + 0.06 * Math.sin(u * Math.PI) + 0.015 * Math.sin(u * 12 + v * 4))), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.04 });
     // scroll
-    P.add(xf(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 10), [-0.18 * FIG, 0.78 * FIG, 0.34 * FIG], [0, 0, Math.PI / 2]), 'stone', { colorFn: marbleFn });
-    // the chair: seat, legs and a curved back
-    const chairFn = p => marbleShade.clone().multiplyScalar(0.95);
+    P.add(xf(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 12), [-0.2 * FIG, 0.8 * FIG, 0.36 * FIG], [0, 0, Math.PI / 2]), 'stone', { colorFn: marbleFn });
+    // the chair: seat, turned legs and a curved back
+    const chairFn = () => marbleShade.clone().multiplyScalar(0.95);
     P.add(xf(block(0.62, 0.08, 0.56, 0.02), [0, 0.42 * FIG, -0.05 * FIG]), 'stone', { colorFn: chairFn });
-    for (const [x, z] of [[-0.27, -0.28], [0.27, -0.28], [-0.27, 0.18], [0.27, 0.18]]) P.add(xf(block(0.06, 0.42, 0.06, 0.01), [x * FIG, 0, z * FIG]), 'stone', { colorFn: chairFn });
+    for (const [x, z] of [[-0.27, -0.28], [0.27, -0.28], [-0.27, 0.18], [0.27, 0.18]]) {
+      P.add(xf(lathe([[0.03, 0], [0.04, 0.05], [0.026, 0.2], [0.038, 0.3], [0.028, 0.47], [0, 0.47]], 10), [x * FIG, 0, z * FIG]), 'stone', { colorFn: chairFn });
+    }
     P.add(xf(grid(16, 6, (u, v) => { const a = lerp(-1.1, 1.1, u); return V(Math.sin(a) * 0.32, 0.5 + v * 0.55, -0.32 + (1 - Math.cos(a)) * 0.18 - 0.05); }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: chairFn });
     pieces.push(P);
   }
