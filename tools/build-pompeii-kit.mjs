@@ -455,24 +455,47 @@ function amphora(P, pos, rot, scale = 1, broken = false) {
   pieces.push(P);
 }
 
-// ================================================================== COLUMN (stuccoed brick, Pompeian red base)
+// ================================================================== COLUMN (Greek Doric, like the Triangular Forum)
+// No base: the shaft stands straight on a stepped stylobate. 20 shallow
+// flutes meet in sharp ridges (arrises) and run the full height; the shaft
+// tapers and swells slightly (entasis). Capital: three annulets, a
+// cushion-shaped echinus and a square abacus. Weathered tuff under cream
+// stucco, darker where dust and ash collect at the foot.
 {
   const P = new Piece('Column');
-  const H = 3.6, R0 = 0.27, R1 = 0.235;
-  P.add(grid(48, 40, (u, v) => {
-    const a = u * TAU, y = 0.25 + v * (H - 0.6), r = lerp(R0, R1, v);
-    const flute = y > 0.25 + (H - 0.6) / 3 ? 0.012 * Math.abs(Math.cos(a * 10)) : 0;
-    return V(Math.sin(a) * (r - flute), y, Math.cos(a) * (r - flute));
-  }, true), 'plaster', {
-    colorFn: p => {
-      let c = p.y < 0.25 + (H - 0.6) / 3 ? COL.pompRed.clone() : COL.whiteWash.clone();
-      if (fbm(p.x * 4, p.y * 1.2, p.z * 4 + 5) > 0.63) c = COL.brick.clone();
-      return dustUp(c, p.y, 0.8, 0.3);
-    }, noise: 0.06,
-  });
-  P.add(block(0.68, 0.25, 0.68, 0.03), 'stone', { color: COL.lime, noise: 0.1 });
-  P.add(xf(lathe([[R1, 0], [R1 + 0.02, 0.04], [0.33, 0.14], [0.34, 0.16], [0, 0.16]], 32), [0, H - 0.35, 0]), 'plaster', { color: COL.whiteWash, noise: 0.06 });
-  P.add(xf(block(0.72, 0.2, 0.72, 0.02), [0, H - 0.19, 0]), 'plaster', { color: COL.whiteWash, noise: 0.06 });
+  const H = 3.6;                               // total height, as before
+  const STEP = 0.12, Y0 = 2 * STEP;            // two steps
+  const CAP = 0.36, Y1 = H - CAP;              // shaft from Y0 to Y1
+  const R0 = 0.26, R1 = 0.205;                 // radius at foot and neck
+  const FLUTES = 20, SEG = 5, RINGS = 18, DEPTH = 0.022;
+  const stucco = (p) => {
+    let c = COL.cream.clone().lerp(COL.whiteWash, 0.5);
+    const wear = fbm(p.x * 3 + 2, p.y * 0.9, p.z * 3 + 7);
+    if (wear > 0.64) c = COL.tuff.clone();             // stucco fallen away
+    else if (wear > 0.6) c.lerp(COL.tuff, 0.5);
+    c.multiplyScalar(0.93 + 0.07 * clamp((p.y - Y0) / 1.5)); // a little grimier low down
+    return dustUp(c, p.y - Y0, 0.9, 0.35);
+  };
+  // shaft radius along its height: straight taper plus a gentle swelling
+  const radius = (v) => lerp(R0, R1, Math.pow(v, 1.3)) + 0.008 * Math.sin(Math.PI * v);
+  for (let f = 0; f < FLUTES; f++) {
+    // each flute is its own strip, so the ridges between them stay sharp
+    P.add(grid(SEG, RINGS, (u, v) => {
+      const a = ((f + u) / FLUTES) * TAU;
+      const r = radius(v) - DEPTH * Math.sqrt(Math.max(0, 1 - (2 * u - 1) ** 2)) * (1 - 0.25 * v);
+      return V(Math.sin(a) * r, Y0 + v * (Y1 - Y0), Math.cos(a) * r);
+    }), 'plaster', { colorFn: stucco, noise: 0.05, freq: 9 });
+  }
+  // stylobate: two steps of tuff blocks
+  P.add(block(0.84, STEP, 0.84, 0.015), 'stone', { color: COL.tuff, noise: 0.12, freq: 8 });
+  P.add(xf(block(0.7, STEP, 0.7, 0.015), [0, STEP, 0]), 'stone', { color: COL.lime, noise: 0.12, freq: 8 });
+  // capital
+  const yc = Y1;
+  for (let i = 0; i < 3; i++) {
+    P.add(xf(new THREE.TorusGeometry(R1 + 0.012 + i * 0.006, 0.009, 5, 40), [0, yc + 0.02 + i * 0.022, 0], [Math.PI / 2, 0, 0]), 'plaster', { colorFn: stucco, noise: 0.04 });
+  }
+  P.add(xf(lathe([[R1 + 0.02, 0], [R1 + 0.06, 0.03], [0.29, 0.08], [0.33, 0.13], [0.345, 0.16], [0, 0.16]], 40), [0, yc + 0.06, 0]), 'plaster', { colorFn: stucco, noise: 0.05 });
+  P.add(xf(block(0.74, CAP - 0.22, 0.74, 0.012), [0, yc + 0.22, 0]), 'plaster', { colorFn: stucco, noise: 0.05 });
   pieces.push(P);
 }
 
