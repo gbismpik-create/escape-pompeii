@@ -1,5 +1,5 @@
 // Turns raw keyboard, touch and mouse events into game actions
-// ('left', 'right', 'jump', 'down', 'restart', 'tap').
+// ('left', 'right', 'jump', 'down', 'restart', 'tap', 'toggleMute').
 // Actions are queued so a quick tap is never missed between frames.
 import { INPUT } from './config.js';
 
@@ -14,6 +14,7 @@ const KEY_ACTIONS = {
   ArrowDown: 'down',
   KeyS: 'down',
   KeyR: 'restart',
+  KeyM: 'toggleMute',
   KeyP: 'debugNextPhase',
 };
 
@@ -26,6 +27,10 @@ window.addEventListener('keydown', (event) => {
   queue.push(action);
 });
 
+// On-screen buttons (marked data-control) handle their own taps: touches
+// that start on them never become swipes or game taps.
+const onControl = (event) => event.target instanceof Element && event.target.closest('[data-control]');
+
 // --- Touch swipes ---
 // The move fires as soon as the finger has travelled far enough, without
 // waiting for it to lift, which makes swipes feel instant. One action per swipe.
@@ -34,6 +39,7 @@ let swipe = null; // { id, startX, startY, done }
 window.addEventListener(
   'touchstart',
   (event) => {
+    if (onControl(event)) return; // let the button get its normal click
     event.preventDefault(); // stop scrolling, zooming and the delayed fake mouse click
     if (swipe) return; // only follow the first finger
     const touch = event.changedTouches[0];
@@ -72,7 +78,9 @@ window.addEventListener('touchcancel', (event) => {
 });
 
 // A mouse click counts as a tap too, for testing on a computer.
-window.addEventListener('mousedown', () => queue.push('tap'));
+window.addEventListener('mousedown', (event) => {
+  if (!onControl(event)) queue.push('tap');
+});
 
 function findTouch(touches) {
   if (!swipe) return null;

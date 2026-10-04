@@ -52,6 +52,14 @@ export function createPlayer(scene, model) {
       legionary.tick?.(dt);
     },
 
+    get isGrounded() {
+      return isGrounded();
+    },
+
+    get isSliding() {
+      return slideTimeLeft > 0;
+    },
+
     // True just after a stumble: obstacles can't hit again for a moment.
     get inStumbleGrace() {
       return stumbleTimeLeft > STUMBLE.duration - STUMBLE.grace;

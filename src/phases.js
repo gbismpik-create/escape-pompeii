@@ -9,7 +9,7 @@ import { PHASES } from './config.js';
 const COLOR_KEYS = ['skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround', 'ashColor'];
 const NUMBER_KEYS = [
   'fogDensity', 'sunIntensity', 'hemiIntensity', 'glowIntensity', 'distantHaze', 'ashRate', 'speedMultiplier',
-  'tileRate', 'surgeVisibility', 'envIntensity',
+  'tileRate', 'surgeVisibility', 'envIntensity', 'rumbleVolume',
 ];
 
 // Convert the hex colours to THREE.Color once, rather than every frame.

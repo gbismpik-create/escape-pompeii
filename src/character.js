@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CHARACTER, LEGIONARY, PLAYER, STUMBLE } from './config.js';
 import { createLegionary } from './legionary.js';
+import { embeddedBytes } from './assets.js';
 
 // The player's model: a skinned glTF legionary played with an
 // AnimationMixer, with short cross-fades between Run, Jump, Slide and
@@ -35,15 +36,11 @@ export async function loadCharacter(envMap) {
   return createLegionary();
 }
 
-// A single-file build of the game (e.g. the shareable page) can't fetch
-// separate files, so it carries each model as base64 text in
-// window.EMBEDDED_ASSETS, keyed by its usual path. Decoding it here avoids
-// a network request entirely. Otherwise the file is loaded normally.
+// Uses the copy embedded in the page if there is one (see assets.js),
+// otherwise downloads the file.
 function loadModel(loader, url) {
-  const base64 = globalThis.EMBEDDED_ASSETS?.[url];
-  if (!base64) return loader.loadAsync(url);
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  return loader.parseAsync(bytes.buffer, '');
+  const bytes = embeddedBytes(url);
+  return bytes ? loader.parseAsync(bytes.buffer, '') : loader.loadAsync(url);
 }
 
 // Seconds a jump spends in the air: up and down under gravity.

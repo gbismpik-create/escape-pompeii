@@ -9,7 +9,10 @@ import { nextPhaseStart } from './phases.js';
 import { createTiles } from './tiles.js';
 import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
-import { updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading } from './ui.js';
+import {
+  updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
+} from './ui.js';
+import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
 import { isSideClip } from './obstacles.js';
 import { loadBest, saveBest } from './storage.js';
@@ -36,6 +39,10 @@ const camera = new THREE.PerspectiveCamera(
 // Game objects
 const environment = createEnvironment(scene, renderer);
 const track = createTrack(scene);
+const audio = createAudio();
+showMuted(audio.muted);
+onMuteButton(() => showMuted(audio.toggleMute()));
+
 setLoading(true);
 const character = await loadCharacter(environment.envMap);
 setLoading(false);
@@ -104,7 +111,9 @@ function restart() {
 }
 
 function handleAction(action) {
-  if (action === 'debugNextPhase') {
+  if (action === 'toggleMute') {
+    showMuted(audio.toggleMute());
+  } else if (action === 'debugNextPhase') {
     if (DEBUG.phaseKey && !isGameOver) runTime = nextPhaseStart(runTime);
   } else if (!isGameOver && !isCaught) {
     player.handleAction(action);
@@ -129,10 +138,12 @@ function checkCollisions() {
 
   const obstacle = hit.hitbox;
   if (!isSideClip(player.previousHitbox, player.hitbox, obstacle)) {
+    audio.impact();
     gameOver(CRASH_REASONS[hit.type]);
     return;
   }
   player.stumble((obstacle.min.x + obstacle.max.x) / 2);
+  audio.stumble();
   shake = STUMBLE.cameraShake;
   if (surge.stumble(runTime)) isCaught = true;
 }
@@ -160,7 +171,9 @@ renderer.setAnimationLoop((timestamp) => {
     runTime += dt;
     const { speedMultiplier, tileRate, envIntensity } = environment.phase;
     character.setEnvIntensity?.(envIntensity); // the built-in legionary has no metal
+    const zBefore = player.object.position.z;
     player.update(dt, speedMultiplier);
+    audio.updateFootsteps(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     track.update(player.object.position.z);
     const speed = speedAt(currentDistance()) * speedMultiplier;
     tiles.update(dt, player.object.position, speed, tileRate);
@@ -176,6 +189,7 @@ renderer.setAnimationLoop((timestamp) => {
   const glow = Math.max(surgePhase * 0.35, surge.proximity * (0.5 + 0.5 * surgePhase)) * SURGE.edgeGlowMax;
   setEdgeGlow(glow * (0.9 + 0.1 * Math.sin(runTime * 5)));
   shake = Math.max(0, shake - dt * 0.6);
+  audio.setRumble(environment.phase.rumbleVolume);
 
   updateFollowers();
 

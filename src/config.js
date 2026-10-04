@@ -75,6 +75,26 @@ export const CHARACTER = {
   slidePoseFix: { Thigh_R: [-0.5, 0, 0], Shoulder_L: [0.8, 0, 0] },
 };
 
+// Sound. Placeholder files live in public/assets/audio/ (replace them with
+// real recordings, same names). Loops are .wav: MP3 adds a few ms of
+// silence at each end, which leaves a gap every time a loop repeats.
+export const AUDIO = {
+  files: {
+    footstep: 'assets/audio/footstep.mp3',
+    impact: 'assets/audio/impact.mp3',
+    stumble: 'assets/audio/stumble.mp3',
+    rumble: 'assets/audio/rumble.wav', // loops
+    music: 'assets/audio/music.wav', // loops
+  },
+  volume: { master: 0.8, music: 0.35, effects: 0.8, rumble: 1 },
+  // One footstep every half run cycle (two steps per cycle), so the steps
+  // keep time with the legs at any speed.
+  stepsPerRunCycle: 2,
+  footstepPitchVariation: 0.08, // each step's pitch varies by up to ±8%
+  footstepVolumeVariation: 0.25,
+  landingVolume: 1.4, // landing from a jump is a heavier step
+};
+
 export const GAME = {
   // After a crash, ignore restart input for this long so a swipe that was
   // already in progress doesn't skip the game-over screen.
@@ -148,6 +168,7 @@ export const PHASES = {
       tileRate: 0.25, // falling roof tiles per second, for atmosphere (see TILES)
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 1, // reflections on the legionary's armour (see environment.js)
+      rumbleVolume: 0.2, // the earthquake/eruption rumble (see AUDIO)
     },
     {
       name: 'Ash & darkness',
@@ -168,6 +189,7 @@ export const PHASES = {
       tileRate: 0.5, // falling roof tiles per second (see TILES)
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.45, // reflections on the legionary's armour (see environment.js)
+      rumbleVolume: 0.5, // the earthquake/eruption rumble (see AUDIO)
     },
     {
       name: 'Surge',
@@ -188,6 +210,7 @@ export const PHASES = {
       tileRate: 0.85, // falling roof tiles per second (see TILES)
       surgeVisibility: 1, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.3, // reflections on the legionary's armour (see environment.js)
+      rumbleVolume: 0.9, // the earthquake/eruption rumble (see AUDIO)
     },
   ],
 };
