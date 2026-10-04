@@ -609,6 +609,166 @@ function rubble(P, cx, cz, w, h, n) {
   pieces.push(P);
 }
 
+// ================================================================== STATUES (on pedestals; the figure is its own piece so it can topple)
+// Figures are modelled about 1.8 m tall facing +z (left hand at +x), feet at
+// y = 0, then scaled by FIG to slightly larger than life. Smooth shapes:
+// tapered limbs with ball joints, a lathe-turned torso, draped cloth.
+{
+  const FIG = 1.12;
+  const Y = V(0, 1, 0);
+  const marble = C(0xe6e0d4), marbleShade = C(0xc9c1b2), purple = C(0x5b2a5e);
+  // Old bronze: dark brown, streaked green where rain ran down it.
+  const bronzeDark = C(0x3f3021), verdigris = C(0x4f7a66);
+  const bronzeFn = p => bronzeDark.clone().lerp(verdigris, clamp((fbm(p.x * 7, p.y * 2.5, p.z * 7) - 0.42) * 2.4) * 0.7)
+    .multiplyScalar(0.9 + 0.2 * clamp(p.y / 2.2));
+  const marbleFn = p => marble.clone().lerp(marbleShade, clamp((fbm(p.x * 9 + 3, p.y * 3, p.z * 9) - 0.5) * 2.5) * 0.6)
+    .lerp(COL.ash, clamp(1 - p.y / 0.6) * 0.25);
+  // a tapered limb from a to b (radius r0 at a, r1 at b)
+  const limb = (a, b, r0, r1) => {
+    const A = V(...a), d = V(...b).sub(A), len = d.length();
+    const g = new THREE.CylinderGeometry(r1, r0, len, 12, 2, true);
+    g.translate(0, len / 2, 0);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()));
+    return g.translate(A.x, A.y, A.z);
+  };
+  const ball = (c, r, s = [1, 1, 1]) => xf(new THREE.SphereGeometry(r, 14, 10), c, [0, 0, 0], s);
+  // torso: hips (at `hip`) up to the neck, oval in section, leaning by `tilt` (x, z radians)
+  const torso = (hip, tilt = [0, 0]) => xf(
+    lathe([[0, -0.04], [0.15, 0], [0.135, 0.16], [0.165, 0.36], [0.19, 0.5], [0.15, 0.58], [0.06, 0.63], [0, 0.63]], 24),
+    hip, [tilt[0], 0, tilt[1]], [1, 1, 0.68]);
+
+  // A figure from joint positions. `skip` leaves out parts covered by clothes.
+  function figure(P, j, mat, colorFn, skip = {}) {
+    const add = (g) => P.add(xf(g, [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), mat, { colorFn: (p) => colorFn(p), noise: 0.05, freq: 8 });
+    if (!skip.torso) { add(torso(j.hip, j.tilt)); add(ball(j.hip, 0.16, [1.1, 0.8, 0.8])); }
+    add(limb(j.neck, j.head, 0.06, 0.055));
+    add(ball(j.head, 0.115, [0.92, 1.12, 1]));
+    add(ball([j.head[0], j.head[1] - 0.02, j.head[2] + 0.1], 0.025, [0.8, 1.2, 1])); // nose
+    add(ball([j.head[0], j.head[1] + 0.05, j.head[2] - 0.015], 0.118, [0.98, 0.8, 1.02])); // hair
+    for (const s of ['L', 'R']) {
+      const sh = j['sh' + s], el = j['el' + s], ha = j['ha' + s];
+      add(ball(sh, 0.065));
+      add(limb(sh, el, 0.058, 0.046)); add(ball(el, 0.046));
+      add(limb(el, ha, 0.046, 0.035)); add(ball(ha, 0.045, [0.8, 1.2, 0.9]));
+      if (skip.legs) continue;
+      const hp = j['hp' + s], kn = j['kn' + s], an = j['an' + s];
+      add(limb(hp, kn, 0.09, 0.062)); add(ball(kn, 0.062));
+      add(limb(kn, an, 0.06, 0.04));
+    }
+    for (const s of ['L', 'R']) { // feet, pointing forward (or down onto the toes)
+      const an = j['an' + s], toe = j['toe' + s] ?? [an[0], 0.03, an[2] + 0.17];
+      add(limb(an, toe, 0.045, 0.035)); add(ball(toe, 0.037, [1, 0.7, 1.2])); add(ball(an, 0.045));
+    }
+  }
+
+  // ---- Apollo: bronze, weight on the right leg, bow held out in the left hand
+  {
+    const P = new Piece('Statue_Apollo');
+    const j = {
+      hip: [0.01, 0.95, 0], tilt: [0, 0.05], neck: [0.0, 1.55, 0.0], head: [-0.02, 1.7, 0.02],
+      shL: [0.2, 1.48, 0], elL: [0.3, 1.38, 0.2], haL: [0.31, 1.33, 0.46],
+      shR: [-0.2, 1.47, 0], elR: [-0.27, 1.21, -0.02], haR: [-0.26, 0.98, 0.06],
+      hpL: [0.1, 0.95, 0], knL: [0.08, 0.5, 0.09], anL: [0.13, 0.1, -0.06],
+      hpR: [-0.1, 0.95, 0], knR: [-0.1, 0.5, 0.02], anR: [-0.11, 0.08, 0.0],
+    };
+    figure(P, j, 'metal', bronzeFn);
+    // the bow: held upright in the outstretched left hand, bowed forward, and its string
+    const [hx, hy, hz] = j.haL.map((c) => c * FIG);
+    const bowCurve = new THREE.CatmullRomCurve3(Array.from({ length: 9 }, (_, i) => {
+      const t = i / 4 - 1;
+      return V(hx, hy + t * 0.62, hz + 0.16 * (1 - t * t) - 0.02);
+    }));
+    P.add(new THREE.TubeGeometry(bowCurve, 24, 0.016, 6, false), 'metal', { colorFn: bronzeFn, noise: 0.05 });
+    P.add(limb([hx, hy - 0.6, hz - 0.02], [hx, hy + 0.6, hz - 0.02], 0.004, 0.004), 'metal', { colorFn: bronzeFn });
+    // a short cloak (chlamys) over the left shoulder
+    P.add(xf(grid(10, 8, (u, v) => V(0.24 - u * 0.12, 1.5 - v * 0.55, -0.1 - 0.06 * Math.sin(u * Math.PI) - 0.02 * Math.sin(v * 9)), false), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'metal', { colorFn: bronzeFn, noise: 0.06 });
+    pieces.push(P);
+  }
+
+  // ---- Emperor in a toga: marble, right arm raised to speak, purple border
+  {
+    const P = new Piece('Statue_Emperor');
+    const j = {
+      hip: [0, 0.95, 0], tilt: [0, 0], neck: [0, 1.55, 0], head: [0, 1.7, 0.01],
+      shL: [0.2, 1.48, 0], elL: [0.27, 1.2, 0.06], haL: [0.2, 1.06, 0.24],
+      shR: [-0.2, 1.48, 0], elR: [-0.36, 1.62, 0.12], haR: [-0.43, 1.86, 0.17],
+      anL: [0.1, 0.08, 0.04], anR: [-0.11, 0.08, 0.02],
+    };
+    figure(P, j, 'stone', marbleFn, { torso: true, legs: true });
+    // the toga: a long draped body from the shoulders to the ankles, deep folds
+    const toga = grid(64, 30, (u, v) => {
+      const a = u * TAU, y = lerp(1.52, 0.1, v);
+      const r = lerp(0.2, 0.31, smooth(v * 1.3)) * (1 + 0.06 * Math.sin(a * 9 + v * 3) * v) + (y > 1.3 ? -0.03 * (y - 1.3) / 0.2 : 0);
+      return V(Math.sin(a) * r, y, Math.cos(a) * r * 0.72);
+    }, true);
+    const togaFn = p => {
+      // purple border along the hem and down the diagonal fold (toga praetexta)
+      const diag = Math.abs((p.y - 1.45 * FIG) + 0.9 * (p.x + 0.2 * FIG)) < 0.06 && p.z > 0;
+      return (p.y < 0.2 * FIG || diag ? purple.clone() : marbleFn(p));
+    };
+    P.add(xf(toga, [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: togaFn, noise: 0.05, freq: 8 });
+    // the fold (sinus) hanging over the left forearm
+    P.add(xf(grid(8, 10, (u, v) => V(0.2 + u * 0.12, 1.08 - v * 0.42, 0.22 + 0.05 * Math.sin(u * Math.PI) + 0.02 * Math.sin(v * 8)), false), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.05 });
+    pieces.push(P);
+  }
+
+  // ---- Dancing faun: bronze, arms raised, head back, on the toes of one foot
+  {
+    const P = new Piece('Statue_Faun');
+    const j = {
+      hip: [0, 0.92, 0], tilt: [-0.12, -0.05], neck: [0.03, 1.5, -0.05], head: [0.05, 1.63, -0.1],
+      shL: [0.2, 1.44, -0.04], elL: [0.34, 1.68, 0.02], haL: [0.31, 1.92, 0.08],
+      shR: [-0.19, 1.45, -0.05], elR: [-0.36, 1.64, -0.04], haR: [-0.42, 1.87, 0.04],
+      hpL: [0.1, 0.92, 0], knL: [0.11, 0.49, 0.02], anL: [0.12, 0.08, -0.02],
+      hpR: [-0.1, 0.92, 0], knR: [-0.12, 0.55, 0.14], anR: [-0.13, 0.2, 0.02], toeR: [-0.13, 0.03, 0.12],
+    };
+    figure(P, j, 'metal', bronzeFn);
+    // pointed ears and a little tail
+    for (const s of [1, -1]) P.add(xf(new THREE.ConeGeometry(0.025, 0.08, 8), [(0.05 + s * 0.11) * FIG, 1.67 * FIG, -0.1 * FIG], [0, 0, -s * 0.6]), 'metal', { colorFn: bronzeFn });
+    P.add(limb([0, 0.95 * FIG, -0.13 * FIG], [0, 0.85 * FIG, -0.24 * FIG], 0.025, 0.012), 'metal', { colorFn: bronzeFn });
+    pieces.push(P);
+  }
+
+  // ---- Seated notable: marble, on a chair with a curved back, scroll in hand
+  {
+    const P = new Piece('Statue_Notable');
+    const j = {
+      hip: [0, 0.55, -0.08], tilt: [0.04, 0], neck: [0, 1.16, -0.06], head: [0, 1.3, -0.04],
+      shL: [0.2, 1.08, -0.07], elL: [0.27, 0.84, 0.0], haL: [0.16, 0.6, 0.3],
+      shR: [-0.2, 1.08, -0.07], elR: [-0.27, 0.85, 0.05], haR: [-0.18, 0.78, 0.3],
+      hpL: [0.1, 0.55, -0.02], knL: [0.12, 0.56, 0.38], anL: [0.13, 0.08, 0.42],
+      hpR: [-0.1, 0.55, -0.02], knR: [-0.12, 0.56, 0.38], anR: [-0.14, 0.08, 0.44],
+    };
+    figure(P, j, 'stone', marbleFn);
+    // cloak (himation) over the lap and down between the shins
+    P.add(xf(grid(12, 10, (u, v) => {
+      const x = lerp(-0.24, 0.24, u);
+      const z = v < 0.5 ? lerp(-0.05, 0.44, v * 2) : 0.46;
+      const y = v < 0.5 ? 0.66 + 0.02 * Math.sin(u * 12) : lerp(0.66, 0.2, (v - 0.5) * 2);
+      return V(x * (v < 0.5 ? 1 : 0.85), y, z + 0.015 * Math.sin(u * 15));
+    }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: marbleFn, noise: 0.05 });
+    // scroll
+    P.add(xf(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 10), [-0.18 * FIG, 0.78 * FIG, 0.34 * FIG], [0, 0, Math.PI / 2]), 'stone', { colorFn: marbleFn });
+    // the chair: seat, legs and a curved back
+    const chairFn = p => marbleShade.clone().multiplyScalar(0.95);
+    P.add(xf(block(0.62, 0.08, 0.56, 0.02), [0, 0.42 * FIG, -0.05 * FIG]), 'stone', { colorFn: chairFn });
+    for (const [x, z] of [[-0.27, -0.28], [0.27, -0.28], [-0.27, 0.18], [0.27, 0.18]]) P.add(xf(block(0.06, 0.42, 0.06, 0.01), [x * FIG, 0, z * FIG]), 'stone', { colorFn: chairFn });
+    P.add(xf(grid(16, 6, (u, v) => { const a = lerp(-1.1, 1.1, u); return V(Math.sin(a) * 0.32, 0.5 + v * 0.55, -0.32 + (1 - Math.cos(a)) * 0.18 - 0.05); }), [0, 0, 0], [0, 0, 0], [FIG, FIG, FIG]), 'stone', { colorFn: chairFn });
+    pieces.push(P);
+  }
+
+  // ---- Pedestal: a moulded stone base with a blank inscription panel (front +z)
+  {
+    const P = new Piece('Pedestal');
+    const stoneFn = (c) => p => c.clone().multiplyScalar(0.92 + 0.12 * fbm(p.x * 5, p.y * 5, p.z * 5));
+    P.add(block(1.0, 0.16, 1.0, 0.02), 'stone', { colorFn: stoneFn(COL.tuff), noise: 0.1 });
+    P.add(xf(block(0.84, 0.78, 0.84, 0.015), [0, 0.16, 0]), 'stone', { colorFn: stoneFn(COL.lime), noise: 0.08 });
+    P.add(xf(block(0.98, 0.16, 0.98, 0.02), [0, 0.94, 0]), 'stone', { colorFn: stoneFn(COL.tuff), noise: 0.1 });
+    P.add(xf(block(0.56, 0.4, 0.02, 0.005), [0, 0.36, 0.425]), 'stone', { colorFn: stoneFn(COL.chip), noise: 0.05 });
+    pieces.push(P);
+  }
+}
+
 // ================================================================== EXPORT
 const scene = new THREE.Scene();
 let total = 0;
