@@ -80,3 +80,30 @@ body {
   font-size: 0.9rem;
   opacity: 0.8;
 }
+
+#surge-glow,
+#ash-fade {
+  position: fixed;
+  inset: 0;
+  pointer-events: none; /* never blocks swipes */
+  opacity: 0;
+}
+
+#surge-glow {
+  background: radial-gradient(ellipse at 50% 55%, transparent 50%, rgba(214, 112, 64, 0.3) 78%, rgba(226, 120, 70, 0.8) 100%);
+}
+
+/* Ash grey, warmer at the bottom where the glow was. */
+#ash-fade {
+  background: linear-gradient(to bottom, #5d5751, #7a6a5c);
+}
+
+#game-over .reason {
+  margin: 0 0 0.75em;
+  font-size: 1.1rem;
+  opacity: 0.85;
+}
+
+#game-over .reason:empty {
+  display: none;
+}

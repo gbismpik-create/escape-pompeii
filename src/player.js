@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LANES, PLAYER } from './config.js';
+import { LANES, PLAYER, STUMBLE } from './config.js';
 import { laneToX } from './lanes.js';
 import { speedAt } from './speed.js';
 import { createLegionary } from './legionary.js';
@@ -14,8 +14,11 @@ export function createPlayer(scene) {
   // The box the obstacles are tested against. It doesn't follow every arm
   // and leg: it's a fixed box the model fits inside, shorter while sliding.
   const hitbox = new THREE.Box3();
+  // Where the hitbox was last frame, to tell which way a collision came from.
+  const previousHitbox = new THREE.Box3();
 
   let lane, feetY, velocityY, slideTimeLeft, slideOnLanding;
+  let stumbleTimeLeft = 0;
 
   function reset() {
     lane = Math.floor(LANES.count / 2);
@@ -23,6 +26,7 @@ export function createPlayer(scene) {
     velocityY = 0;
     slideTimeLeft = 0;
     slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
+    stumbleTimeLeft = 0;
     object.position.set(laneToX(lane), 0, 0);
     legionary.reset();
   }
@@ -33,7 +37,23 @@ export function createPlayer(scene) {
   return {
     object,
     hitbox,
+    previousHitbox,
     reset,
+
+    // True just after a stumble: obstacles can't hit again for a moment.
+    get inStumbleGrace() {
+      return stumbleTimeLeft > STUMBLE.duration - STUMBLE.grace;
+    },
+
+    // Clipped the side of an obstacle centred at obstacleX: bounce back to
+    // the lane on the player's side of it, slow down for a moment.
+    stumble(obstacleX) {
+      const obstacleLane = Math.round(obstacleX / LANES.width + (LANES.count - 1) / 2);
+      const side = object.position.x < obstacleX ? -1 : 1;
+      lane = THREE.MathUtils.clamp(obstacleLane + side, 0, LANES.count - 1);
+      stumbleTimeLeft = STUMBLE.duration;
+      legionary.stumble();
+    },
 
     handleAction(action) {
       if (action === 'left') lane = Math.max(0, lane - 1);
@@ -58,7 +78,9 @@ export function createPlayer(scene) {
     // speedMultiplier comes from the current eruption phase.
     update(dt, speedMultiplier = 1) {
       // Forward is -z in Three.js when the camera looks down the track.
-      const moved = speedAt(-object.position.z) * speedMultiplier * dt;
+      stumbleTimeLeft = Math.max(0, stumbleTimeLeft - dt);
+      const stumbleSlow = stumbleTimeLeft > 0 ? STUMBLE.slowdown : 1;
+      const moved = speedAt(-object.position.z) * speedMultiplier * stumbleSlow * dt;
       object.position.z -= moved;
 
       // Ease towards the target lane. Using 1 - exp(-k·dt) keeps the motion
@@ -97,6 +119,7 @@ export function createPlayer(scene) {
       });
 
       const p = object.position;
+      previousHitbox.copy(hitbox);
       hitbox.min.set(p.x - size.x / 2, feetY, p.z - size.z / 2);
       hitbox.max.set(p.x + size.x / 2, feetY + height, p.z + size.z / 2);
     },

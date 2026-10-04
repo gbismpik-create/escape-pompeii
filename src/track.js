@@ -86,8 +86,8 @@ export function createTrack(scene) {
   return {
     reset,
 
-    collides(hitbox) {
-      return obstacles.collides(hitbox);
+    findCollision(hitbox) {
+      return obstacles.findCollision(hitbox);
     },
 
     distanceToNearestObstacle(z) {

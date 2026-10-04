@@ -167,8 +167,10 @@ export function createObstacles(scene, chunkCount) {
       }
     },
 
-    collides(hitbox) {
-      return slots.some((slot) => slot.type && slot.hitbox.intersectsBox(hitbox));
+    // The hitbox of the obstacle the player is touching, or null.
+    findCollision(hitbox) {
+      const slot = slots.find((s) => s.type && s.hitbox.intersectsBox(hitbox));
+      return slot ? slot.hitbox : null;
     },
 
     // Distance along the track from z to the nearest obstacle (Infinity if none).
@@ -182,4 +184,31 @@ export function createObstacles(scene, chunkCount) {
       return nearest;
     },
   };
+}
+
+// Did the player clip the side of an obstacle (rather than hit it head-on)?
+// A swept test: for each axis, how far through the last frame did the
+// player's box start overlapping the obstacle on that axis? The axis that
+// started overlapping LAST is the face that was hit. If that's the side (x),
+// it's a side clip. Running into the front (z), landing on top or standing
+// up into it (y) are real crashes. Uses last frame's hitbox, so the answer
+// doesn't depend on the frame rate.
+function entry(prevMin, prevMax, curMin, curMax, obMin, obMax) {
+  if (prevMax > obMin && prevMin < obMax) return -Infinity; // already overlapping
+  if (prevMax <= obMin) {
+    const moved = curMax - prevMax;
+    return moved > 0 ? (obMin - prevMax) / moved : Infinity;
+  }
+  const moved = prevMin - curMin;
+  return moved > 0 ? (prevMin - obMax) / moved : Infinity;
+}
+
+export function isSideClip(previousHitbox, hitbox, obstacleHitbox) {
+  const p = previousHitbox;
+  const c = hitbox;
+  const o = obstacleHitbox;
+  const x = entry(p.min.x, p.max.x, c.min.x, c.max.x, o.min.x, o.max.x);
+  const y = entry(p.min.y, p.max.y, c.min.y, c.max.y, o.min.y, o.max.y);
+  const z = entry(p.min.z, p.max.z, c.min.z, c.max.z, o.min.z, o.max.z);
+  return x > y && x > z;
 }

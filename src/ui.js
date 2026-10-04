@@ -6,11 +6,22 @@ hud.id = 'hud';
 hud.innerHTML = `<div class="distance">0 m</div><div class="best"></div>`;
 document.body.appendChild(hud);
 
+// Orange glow at the screen edges: the surge behind you.
+const edgeGlow = document.createElement('div');
+edgeGlow.id = 'surge-glow';
+document.body.appendChild(edgeGlow);
+
+// Full-screen ash that fades in when the surge catches the player.
+const ashFade = document.createElement('div');
+ashFade.id = 'ash-fade';
+document.body.appendChild(ashFade);
+
 const overlay = document.createElement('div');
 overlay.id = 'game-over';
 overlay.hidden = true;
 overlay.innerHTML = `
   <h1>Game over</h1>
+  <p class="reason"></p>
   <p class="distance"></p>
   <p class="best"></p>
   <p class="hint">Tap or press R to run again</p>
@@ -33,7 +44,18 @@ export function showBest(best) {
   hudBest.textContent = best > 0 ? `Best ${best} m` : '';
 }
 
-export function showGameOver(distance, best, isNewBest) {
+// Both take 0–1. Setting opacity is cheap: the browser blends these layers
+// on the GPU without redrawing the page.
+export function setEdgeGlow(amount) {
+  edgeGlow.style.opacity = amount.toFixed(3);
+}
+
+export function setAshFade(amount) {
+  ashFade.style.opacity = amount.toFixed(3);
+}
+
+export function showGameOver(distance, best, isNewBest, reason = '') {
+  overlay.querySelector('.reason').textContent = reason;
   overlay.querySelector('.distance').textContent = `You ran ${distance} m`;
   overlay.querySelector('.best').textContent = isNewBest ? 'New best!' : `Best: ${best} m`;
   overlay.hidden = false;

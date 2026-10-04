@@ -121,6 +121,7 @@ export const PHASES = {
       ashColor: 0xd9d3c7,
       speedMultiplier: 1,
       tileRate: 0.25, // falling roof tiles per second (see TILES)
+      surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
     },
     {
       name: 'Ash & darkness',
@@ -139,6 +140,7 @@ export const PHASES = {
       ashColor: 0x8c857c,
       speedMultiplier: 1.07,
       tileRate: 0.5, // falling roof tiles per second (see TILES)
+      surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
     },
     {
       name: 'Surge',
@@ -157,6 +159,7 @@ export const PHASES = {
       ashColor: 0x6e5146,
       speedMultiplier: 1.15,
       tileRate: 0.85, // falling roof tiles per second (see TILES)
+      surgeVisibility: 1, // the glowing surge cloud behind the player (see SURGE)
     },
   ],
 };
@@ -172,6 +175,31 @@ export const ASH = {
   size: 0.11, // flake size (metres)
   nearFade: 2.5, // flakes closer to the camera than this fade out (no blobs on the lens)
   opacity: 0.85,
+};
+
+// The pyroclastic surge: a glowing cloud of hot ash and gas chasing the
+// player. It sits far behind while you run cleanly; a stumble lets it
+// close in, and a second stumble soon after means it catches you.
+export const SURGE = {
+  farGap: 32, // metres behind the player while running cleanly (out of view)
+  stumbleGap: 6, // how close it gets after a stumble (its edges reach into view)
+  recoverTime: 6, // seconds of clean running for it to drop back to farGap
+  catchWindow: 6, // a second stumble within this many seconds = caught
+  caughtDuration: 1.6, // seconds of the cloud rolling over before the game-over screen
+  puffs: 46, // billowing puffs making up the cloud (one instanced mesh)
+  smokeColor: 0x6f6863,
+  glowColor: 0xff6a2a,
+  edgeGlowMax: 0.6, // strongest orange glow at the screen edges (0–1)
+};
+
+// Clipping the side of an obstacle (changing lane into it, including
+// catching its front corner) makes the player stumble instead of ending the
+// run. Running into its front, landing on it or standing up into it still ends it.
+export const STUMBLE = {
+  grace: 0.4, // seconds after a stumble during which obstacles can't hit again
+  slowdown: 0.85, // speed multiplier while stumbling
+  duration: 0.6, // seconds the stumble slows the player and shows in his pose
+  cameraShake: 0.18, // metres
 };
 
 // Roof tiles shaken loose by the earthquakes and the weight of pumice.

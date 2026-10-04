@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LEGIONARY } from './config.js';
+import { LEGIONARY, STUMBLE } from './config.js';
 import { box, cylinder, merge } from './geometry.js';
 
 // A low-poly Roman legionary, built from boxes, with a procedural run cycle.
@@ -123,6 +123,8 @@ export function createLegionary() {
   let runPhase = 0;
   let airWeight = 0;
   let slideWeight = 0;
+  let stumbleWeight = 0; // 1 right after a stumble, fading to 0
+  let stumbleTime = 0;
 
   return {
     root,
@@ -173,14 +175,36 @@ export function createLegionary() {
       body.position.z = -0.45 * slideWeight;
       body.position.y = 0.12 * slideWeight; // keeps his back from sinking into the road
 
+      // Stumble: pitch forward and throw the arms out, wobbling, then recover.
+      if (stumbleWeight > 0) {
+        stumbleTime += dt;
+        stumbleWeight = Math.max(0, stumbleWeight - dt / STUMBLE.duration);
+        const w = Math.sin(stumbleWeight * Math.PI * 0.5); // eases out
+        torso.rotation.x -= 0.55 * w;
+        arms.forEach(({ upper, fore }, i) => {
+          upper.rotation.x += 1.4 * w;
+          upper.rotation.z += (i === 0 ? 0.7 : -0.7) * w;
+          fore.rotation.x -= 0.8 * w;
+        });
+        body.rotation.z = Math.sin(stumbleTime * 22) * 0.18 * w;
+      } else {
+        body.rotation.z = 0;
+      }
+
       // Lane change: lean into the turn and look where he is going.
       const lean = THREE.MathUtils.clamp(-sideSpeed * A.sideLeanAmount, -A.maxSideLean, A.maxSideLean);
       root.rotation.z += (lean - root.rotation.z) * k;
       root.rotation.y += (lean * 0.6 - root.rotation.y) * k;
     },
 
+    stumble() {
+      stumbleWeight = 1;
+      stumbleTime = 0;
+    },
+
     reset() {
       runPhase = 0;
+      stumbleWeight = 0;
       airWeight = 0;
       slideWeight = 0;
       root.rotation.set(0, 0, 0);
