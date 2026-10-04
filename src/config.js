@@ -80,6 +80,7 @@ export const CHARACTER = {
 // a few ms of silence at each end, which leaves a gap every time a plain loop
 // repeats. (Music avoids this by overlapping its repeats; see below.)
 // The player's own Music and Effects levels (settings panel) scale these.
+// "Music" is the tension layers; there is no music in the calm first phase.
 export const AUDIO = {
   // A list means variations: one is picked at random each time.
   files: {
@@ -91,17 +92,16 @@ export const AUDIO = {
     tile: 'assets/audio/tile.mp3', // a roof tile shattering on the road
     rumble: 'assets/audio/rumble.wav', // loops
     roar: 'assets/audio/roar.wav', // loops: the surge cloud, louder as it closes in
-    // Music, one track per eruption phase (made with tools/compose-music.py).
-    music1: 'assets/audio/music-1.mp3', // pumice fall: lyre, aulos and drone
-    music2: 'assets/audio/music-2.mp3', // ash & darkness: slow, heartbeat drum
-    music3: 'assets/audio/music-3.mp3', // surge: driving drums
+    // Tension music (made with tools/compose-tension.py). No tunes: layers
+    // that each phase fades in (PHASES tension) as the eruption worsens.
+    tensionDrone: 'assets/audio/tension-drone.wav', // loops: low, dark drone
+    tensionHigh: 'assets/audio/tension-high.wav', // loops: high, trembling shimmer
+    heartbeat: 'assets/audio/heartbeat.wav', // one beat, repeated faster as he speeds up
   },
-  musicByPhase: ['music1', 'music2', 'music3'],
-  musicCrossfade: 4, // seconds to blend from one phase's music into the next
-  // Music tracks repeat with a short overlap (cross-fade) instead of a plain
-  // loop, so MP3 files loop without a gap.
-  musicLoopOverlap: 1.5,
-  volume: { master: 0.8, music: 0.4, effects: 0.8, rumble: 1, roar: 0.9 },
+  // The heartbeat follows the legionary's speed: this many beats per minute
+  // at the start speed, rising to the second number at top speed.
+  heartbeatBpm: [70, 140],
+  volume: { master: 0.8, music: 0.5, effects: 0.8, rumble: 1, roar: 0.9 },
   musicOnGameOver: 0.35, // music drops to this share on the game-over screen
   tileHearingDistance: 45, // shattering tiles further than this (metres) are silent
   // One footstep every half run cycle (two steps per cycle), so the steps
@@ -161,6 +161,7 @@ export const LIGHTS = {
 //     the sky's horizon colour, so the town fades into the sky.
 //   ashRate: share of ASH.maxParticles falling (0–1).
 //   tileRate: average falling roof tiles per second.
+//   tension: levels (0–1) of the three tension-music layers.
 //   speedMultiplier: multiplies the run speed. Obstacle rows are spaced for
 //     the highest multiplier, so every pattern stays passable.
 export const PHASES = {
@@ -186,6 +187,7 @@ export const PHASES = {
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 1, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.2, // the earthquake/eruption rumble (see AUDIO)
+      tension: { drone: 0, heartbeat: 0, high: 0 }, // music layers (see AUDIO)
     },
     {
       name: 'Ash & darkness',
@@ -207,6 +209,7 @@ export const PHASES = {
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.45, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.5, // the earthquake/eruption rumble (see AUDIO)
+      tension: { drone: 0.7, heartbeat: 0.45, high: 0.15 }, // music layers (see AUDIO)
     },
     {
       name: 'Surge',
@@ -228,6 +231,7 @@ export const PHASES = {
       surgeVisibility: 1, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.3, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.9, // the earthquake/eruption rumble (see AUDIO)
+      tension: { drone: 1, heartbeat: 1, high: 0.75 }, // music layers (see AUDIO)
     },
   ],
 };

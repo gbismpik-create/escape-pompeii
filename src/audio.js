@@ -1,4 +1,4 @@
-import { AUDIO, CHARACTER } from './config.js';
+import { AUDIO, CHARACTER, PLAYER } from './config.js';
 import { loadArrayBuffer } from './assets.js';
 import { loadMuted, saveMuted, loadVolumes, saveVolumes } from './storage.js';
 
@@ -13,7 +13,7 @@ import { loadMuted, saveMuted, loadVolumes, saveVolumes } from './storage.js';
 //   one-off sounds ─→ effects ─┐
 //   rumble loop ────→ rumble ──┼→ effects bus (player's Effects level) ─┐
 //   roar loop ──────→ roar ────┘                                       ├→ master → speakers
-//   music tracks ───→ one gain per track → music bus (Music level) ────┘
+//   tension layers ─→ one gain per layer → music bus (Music level) ───┘
 // Muting turns the master down to 0. Mute and both levels are remembered.
 
 export function createAudio() {
@@ -79,6 +79,8 @@ export function createAudio() {
     );
     if (buffers.rumble) startLoop('rumble', rumbleGain);
     if (buffers.roar) startLoop('roar', roarGain);
+    if (buffers.tensionDrone) startLoop('tensionDrone', layers.drone);
+    if (buffers.tensionHigh) startLoop('tensionHigh', layers.high);
   }
 
   const musicLevel = () => AUDIO.volume.music * levels.music * (gameOver ? AUDIO.musicOnGameOver : 1);
@@ -98,6 +100,7 @@ export function createAudio() {
       groups.roar = gain(AUDIO.volume.roar, effectsBus);
       rumbleGain = gain(0, groups.rumble); // set each frame from the phase
       roarGain = gain(0, groups.roar); // set each frame from the surge
+      for (const name of ['drone', 'high', 'heartbeat']) layers[name] = gain(0, musicBus); // set from the phase
       decodeAll();
     }
     if (ctx.state !== 'running') ctx.resume();
@@ -137,60 +140,33 @@ export function createAudio() {
     });
   }
 
-  // ---- Music ----
-  // Each phase has its own track. A track repeats by starting its next copy
-  // a little before the current one ends and cross-fading the two, so even
-  // MP3 files (which have tiny silences at each end) never leave a gap.
-  // Changing phase fades the old track out and the new one in.
-  const music = {}; // name → { gain, nextStart, copies, stopAt }
-  let currentTrack = null;
+  // ---- Tension music ----
+  // No tunes: three layers whose levels come from the eruption phase.
+  // The drone and the high shimmer are seamless loops; the heartbeat is one
+  // beat, booked a moment ahead each time, at a tempo that follows the
+  // legionary's speed.
+  const layers = {}; // drone / high / heartbeat → gain node
+  let nextBeat = 0;
 
-  function scheduleCopy(track, buffer, at) {
-    const overlap = Math.min(AUDIO.musicLoopOverlap, buffer.duration / 4);
-    const envelope = gain(0, track.gain);
-    envelope.gain.setValueAtTime(0, at);
-    envelope.gain.linearRampToValueAtTime(1, at + overlap);
-    envelope.gain.setValueAtTime(1, at + buffer.duration - overlap);
-    envelope.gain.linearRampToValueAtTime(0, at + buffer.duration);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(envelope);
-    source.start(at);
-    track.copies.push(source);
-    source.onended = () => {
-      const i = track.copies.indexOf(source);
-      if (i >= 0) track.copies.splice(i, 1);
-    };
-    track.nextStart = at + buffer.duration - overlap;
+  function beatInterval(speed) {
+    const [slow, fast] = AUDIO.heartbeatBpm;
+    const t = Math.min(1, Math.max(0, (speed - PLAYER.startSpeed) / (PLAYER.maxSpeed - PLAYER.startSpeed)));
+    return 60 / (slow + (fast - slow) * t);
   }
 
-  function updateMusic() {
-    for (const [name, track] of Object.entries(music)) {
-      if (track.stopAt !== null && ctx.currentTime >= track.stopAt) {
-        track.copies.forEach((source) => source.stop());
-        delete music[name];
-        continue;
-      }
-      // Keep the next copy booked a second ahead.
-      if (track.stopAt === null && ctx.currentTime > track.nextStart - 1) {
-        scheduleCopy(track, buffers[name][0], Math.max(track.nextStart, ctx.currentTime + 0.05));
-      }
+  function updateHeartbeat(level, speed, running) {
+    if (!buffers.heartbeat || !running || level < 0.01) {
+      nextBeat = 0;
+      return;
     }
-  }
-
-  function switchMusic(name) {
-    if (name === currentTrack || !buffers[name]) return;
-    const fade = currentTrack ? AUDIO.musicCrossfade : 0.5;
-    const old = music[currentTrack];
-    if (old) {
-      glide(old.gain, 0, fade);
-      old.stopAt = ctx.currentTime + fade;
+    if (nextBeat === 0) nextBeat = ctx.currentTime + 0.1;
+    if (ctx.currentTime > nextBeat - 0.1) {
+      const source = ctx.createBufferSource();
+      source.buffer = buffers.heartbeat[0];
+      source.connect(layers.heartbeat);
+      source.start(Math.max(nextBeat, ctx.currentTime));
+      nextBeat = Math.max(nextBeat, ctx.currentTime) + beatInterval(speed);
     }
-    const track = music[name] ?? { gain: gain(0, musicBus), nextStart: ctx.currentTime + 0.05, copies: [] };
-    track.stopAt = null;
-    music[name] = track;
-    glide(track.gain, 1, fade);
-    currentTrack = name;
   }
 
   // ---- Movement sounds ----
@@ -200,12 +176,15 @@ export function createAudio() {
   let wasSliding = false;
 
   return {
-    // Called every frame, whatever the game is doing: plays the music for
-    // the current eruption phase (0, 1, 2).
-    update(phaseIndex) {
+    // Called every frame, whatever the game is doing. tension: the phase's
+    // layer levels { drone, heartbeat, high } (0–1); speed: the legionary's
+    // speed; running: false on the start and game-over screens (no heartbeat).
+    updateTension({ drone, heartbeat, high }, speed, running) {
       if (!ctx || ctx.state !== 'running') return;
-      switchMusic(AUDIO.musicByPhase[phaseIndex]);
-      updateMusic();
+      glide(layers.drone, drone, 2);
+      glide(layers.high, high, 2);
+      glide(layers.heartbeat, heartbeat, 1);
+      updateHeartbeat(heartbeat, speed, running);
     },
 
     // Called every frame while running. Footsteps every stepLength metres

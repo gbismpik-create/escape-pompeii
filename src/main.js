@@ -230,7 +230,13 @@ renderer.setAnimationLoop((timestamp) => {
   shake = Math.max(0, shake - dt * 0.6);
   audio.setRumble(environment.phase.rumbleVolume);
   audio.setRoar(isGameOver ? 0 : isCaught ? 1 : surge.proximity); // fades out on the game-over screen
-  audio.update(environment.phase.index); // music for the current phase
+  const { tensionDrone, tensionHeartbeat, tensionHigh } = environment.phase;
+  const running = isStarted && !isGameOver && !isCaught && !isPaused;
+  audio.updateTension(
+    { drone: tensionDrone, heartbeat: tensionHeartbeat, high: tensionHigh },
+    speedAt(currentDistance()) * environment.phase.speedMultiplier,
+    running,
+  );
 
   updateFollowers();
 

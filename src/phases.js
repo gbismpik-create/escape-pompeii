@@ -12,10 +12,16 @@ const NUMBER_KEYS = [
   'tileRate', 'surgeVisibility', 'envIntensity', 'rumbleVolume',
 ];
 
+// The tension-music levels are blended too, as tensionDrone etc.
+const TENSION_LAYERS = ['drone', 'heartbeat', 'high'];
+const tensionKey = (layer) => `tension${layer[0].toUpperCase()}${layer.slice(1)}`;
+NUMBER_KEYS.push(...TENSION_LAYERS.map(tensionKey));
+
 // Convert the hex colours to THREE.Color once, rather than every frame.
 const phases = PHASES.list.map((phase) => ({
   ...phase,
   ...Object.fromEntries(COLOR_KEYS.map((k) => [k, new THREE.Color(phase[k])])),
+  ...Object.fromEntries(TENSION_LAYERS.map((layer) => [tensionKey(layer), phase.tension[layer]])),
 }));
 
 const smoothstep = (x) => x * x * (3 - 2 * x); // eases in and out
