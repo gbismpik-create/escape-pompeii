@@ -26,7 +26,7 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-Week 1: grey boxes that feel good (see plan). No art, sound or menus yet.
+Week 2: make it look like Pompeii.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
