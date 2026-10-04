@@ -61,7 +61,7 @@ settings.innerHTML = `
   <input id="volume-music" type="range" min="0" max="100" step="5" />
   <label for="volume-effects">Effects <output for="volume-effects"></output></label>
   <input id="volume-effects" type="range" min="0" max="100" step="5" />
-  <p class="note">Effects: footsteps, crashes, falling tiles, the rumble and the surge.</p>
+  <p class="note">Effects: footsteps, crashes, the rumble and the surge.</p>
   <button type="button" class="done">Done</button>
 `;
 document.body.appendChild(settings);

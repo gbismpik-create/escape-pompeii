@@ -89,7 +89,6 @@ export const AUDIO = {
     slide: 'assets/audio/slide.mp3', // scrape along the stones
     impact: 'assets/audio/impact.mp3',
     stumble: 'assets/audio/stumble.mp3',
-    tile: 'assets/audio/tile.mp3', // a roof tile shattering on the road
     rumble: 'assets/audio/rumble.wav', // loops
     roar: 'assets/audio/roar.wav', // loops: the surge cloud, louder as it closes in
     // Tension music (made with tools/compose-tension.py). No tunes: layers
@@ -103,7 +102,6 @@ export const AUDIO = {
   heartbeatBpm: [70, 140],
   volume: { master: 0.8, music: 0.5, effects: 0.8, rumble: 1, roar: 0.9 },
   musicOnGameOver: 0.35, // music drops to this share on the game-over screen
-  tileHearingDistance: 45, // shattering tiles further than this (metres) are silent
   // One footstep every half run cycle (two steps per cycle), so the steps
   // keep time with the legs at any speed.
   stepsPerRunCycle: 2,
@@ -160,7 +158,6 @@ export const LIGHTS = {
 //     2 / fogDensity metres (0.011 → 180 m, 0.03 → 65 m). The fog colour is
 //     the sky's horizon colour, so the town fades into the sky.
 //   ashRate: share of ASH.maxParticles falling (0–1).
-//   tileRate: average falling roof tiles per second.
 //   tension: levels (0–1) of the three tension-music layers.
 //   speedMultiplier: multiplies the run speed. Obstacle rows are spaced for
 //     the highest multiplier, so every pattern stays passable.
@@ -183,7 +180,6 @@ export const PHASES = {
       ashRate: 0.3,
       ashColor: 0xd9d3c7,
       speedMultiplier: 1,
-      tileRate: 0.25, // falling roof tiles per second, for atmosphere (see TILES)
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 1, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.2, // the earthquake/eruption rumble (see AUDIO)
@@ -205,7 +201,6 @@ export const PHASES = {
       ashRate: 1,
       ashColor: 0x8c857c,
       speedMultiplier: 1.07,
-      tileRate: 0.5, // falling roof tiles per second (see TILES)
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.45, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.5, // the earthquake/eruption rumble (see AUDIO)
@@ -227,7 +222,6 @@ export const PHASES = {
       ashRate: 1,
       ashColor: 0x6e5146,
       speedMultiplier: 1.15,
-      tileRate: 0.85, // falling roof tiles per second (see TILES)
       surgeVisibility: 1, // the glowing surge cloud behind the player (see SURGE)
       envIntensity: 0.3, // reflections on the legionary's armour (see environment.js)
       rumbleVolume: 0.9, // the earthquake/eruption rumble (see AUDIO)
@@ -272,32 +266,6 @@ export const STUMBLE = {
   slowdown: 0.85, // speed multiplier while stumbling
   duration: 0.6, // seconds the stumble slows the player and shows in his pose
   cameraShake: 0.18, // metres
-};
-
-// Roof tiles shaken loose by the earthquakes and the weight of pumice.
-// Atmosphere only: they never hit the player. A shadow shows where one
-// will land; the tile drops and shatters.
-export const TILES = {
-  warningTime: 1.0, // seconds the shadow shows before the tile lands
-  // The tile is visible falling for this long (the whole warning). It must
-  // start low enough to be on screen: the camera sees only ~7–9 m up at
-  // the distance where tiles appear.
-  fallTime: 1.0,
-  dropHeight: 7, // metres above the road where the falling tile appears
-  startDistance: 150, // no tiles in the first metres of a run (~11 s)
-  size: { x: 0.7, y: 0.14, z: 0.9 }, // one terracotta roof tile (tegula)
-  // Tiles land at least this far (in seconds of running) from obstacles and
-  // from each other, so they never clutter or hide an obstacle.
-  clearanceTime: 0.3,
-  targetPlayerChance: 0.5, // chance a tile aims at the player's lane (else a random lane)
-  maxTiles: 6, // most tiles in flight or in pieces at once
-  // Wider than the legionary, so it shows on both sides of him even though
-  // the camera is right behind him.
-  shadowRadius: 1.15,
-  shadowDarkness: 0.15, // 1 = no shadow, 0 = black
-  shadowFadeIn: 0.25, // seconds to reach full darkness
-  pieces: 5, // fragments per broken tile
-  pieceLifetime: 1.6, // seconds before fragments sink away
 };
 
 export const DEBUG = {

@@ -6,7 +6,6 @@ import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart } from './phases.js';
-import { createTiles } from './tiles.js';
 import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
@@ -61,12 +60,6 @@ setLoading(true);
 const character = await loadCharacter(environment.envMap);
 setLoading(false);
 const player = createPlayer(scene, character);
-const tiles = createTiles(scene, track, {
-  onShatter: (x, z) => {
-    const p = player.object.position;
-    audio.tileShatter(Math.hypot(x - p.x, z - p.z));
-  },
-});
 const surge = createSurge(scene);
 player.settle(); // stand idle on the start screen
 let shake = 0; // camera shake after a stumble, fading out
@@ -127,7 +120,6 @@ function restart() {
   hideGameOver();
   player.reset();
   track.reset();
-  tiles.reset();
   surge.reset();
   setAshFade(0);
   shake = 0;
@@ -158,7 +150,7 @@ function handleAction(action) {
 }
 
 // Clipping the side of an obstacle makes the player stumble; running into
-// one head-on ends the run. (Falling tiles are only atmosphere: they can't hit.)
+// one head-on ends the run.
 
 const CRASH_REASONS = {
   low: 'You tripped on a stepping stone',
@@ -208,14 +200,12 @@ renderer.setAnimationLoop((timestamp) => {
     if (surge.caughtProgress >= 1) gameOver('The surge caught up with you');
   } else {
     runTime += dt;
-    const { speedMultiplier, tileRate, envIntensity } = environment.phase;
+    const { speedMultiplier, envIntensity } = environment.phase;
     character.setEnvIntensity?.(envIntensity); // the built-in legionary has no metal
     const zBefore = player.object.position.z;
     player.update(dt, speedMultiplier);
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     track.update(player.object.position.z);
-    const speed = speedAt(currentDistance()) * speedMultiplier;
-    tiles.update(dt, player.object.position, speed, tileRate);
     updateDistance(currentDistance());
     checkCollisions();
     surge.update(dt, player.object.position, environment.phase.surgeVisibility);

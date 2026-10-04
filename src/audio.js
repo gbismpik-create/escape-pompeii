@@ -216,12 +216,6 @@ export function createAudio() {
       play('stumble');
     },
 
-    // A roof tile shattered `distance` metres from the player.
-    tileShatter(distance) {
-      const volume = 1 - distance / AUDIO.tileHearingDistance;
-      play('tile', { volume: volume * volume, rate: vary(0.12) });
-    },
-
     // 0–1, from the eruption phase. Eased so changes never jump.
     setRumble(level) {
       if (ctx) glide(rumbleGain, level, 1.5);

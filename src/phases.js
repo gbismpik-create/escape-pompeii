@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { PHASES } from './config.js';
 
 // Turns "seconds since the run started" into the current state of the
-// eruption: sky, fog, light, falling ash and tiles, and a speed multiplier.
+// eruption: sky, fog, light, falling ash, and a speed multiplier.
 // When a new phase begins, every value blends from the old phase to the
 // new one over PHASES.transitionTime seconds, so nothing changes suddenly.
 
 const COLOR_KEYS = ['skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround', 'ashColor'];
 const NUMBER_KEYS = [
   'fogDensity', 'sunIntensity', 'hemiIntensity', 'glowIntensity', 'distantHaze', 'ashRate', 'speedMultiplier',
-  'tileRate', 'surgeVisibility', 'envIntensity', 'rumbleVolume',
+  'surgeVisibility', 'envIntensity', 'rumbleVolume',
 ];
 
 // The tension-music levels are blended too, as tensionDrone etc.
