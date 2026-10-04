@@ -2,10 +2,13 @@ import * as THREE from 'three';
 import { LANES, PLAYER, STUMBLE } from './config.js';
 import { laneToX } from './lanes.js';
 import { speedAt } from './speed.js';
+import { createShield } from './shield.js';
 
 // model: the loaded character (character.js) or the built-in legionary;
 // both have root, update(), stumble() and reset().
-export function createPlayer(scene, model) {
+// shield: shield.js; while it is raised he can't jump and runs slower, and
+// sliding lowers it.
+export function createPlayer(scene, model, shield = createShield()) {
   const size = PLAYER.size;
   const legionary = model;
   // The model's root sits at his feet; moving it moves the whole model.
@@ -28,6 +31,7 @@ export function createPlayer(scene, model) {
     slideTimeLeft = 0;
     slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
     stumbleTimeLeft = 0;
+    shield.reset();
     object.position.set(laneToX(lane), 0, 0);
     legionary.reset();
   }
@@ -79,13 +83,16 @@ export function createPlayer(scene, model) {
       if (action === 'left') lane = Math.max(0, lane - 1);
       if (action === 'right') lane = Math.min(LANES.count - 1, lane + 1);
 
-      if (action === 'jump' && isGrounded()) {
+      if (action === 'shield') shield.toggle(slideTimeLeft <= 0 && !slideOnLanding);
+
+      if (action === 'jump' && isGrounded() && !shield.isRaised) {
         // Starting speed needed to reach jumpHeight under gravity: v = √(2·g·h)
         velocityY = Math.sqrt(2 * PLAYER.gravity * PLAYER.jumpHeight);
         slideTimeLeft = 0; // jumping cancels a slide
       }
 
       if (action === 'down') {
+        shield.lower(); // the slide needs the shield arm
         if (isGrounded()) {
           slideTimeLeft = PLAYER.slideDuration;
         } else {
@@ -100,7 +107,8 @@ export function createPlayer(scene, model) {
       // Forward is -z in Three.js when the camera looks down the track.
       stumbleTimeLeft = Math.max(0, stumbleTimeLeft - dt);
       const stumbleSlow = stumbleTimeLeft > 0 ? STUMBLE.slowdown : 1;
-      const moved = speedAt(-object.position.z) * speedMultiplier * stumbleSlow * dt;
+      shield.update(dt);
+      const moved = speedAt(-object.position.z) * speedMultiplier * stumbleSlow * shield.speedFactor * dt;
       object.position.z -= moved;
 
       // Ease towards the target lane. Using 1 - exp(-k·dt) keeps the motion

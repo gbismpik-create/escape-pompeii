@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE } from './config.js';
 import { createPlayer } from './player.js';
+import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
@@ -11,7 +12,7 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings,
+  updateStartSound, hideStart, setupSettings, updateShield,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
@@ -62,7 +63,8 @@ const [kit, character] = await Promise.all([loadKit(environment.envMap), loadCha
 const track = createTrack(scene, kit);
 environment.addVolcano(kit);
 setLoading(false);
-const player = createPlayer(scene, character);
+const shield = createShield();
+const player = createPlayer(scene, character, shield);
 const surge = createSurge(scene);
 player.settle(); // stand idle on the start screen
 let shake = 0; // camera shake after a stumble, fading out
@@ -102,6 +104,7 @@ const currentDistance = () => Math.floor(-player.object.position.z);
 
 function gameOver(reason = '') {
   isGameOver = true;
+  shield.lower();
   isCaught = false;
   player.settle();
   audio.setGameOver(true);
@@ -146,7 +149,7 @@ function handleAction(action) {
   } else if (action === 'debugNextPhase') {
     if (DEBUG.phaseKey && !isGameOver) runTime = nextPhaseStart(runTime);
   } else if (!isGameOver && !isCaught) {
-    player.handleAction(action);
+    player.handleAction(action === 'tap' ? 'shield' : action); // a tap in a run raises the shield
   } else if ((action === 'restart' || action === 'tap') && timeSinceGameOver >= GAME.restartDelay) {
     restart();
   }
@@ -212,6 +215,7 @@ renderer.setAnimationLoop((timestamp) => {
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     updateDistance(currentDistance());
+    updateShield(shield.state, shield.remaining);
     checkCollisions();
     surge.update(dt, player.object.position, environment.phase.surgeVisibility);
   }

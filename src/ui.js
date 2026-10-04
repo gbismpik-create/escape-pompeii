@@ -3,8 +3,30 @@
 
 const hud = document.createElement('div');
 hud.id = 'hud';
-hud.innerHTML = `<div class="distance">0 m</div><div class="best"></div>`;
+// The shield icon: a ring around it drains while the shield is up and
+// refills during the cooldown. 'ready' / 'raised' / 'cooldown' set its look.
+const SHIELD_ICON = `<svg viewBox="0 0 44 44" aria-hidden="true">
+  <circle class="track" cx="22" cy="22" r="20" />
+  <circle class="ring" cx="22" cy="22" r="20" pathLength="100" />
+  <rect class="scutum" x="14" y="9" width="16" height="26" rx="3" />
+  <path class="trim" d="M22 11v22M16 22h12" />
+  <circle class="boss" cx="22" cy="22" r="2.6" />
+</svg>`;
+hud.innerHTML = `<div class="distance">0 m</div><div class="best"></div><div class="shield" data-state="ready">${SHIELD_ICON}</div>`;
 document.body.appendChild(hud);
+const shieldIcon = hud.querySelector('.shield');
+const shieldRing = shieldIcon.querySelector('.ring');
+let shownShield = '';
+
+// remaining: 1 → 0 through the current state.
+export function updateShield(state, remaining) {
+  const fill = state === 'cooldown' ? 1 - remaining : state === 'raised' ? remaining : 1;
+  const key = `${state}${Math.round(fill * 50)}`;
+  if (key === shownShield) return; // only touch the page when something shows a change
+  shownShield = key;
+  shieldIcon.dataset.state = state;
+  shieldRing.style.strokeDashoffset = String(100 - fill * 100);
+}
 
 // Mute button, top right. data-control keeps its taps away from the swipe
 // and tap handling in input.js.
@@ -22,7 +44,7 @@ start.id = 'start';
 start.innerHTML = `
   <h1>Escape Pompeii</h1>
   <p class="tagline">Pompeii, 79 AD. Vesuvius is erupting. Run for the harbour.</p>
-  <p class="controls">Swipe, or use the arrow keys / WASD:<br />left and right to change lane, up to jump, down to slide</p>
+  <p class="controls">Swipe, or use the arrow keys / WASD:<br />left and right to change lane, up to jump, down to slide.<br />Tap or press E to raise your shield.</p>
   <p class="sound"></p>
   <p class="hint">Tap or press Space to start</p>
 `;

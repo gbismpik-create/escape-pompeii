@@ -1,7 +1,8 @@
 // Turns raw keyboard, touch and mouse events into game actions
-// ('left', 'right', 'jump', 'down', 'restart', 'tap', 'toggleMute').
+// ('left', 'right', 'jump', 'down', 'shield', 'restart', 'tap', 'toggleMute').
+// During a run a tap raises the shield (main.js).
 // Actions are queued so a quick tap is never missed between frames.
-import { INPUT } from './config.js';
+import { INPUT, SHIELD } from './config.js';
 
 const KEY_ACTIONS = {
   ArrowLeft: 'left',
@@ -16,6 +17,7 @@ const KEY_ACTIONS = {
   KeyR: 'restart',
   KeyM: 'toggleMute',
   KeyP: 'debugNextPhase',
+  [SHIELD.key]: 'shield',
 };
 
 const queue = [];

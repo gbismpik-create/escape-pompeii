@@ -151,6 +151,16 @@ export const GAME = {
   restartDelay: 0.5,
 };
 
+// The scutum raised overhead (shield.js). Tap or E raises it; tapping
+// again lowers it early.
+export const SHIELD = {
+  key: 'KeyE',
+  duration: 3, // seconds it stays up before lowering itself
+  cooldown: 2, // seconds after lowering before it can be raised again
+  speedMultiplier: 0.75, // run speed while raised
+  speedEase: 0.15, // seconds (time constant) to ease into / out of the slower speed
+};
+
 export const INPUT = {
   // A touch must move at least this far (CSS pixels) to count as a swipe,
   // so plain taps don't trigger moves.
