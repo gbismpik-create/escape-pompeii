@@ -60,6 +60,7 @@ export function createSurge(scene) {
   const mesh = new THREE.InstancedMesh(geometry, material, puffs.length);
   mesh.name = 'surge';
   mesh.frustumCulled = false;
+  mesh.visible = false; // until update() has placed the puffs
   const smoke = new THREE.Color(SURGE.smokeColor);
   const glow = new THREE.Color(SURGE.glowColor);
   const c = new THREE.Color();

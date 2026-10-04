@@ -21,6 +21,8 @@ const KEY_ACTIONS = {
 const queue = [];
 
 window.addEventListener('keydown', (event) => {
+  // Keys typed into on-screen controls (e.g. the volume sliders) are theirs.
+  if (event.target instanceof Element && event.target.closest('[data-control]')) return;
   const action = KEY_ACTIONS[event.code];
   if (!action || event.repeat) return; // ignore auto-repeat when a key is held
   event.preventDefault();

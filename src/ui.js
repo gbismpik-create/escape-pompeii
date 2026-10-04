@@ -16,6 +16,87 @@ muteButton.type = 'button';
 muteButton.dataset.control = '';
 document.body.appendChild(muteButton);
 
+// ---- Start screen ----
+const start = document.createElement('div');
+start.id = 'start';
+start.innerHTML = `
+  <h1>Escape Pompeii</h1>
+  <p class="tagline">Pompeii, 79 AD. Vesuvius is erupting. Run for the harbour.</p>
+  <p class="controls">Swipe, or use the arrow keys / WASD:<br />left and right to change lane, up to jump, down to slide</p>
+  <p class="sound"></p>
+  <p class="hint">Tap or press Space to start</p>
+`;
+document.body.appendChild(start);
+
+export function updateStartSound(muted) {
+  start.querySelector('.sound').textContent = muted
+    ? 'Sound is off. Press M or tap the speaker to turn it on.'
+    : 'Sound comes on with your first tap.';
+}
+
+export function hideStart() {
+  start.hidden = true;
+}
+
+// ---- Settings: Music and Effects volume ----
+const GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>';
+const settingsButton = document.createElement('button');
+settingsButton.id = 'settings-button';
+settingsButton.type = 'button';
+settingsButton.dataset.control = '';
+settingsButton.innerHTML = GEAR;
+settingsButton.setAttribute('aria-label', 'Sound settings');
+settingsButton.title = 'Sound settings';
+document.body.appendChild(settingsButton);
+
+const settings = document.createElement('div');
+settings.id = 'settings';
+settings.hidden = true;
+settings.dataset.control = '';
+settings.setAttribute('role', 'dialog');
+settings.setAttribute('aria-labelledby', 'settings-title');
+settings.innerHTML = `
+  <h2 id="settings-title">Sound</h2>
+  <label for="volume-music">Music <output for="volume-music"></output></label>
+  <input id="volume-music" type="range" min="0" max="100" step="5" />
+  <label for="volume-effects">Effects <output for="volume-effects"></output></label>
+  <input id="volume-effects" type="range" min="0" max="100" step="5" />
+  <p class="note">Effects: footsteps, crashes, falling tiles, the rumble and the surge.</p>
+  <button type="button" class="done">Done</button>
+`;
+document.body.appendChild(settings);
+
+// levels: { music, effects } 0–1. onChange(levels) on every slider move;
+// onOpenChange(open) when the panel opens or closes (the game pauses).
+export function setupSettings(levels, { onChange, onOpenChange }) {
+  const sliders = {
+    music: settings.querySelector('#volume-music'),
+    effects: settings.querySelector('#volume-effects'),
+  };
+  for (const [name, slider] of Object.entries(sliders)) {
+    const output = settings.querySelector(`output[for="${slider.id}"]`);
+    const show = () => (output.textContent = `${slider.value}%`);
+    slider.value = Math.round(levels[name] * 100);
+    show();
+    slider.addEventListener('input', () => {
+      show();
+      onChange({ [name]: slider.value / 100 });
+    });
+  }
+
+  const setOpen = (open) => {
+    settings.hidden = !open;
+    if (open) sliders.music.focus();
+    else document.activeElement?.blur(); // keys go back to the game
+    onOpenChange(open);
+  };
+  settingsButton.addEventListener('click', () => setOpen(settings.hidden));
+  settings.querySelector('.done').addEventListener('click', () => setOpen(false));
+  settings.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+}
+
 export function onMuteButton(handler) {
   muteButton.addEventListener('click', (event) => {
     muteButton.blur(); // so Space/arrow keys keep going to the game

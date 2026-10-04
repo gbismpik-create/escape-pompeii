@@ -11,6 +11,7 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
+  updateStartSound, hideStart, setupSettings,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
@@ -40,8 +41,21 @@ const camera = new THREE.PerspectiveCamera(
 const environment = createEnvironment(scene, renderer);
 const track = createTrack(scene);
 const audio = createAudio();
+function toggleMute() {
+  const muted = audio.toggleMute();
+  showMuted(muted);
+  updateStartSound(muted);
+}
 showMuted(audio.muted);
-onMuteButton(() => showMuted(audio.toggleMute()));
+updateStartSound(audio.muted);
+onMuteButton(toggleMute);
+
+// The settings panel pauses the game while it is open.
+let isPaused = false;
+setupSettings(audio.levels, {
+  onChange: (levels) => audio.setLevels(levels),
+  onOpenChange: (open) => (isPaused = open),
+});
 
 setLoading(true);
 const character = await loadCharacter(environment.envMap);
@@ -54,6 +68,7 @@ const tiles = createTiles(scene, track, {
   },
 });
 const surge = createSurge(scene);
+player.settle(); // stand idle on the start screen
 let shake = 0; // camera shake after a stumble, fading out
 
 function updateFollowers() {
@@ -79,6 +94,7 @@ window.addEventListener('resize', () => {
 });
 
 // Game state
+let isStarted = false; // false while the start screen is up
 let isGameOver = false;
 let timeSinceGameOver = 0;
 let runTime = 0; // seconds since this run started; drives the eruption phases
@@ -117,9 +133,21 @@ function restart() {
   shake = 0;
 }
 
+// Any move, tap or Space on the start screen begins the first run. That
+// first input is also what lets the browser start the sound (audio.js).
+const START_ACTIONS = ['tap', 'jump', 'left', 'right', 'down', 'restart'];
+
 function handleAction(action) {
   if (action === 'toggleMute') {
-    showMuted(audio.toggleMute());
+    toggleMute();
+  } else if (isPaused) {
+    // Settings are open: the game ignores everything else.
+  } else if (!isStarted) {
+    if (START_ACTIONS.includes(action)) {
+      isStarted = true;
+      hideStart();
+      restart();
+    }
   } else if (action === 'debugNextPhase') {
     if (DEBUG.phaseKey && !isGameOver) runTime = nextPhaseStart(runTime);
   } else if (!isGameOver && !isCaught) {
@@ -166,7 +194,11 @@ renderer.setAnimationLoop((timestamp) => {
 
   for (const action of consumeActions()) handleAction(action);
 
-  if (isGameOver) {
+  if (isPaused) {
+    // Settings open: everything holds still.
+  } else if (!isStarted) {
+    player.tick(dt); // idling on the start screen
+  } else if (isGameOver) {
     timeSinceGameOver += dt; // the world freezes; only the overlay and the legionary move
     player.tick(dt);
   } else if (isCaught) {
@@ -198,6 +230,7 @@ renderer.setAnimationLoop((timestamp) => {
   shake = Math.max(0, shake - dt * 0.6);
   audio.setRumble(environment.phase.rumbleVolume);
   audio.setRoar(isGameOver ? 0 : isCaught ? 1 : surge.proximity); // fades out on the game-over screen
+  audio.update(environment.phase.index); // music for the current phase
 
   updateFollowers();
 

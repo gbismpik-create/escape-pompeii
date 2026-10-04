@@ -1,4 +1,4 @@
-// Best score and the mute choice, saved in the browser. localStorage can be missing or throw
+// Best score and sound choices, saved in the browser. localStorage can be missing or throw
 // (private browsing, storage disabled, quota full), so every access is
 // wrapped: the game still works, it just won't remember the score.
 
@@ -35,5 +35,26 @@ export function saveMuted(muted) {
     localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
   } catch {
     // Not saved; the game starts with sound next time.
+  }
+}
+
+// The player's Music and Effects volume levels (0–1) from the settings panel.
+const VOLUMES_KEY = 'escape-pompeii.volumes';
+
+export function loadVolumes() {
+  const defaults = { music: 1, effects: 1 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(VOLUMES_KEY));
+    return { ...defaults, ...saved };
+  } catch {
+    return defaults;
+  }
+}
+
+export function saveVolumes(volumes) {
+  try {
+    localStorage.setItem(VOLUMES_KEY, JSON.stringify(volumes));
+  } catch {
+    // Not saved; the defaults come back next time.
   }
 }

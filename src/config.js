@@ -76,8 +76,10 @@ export const CHARACTER = {
 };
 
 // Sound. Placeholder files live in public/assets/audio/ (replace them with
-// real recordings, same names). Loops are .wav: MP3 adds a few ms of
-// silence at each end, which leaves a gap every time a loop repeats.
+// real recordings, same names). The rumble and roar loops are .wav: MP3 adds
+// a few ms of silence at each end, which leaves a gap every time a plain loop
+// repeats. (Music avoids this by overlapping its repeats; see below.)
+// The player's own Music and Effects levels (settings panel) scale these.
 export const AUDIO = {
   // A list means variations: one is picked at random each time.
   files: {
@@ -89,9 +91,17 @@ export const AUDIO = {
     tile: 'assets/audio/tile.mp3', // a roof tile shattering on the road
     rumble: 'assets/audio/rumble.wav', // loops
     roar: 'assets/audio/roar.wav', // loops: the surge cloud, louder as it closes in
-    music: 'assets/audio/music.wav', // loops
+    // Music, one track per eruption phase (made with tools/compose-music.py).
+    music1: 'assets/audio/music-1.mp3', // pumice fall: lyre, aulos and drone
+    music2: 'assets/audio/music-2.mp3', // ash & darkness: slow, heartbeat drum
+    music3: 'assets/audio/music-3.mp3', // surge: driving drums
   },
-  volume: { master: 0.8, music: 0.35, effects: 0.8, rumble: 1, roar: 0.9 },
+  musicByPhase: ['music1', 'music2', 'music3'],
+  musicCrossfade: 4, // seconds to blend from one phase's music into the next
+  // Music tracks repeat with a short overlap (cross-fade) instead of a plain
+  // loop, so MP3 files loop without a gap.
+  musicLoopOverlap: 1.5,
+  volume: { master: 0.8, music: 0.4, effects: 0.8, rumble: 1, roar: 0.9 },
   musicOnGameOver: 0.35, // music drops to this share on the game-over screen
   tileHearingDistance: 45, // shattering tiles further than this (metres) are silent
   // One footstep every half run cycle (two steps per cycle), so the steps
