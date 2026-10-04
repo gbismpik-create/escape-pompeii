@@ -30,14 +30,13 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-Statues.
+Districts.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
 
 From the GAME_DESIGN.md build order:
 - Rescued followers
-- Forum district
 - Theatre district
 - Villa shortcut
 - Rooftop phase
