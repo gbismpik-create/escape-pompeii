@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LANES, TRACK, GROUND, BUILDINGS } from './config.js';
 import { CHUNK_VARIANTS } from './chunkVariants.js';
+import { createObstacleSlots, placeObstacles, hitsObstacle } from './obstacles.js';
 
 const toCss = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 
@@ -75,7 +76,9 @@ function createChunk(shared, maxBoxes) {
     boxes.push(box);
   }
 
-  return { group, boxes, index: 0 };
+  const obstacles = createObstacleSlots(group);
+
+  return { group, boxes, obstacles, index: 0 };
 }
 
 // Rearranges a chunk's existing boxes to match a variant; unused boxes are hidden.
@@ -108,16 +111,28 @@ export function createTrack(scene) {
     chunk.group.position.z = -index * L;
     const variant = CHUNK_VARIANTS[Math.floor(Math.random() * CHUNK_VARIANTS.length)];
     applyVariant(chunk, variant, shared);
+    placeObstacles(chunk.obstacles, chunk.group.position.z);
   }
 
-  for (let index = -TRACK.chunksBehind; index <= TRACK.chunksAhead; index++) {
+  for (let i = -TRACK.chunksBehind; i <= TRACK.chunksAhead; i++) {
     const chunk = createChunk(shared, maxBoxes);
-    placeChunk(chunk, index);
     scene.add(chunk.group);
     chunks.push(chunk);
   }
 
+  // Lays every chunk out fresh from the start line (used for new runs).
+  function reset() {
+    chunks.forEach((chunk, i) => placeChunk(chunk, i - TRACK.chunksBehind));
+  }
+  reset();
+
   return {
+    reset,
+
+    collides(hitbox) {
+      return chunks.some((chunk) => hitsObstacle(chunk.obstacles, hitbox));
+    },
+
     update(playerZ) {
       const playerIndex = Math.floor(-playerZ / L);
       // Recycle every chunk that is now too far behind.

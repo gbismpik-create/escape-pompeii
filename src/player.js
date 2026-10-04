@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 import { LANES, PLAYER } from './config.js';
-
-// Lane index runs 0..count-1; the middle lane sits at x = 0.
-function laneToX(lane) {
-  return (lane - (LANES.count - 1) / 2) * LANES.width;
-}
+import { laneToX } from './lanes.js';
 
 export function createPlayer(scene) {
   const size = PLAYER.size;
@@ -19,17 +15,25 @@ export function createPlayer(scene) {
   // visible box, so what you see is what can be hit.
   const hitbox = new THREE.Box3();
 
-  let lane = Math.floor(LANES.count / 2);
-  let feetY = 0; // height of the player's feet above the ground
-  let velocityY = 0;
-  let slideTimeLeft = 0;
-  let slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
+  let lane, feetY, velocityY, slideTimeLeft, slideOnLanding;
+
+  function reset() {
+    lane = Math.floor(LANES.count / 2);
+    feetY = 0; // height of the player's feet above the ground
+    velocityY = 0;
+    slideTimeLeft = 0;
+    slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
+    mesh.position.set(laneToX(lane), size.y / 2, 0);
+    mesh.scale.y = 1;
+  }
+  reset();
 
   const isGrounded = () => feetY <= 0;
 
   return {
     mesh,
     hitbox,
+    reset,
 
     handleAction(action) {
       if (action === 'left') lane = Math.max(0, lane - 1);

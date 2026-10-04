@@ -28,6 +28,12 @@ export const PLAYER = {
   slideHeight: 0.8, // player (and hitbox) height while sliding
 };
 
+export const GAME = {
+  // After a crash, ignore restart input for this long so a swipe that was
+  // already in progress doesn't skip the game-over screen.
+  restartDelay: 0.5,
+};
+
 export const INPUT = {
   // A touch must move at least this far (CSS pixels) to count as a swipe,
   // so plain taps don't trigger moves.
@@ -76,6 +82,30 @@ export const GROUND = {
   lineColor: 0x5a5a5a,
   lineWidthPx: 3, // out of a 64 px tile
   anisotropy: 4,
+};
+
+export const OBSTACLES = {
+  // Obstacles come in rows across the 3 lanes, this far apart. 10 m at run
+  // speed 12 gives ~0.8 s between rows: enough to switch two lanes.
+  // If run speed goes up later, this may need to grow.
+  rowSpacing: 10,
+  firstRowOffset: 5, // first row's distance from the start of each chunk
+  safeStartDistance: 40, // no obstacles in the first metres of a run
+  rowChance: 0.75, // chance that a row has any obstacles at all
+  emptyLaneChance: 0.4, // chance that a lane in a row is left empty
+  weights: { low: 1, bar: 1, block: 1.2 }, // how often each type is picked
+  width: 2, // across the lane (lane is 2.5 wide)
+  // Hitboxes are this much smaller than the visible box on every side,
+  // so near misses feel fair rather than cheap.
+  hitboxMargin: 0.1,
+  types: {
+    // Must jump: lower than the jump, too tall to slide under.
+    low: { bottom: 0, height: 0.9, depth: 1, color: 0x5c6a7a },
+    // Must slide: bottom above a sliding player, top above the jump's peak.
+    bar: { bottom: 1.2, height: 1.4, depth: 0.5, color: 0x7a5c6a },
+    // Must change lane: taller than any jump.
+    block: { bottom: 0, height: 3, depth: 1.5, color: 0x4a4a4a },
+  },
 };
 
 export const BUILDINGS = {

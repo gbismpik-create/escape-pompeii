@@ -1,5 +1,5 @@
-// Turns raw keyboard and touch events into game actions
-// ('left', 'right', 'jump', 'down').
+// Turns raw keyboard, touch and mouse events into game actions
+// ('left', 'right', 'jump', 'down', 'restart', 'tap').
 // Actions are queued so a quick tap is never missed between frames.
 import { INPUT } from './config.js';
 
@@ -13,6 +13,7 @@ const KEY_ACTIONS = {
   Space: 'jump',
   ArrowDown: 'down',
   KeyS: 'down',
+  KeyR: 'restart',
 };
 
 const queue = [];
@@ -59,11 +60,18 @@ window.addEventListener(
   { passive: false },
 );
 
-function endSwipe(event) {
+// A touch that ends without becoming a swipe is a tap.
+window.addEventListener('touchend', (event) => {
+  if (!findTouch(event.changedTouches)) return;
+  if (!swipe.done) queue.push('tap');
+  swipe = null;
+});
+window.addEventListener('touchcancel', (event) => {
   if (findTouch(event.changedTouches)) swipe = null;
-}
-window.addEventListener('touchend', endSwipe);
-window.addEventListener('touchcancel', endSwipe);
+});
+
+// A mouse click counts as a tap too, for testing on a computer.
+window.addEventListener('mousedown', () => queue.push('tap'));
 
 function findTouch(touches) {
   if (!swipe) return null;

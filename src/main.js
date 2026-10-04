@@ -1,9 +1,10 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, LIGHTS } from './config.js';
+import { RENDERER, CAMERA, LIGHTS, GAME } from './config.js';
 import { createPlayer } from './player.js';
 import { createTrack } from './track.js';
 import { consumeActions } from './input.js';
+import { showGameOver, hideGameOver } from './ui.js';
 
 const canvas = document.getElementById('game');
 
@@ -52,8 +53,6 @@ function updateFollowers() {
   const o = LIGHTS.sun.offset;
   sun.position.set(o.x, o.y, p.z + o.z);
   sun.target.position.set(0, 0, p.z);
-
-  track.update(p.z);
 }
 
 // Resize
@@ -62,6 +61,31 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// Game state
+let isGameOver = false;
+let timeSinceGameOver = 0;
+
+function gameOver() {
+  isGameOver = true;
+  timeSinceGameOver = 0;
+  showGameOver(Math.floor(-player.mesh.position.z));
+}
+
+function restart() {
+  isGameOver = false;
+  hideGameOver();
+  player.reset();
+  track.reset();
+}
+
+function handleAction(action) {
+  if (!isGameOver) {
+    player.handleAction(action);
+  } else if ((action === 'restart' || action === 'tap') && timeSinceGameOver >= GAME.restartDelay) {
+    restart();
+  }
+}
 
 // Loop
 const timer = new THREE.Timer();
@@ -72,8 +96,16 @@ renderer.setAnimationLoop((timestamp) => {
   // Cap the step so a long hitch can't teleport the player.
   const dt = Math.min(timer.getDelta(), 0.1);
 
-  for (const action of consumeActions()) player.handleAction(action);
-  player.update(dt);
+  for (const action of consumeActions()) handleAction(action);
+
+  if (isGameOver) {
+    timeSinceGameOver += dt; // the world freezes; only the overlay is live
+  } else {
+    player.update(dt);
+    track.update(player.mesh.position.z);
+    if (track.collides(player.hitbox)) gameOver();
+  }
+
   updateFollowers();
 
   renderer.render(scene, camera);
