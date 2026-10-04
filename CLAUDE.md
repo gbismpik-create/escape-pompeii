@@ -6,6 +6,10 @@ eruption of Vesuvius (79 AD) toward the harbour. Difficulty follows 3 real
 eruption phases: pumice fall (0–60 s), ash & darkness (60–150 s), surge chasing
 from behind (150 s+).
 
+## Game design
+The full vision is in GAME_DESIGN.md. Read it for context, but build ONLY what
+"Current milestone" asks for; suggest anything else instead of building it.
+
 ## Tone
 Dramatic but respectful: real people died. No bodies, plaster casts or gore.
 Game over = screen fades to ash + distance + a short historical fact.
@@ -30,3 +34,15 @@ Week 2: make it look like Pompeii.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
+
+From the GAME_DESIGN.md build order:
+- Shield action (uses the existing legionary and animations)
+- Runs with an ending: distance bar, beach finish line
+- Turns at junctions: corner chunks; on a turn the world rotates 90° around the runner
+- Statues: static landmarks first, then toppling ones
+- Rescued followers
+- Forum district
+- Theatre district
+- Villa shortcut
+- Rooftop phase
+- Outside the walls: tombs road, fields, beach finale
