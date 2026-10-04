@@ -79,6 +79,21 @@ export function showRouteChange(metres) {
   showNotice(metres < 0 ? `−${-metres} m · towards the sea` : `+${metres} m · away from the sea`, metres < 0 ? 'nearer' : 'further');
 }
 
+// The district's name, large in the middle of the screen for a moment
+// when the runner enters it.
+const districtTitle = document.createElement('div');
+districtTitle.id = 'district-title';
+districtTitle.setAttribute('aria-live', 'polite');
+document.body.appendChild(districtTitle);
+
+export function showDistrict(name, seconds) {
+  districtTitle.textContent = name;
+  districtTitle.style.animationDuration = `${seconds}s`;
+  districtTitle.classList.remove('show');
+  void districtTitle.offsetWidth; // restart the fade
+  districtTitle.classList.add('show');
+}
+
 // Mute button, top right. data-control keeps its taps away from the swipe
 // and tap handling in input.js.
 const SPEAKER_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';

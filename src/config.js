@@ -9,6 +9,17 @@ export const LANES = {
   width: 1.8, // distance between lane centres (metres): matches the street kit's road
 };
 
+// Districts (track.js): each way out of a junction leads into one. A street
+// is "residential" (Via dell'Abbondanza); some ways lead into the Forum, a
+// wide square (still three lanes), for a few chunks, then back into the streets.
+export const DISTRICTS = {
+  forumChance: 0.35, // chance a way out of a junction leads into the Forum (never twice running)
+  forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
+  names: { residential: "Via dell'Abbondanza", forum: 'The Forum' },
+  gateOpen: 6, // metres into the Forum (past the entrance arch) where its name shows
+  titleTime: 2.2, // seconds the district name shows
+};
+
 export const PLAYER = {
   size: { x: 1, y: 1.8, z: 1 }, // the hitbox; the legionary model fits inside it
   startSpeed: 12, // forward speed at the start of a run (units per second)

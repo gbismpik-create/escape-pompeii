@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS } from './config.js';
 import { createObstacles } from './obstacles.js';
 import { createStatues } from './statues.js';
 import { isLowEnd } from './device.js';
@@ -127,6 +127,15 @@ function planJunction(type, random) {
   return placements;
 }
 
+// The Forum (stand-in): the lanes' road, and the whole square paved around
+// it, a little lower so the two don't flicker.
+function planForum() {
+  return [
+    { piece: 'Road_30m', x: 0, z: 0, angle: 0 },
+    { piece: 'Road_30m', x: 0, y: -0.03, z: 0, angle: 0, sx: 24 / (2 * ROAD_HALF) },
+  ];
+}
+
 // Merges a layout's pieces into one geometry per material.
 // sx / sz stretch a piece along its own x / z before it is turned.
 function mergeLayout(pieces, placements) {
@@ -136,8 +145,8 @@ function mergeLayout(pieces, placements) {
   const up = new THREE.Vector3(0, 1, 0);
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3();
-  for (const { piece, x, z, angle, sx = 1, sz = 1 } of placements) {
-    m.compose(position.set(x, 0, z), q.setFromAxisAngle(up, angle), scale.set(sx, 1, sz));
+  for (const { piece, x, y = 0, z, angle, sx = 1, sz = 1 } of placements) {
+    m.compose(position.set(x, y, z), q.setFromAxisAngle(up, angle), scale.set(sx, 1, sz));
     for (const part of pieces[piece] ?? []) {
       if (!byMaterial.has(part.material)) byMaterial.set(part.material, []);
       byMaterial.get(part.material).push(part.geometry.clone().applyMatrix4(m));
@@ -242,6 +251,7 @@ export function createTrack(scene, kit) {
   const junctionLayouts = { T: build(planJunction('T', random)), X: build(planJunction('X', random)) };
   // From the finish chunk on, the street opens out: road only, no houses.
   const openLayout = build([{ piece: 'Road_30m', x: 0, z: 0, angle: 0 }]);
+  const forumLayout = build(planForum());
   const finishMarks = createFinishMarks(world);
 
   // One slot = a group per detail level, holding one mesh per material:
@@ -271,7 +281,8 @@ export function createTrack(scene, kit) {
     world.add(root);
     // A chunk: where it starts (world-group space), its heading, how far
     // along the path it starts, and its kind ('street', 'T', 'X', 'open').
-    return { slot, root, lods, start: new THREE.Vector3(), heading: 0, distance: 0, kind: 'street', matrix: new THREE.Matrix4() };
+    // district: 'residential' | 'forum'; run: the Forum's { start, end } path distances.
+    return { slot, root, lods, start: new THREE.Vector3(), heading: 0, distance: 0, kind: 'street', district: 'residential', run: null, matrix: new THREE.Matrix4() };
   }
   const free = Array.from({ length: slotCount }, (_, slot) => createSlot(slot));
   let path = []; // chunks in order along the path
@@ -284,17 +295,23 @@ export function createTrack(scene, kit) {
   let nextJunction = Infinity; // path distance where the next junction chunk starts
   let finishDistance = null;
   let finishIndex = Infinity; // first open chunk (Escape mode)
-  // Where the next chunk on the path goes.
-  const cursor = { position: new THREE.Vector3(), heading: 0, distance: 0 };
+  // Where the next chunk on the path goes (and the Forum it is in, if any).
+  const cursor = { position: new THREE.Vector3(), heading: 0, distance: 0, run: null };
+  let cameFromForum = false;
+
+  // The path chunk at a distance (the street the runner is on or will be).
+  const chunkAt = (d) => path.find((c) => d >= c.distance && d < c.distance + L);
   const tmp = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
 
   // Puts a chunk at a place on the path and gives it its layout and obstacles.
-  function placeChunk(chunk, position, heading, distance, kind) {
+  function placeChunk(chunk, position, heading, distance, kind, district = 'residential', run = null) {
     chunk.start.copy(position);
     chunk.heading = heading;
     chunk.distance = distance;
     chunk.kind = kind;
+    chunk.district = district;
+    chunk.run = run;
     // The kit street runs along +z; turned 180° it runs along -z, then the heading.
     chunk.root.position.copy(position);
     chunk.root.rotation.y = Math.PI + angleOf(heading);
@@ -304,7 +321,7 @@ export function createTrack(scene, kit) {
     chunk.root.scale.x = chunk.mirrored ? -1 : 1;
     chunk.root.visible = true;
     const layout =
-      kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : layouts[Math.floor(Math.random() * layouts.length)];
+      kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : district === 'forum' ? forumLayout : layouts[Math.floor(Math.random() * layouts.length)];
     for (const lod of ['near', 'far', 'shadow']) {
       for (const [material, mesh] of chunk.lods[lod].userData.meshes) {
         const geometry = layout[lod === 'near' ? 'near' : 'far'].get(material);
@@ -324,7 +341,7 @@ export function createTrack(scene, kit) {
       const metres = STATUES.clearance * speedAt(toppler) * MAX_SPEED_MULTIPLIER;
       clear.push([toppler - metres, toppler + metres]);
     }
-    obstacles.fill(chunk.slot, chunk, { empty: kind === 'T' || kind === 'X' || kind === 'side', clear });
+    obstacles.fill(chunk.slot, chunk, { empty: kind === 'T' || kind === 'X' || kind === 'side', clear, openSquare: district === 'forum' });
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, in this chunk's frame.
       finishMarks.position.copy(position).addScaledVector(forward(heading, tmp), finishDistance - distance);
@@ -345,8 +362,9 @@ export function createTrack(scene, kit) {
     const chunk = free.pop();
     if (!chunk) return false;
     const d = cursor.distance;
-    const kind = d >= finishIndex * L ? 'open' : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
-    placeChunk(chunk, cursor.position, cursor.heading, d, kind);
+    const inForum = cursor.run && d < cursor.run.end;
+    const kind = d >= finishIndex * L ? 'open' : inForum ? 'forum' : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
+    placeChunk(chunk, cursor.position, cursor.heading, d, kind, kind === 'forum' ? 'forum' : 'residential', kind === 'forum' ? cursor.run : null);
     path.push(chunk);
     cursor.position.addScaledVector(forward(cursor.heading, tmp), L);
     cursor.distance += L;
@@ -366,7 +384,11 @@ export function createTrack(scene, kit) {
       if (!side) continue;
       const heading = mod4(chunk.heading + turn);
       const start = turn === 0 ? cursor.position.clone() : centre.clone().addScaledVector(forward(heading, tmp), SQUARE / 2);
-      placeChunk(side, start, heading, cursor.distance, 'side');
+      // Where this way leads: sometimes into the Forum (never twice running).
+      const forum = !cameFromForum && Math.random() < DISTRICTS.forumChance;
+      const [min, max] = DISTRICTS.forumChunks;
+      const run = forum ? { start: cursor.distance, end: cursor.distance + L * (min + Math.floor(Math.random() * (max - min + 1))) } : null;
+      placeChunk(side, start, heading, cursor.distance, 'side', forum ? 'forum' : 'residential', run);
       exits[way] = side;
     }
   }
@@ -381,9 +403,12 @@ export function createTrack(scene, kit) {
     cursor.heading = chosen.heading;
     cursor.position.copy(chosen.start).addScaledVector(forward(chosen.heading, tmp), L);
     cursor.distance = chosen.distance + L;
+    cursor.run = chosen.run; // into the Forum, or null
+    cameFromForum = Boolean(chosen.run);
     junction = null;
     exits = null;
-    planNextJunction(cursor.distance);
+    // The next junction comes after the Forum, out in the streets again.
+    planNextJunction(chosen.run ? chosen.run.end : cursor.distance);
   }
 
   function planNextJunction(from) {
@@ -409,6 +434,8 @@ export function createTrack(scene, kit) {
     cursor.position.set(0, 0, TRACK.chunksBehind * L);
     cursor.heading = 0;
     cursor.distance = -TRACK.chunksBehind * L;
+    cursor.run = null;
+    cameFromForum = false;
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
     statues.reset();
     planNextJunction(0);
@@ -449,6 +476,13 @@ export function createTrack(scene, kit) {
       for (const o of obstacles.list()) best = Math.min(best, Math.abs(o.distance - distance));
       for (const d of statues.toppleDistances()) best = Math.min(best, Math.abs(d - distance));
       return best;
+    },
+
+    // The district at a path distance: the Forum from just inside its
+    // entrance to its end.
+    districtAt(distance) {
+      const run = chunkAt(distance)?.run;
+      return run && distance >= run.start + DISTRICTS.gateOpen && distance < run.end ? 'forum' : 'residential';
     },
 
     // Is a statue free to topple here? No obstacle row and no junction

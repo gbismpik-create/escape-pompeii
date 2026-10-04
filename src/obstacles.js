@@ -34,8 +34,12 @@ function weightedPick(table) {
 // One row: { full: pieceName } or { lanes: [pieceName | null, ...] }.
 // Keeps every row passable: a full row can always be jumped or slid under,
 // and a mixed row always keeps at least one lane that isn't a block.
-function randomRow() {
-  if (Math.random() < OBSTACLES.fullRowChance) return { full: weightedPick(OBSTACLES.fullRow) };
+// openSquare: no roof beams (the Forum has no roofs over the lanes).
+function randomRow(openSquare) {
+  if (Math.random() < OBSTACLES.fullRowChance) {
+    const full = openSquare ? Object.fromEntries(Object.entries(OBSTACLES.fullRow).filter(([, p]) => p.move !== 'slide')) : OBSTACLES.fullRow;
+    return { full: weightedPick(full) };
+  }
   for (let tries = 0; tries < 20; tries++) {
     const lanes = Array.from({ length: LANES.count }, () =>
       Math.random() < OBSTACLES.emptyLaneChance ? null : weightedPick(OBSTACLES.lane),
@@ -148,8 +152,9 @@ export function createObstacles(parent, chunkCount, kit) {
     // one chunk to the next, so path chunks must be filled in order.
     // chunk: { distance (along the path where it starts), matrix (its frame) }.
     // empty: no rows, and the running distance is left alone (junctions,
-    // side streets, freed slots). clear: [from, to] distance ranges with no rows.
-    fill(chunkSlot, chunk, { empty = false, clear = [] } = {}) {
+    // side streets, freed slots). clear: [from, to] distance ranges with no
+    // rows. openSquare: the Forum (no roof beams).
+    fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false } = {}) {
       const list = (active[chunkSlot] = []);
 
       const chunkStart = chunk.distance;
@@ -161,7 +166,7 @@ export function createObstacles(parent, chunkCount, kit) {
         nextRowDistance += rowSpeed(distance) * OBSTACLES.rowSpacingTime;
         if (r >= rowsPerChunk || distance > lastRowDistance || Math.random() >= OBSTACLES.rowChance) continue;
         if (clear.some(([from, to]) => distance > from && distance < to)) continue;
-        const row = randomRow();
+        const row = randomRow(openSquare);
         const z = -(distance - chunkStart);
         if (row.full) {
           place(row.full, 0, z, chunk.matrix, distance, list);

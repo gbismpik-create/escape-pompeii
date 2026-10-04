@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -13,7 +13,7 @@ import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
   updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish,
-  setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange,
+  setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange, showDistrict,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
@@ -313,7 +313,18 @@ function showEndScreen() {
   });
 }
 
+// Which district the runner is in; its name shows on entering.
+let district = null;
+function updateDistrict() {
+  const now = track.districtAt(currentDistance());
+  if (now !== district) {
+    district = now;
+    showDistrict(DISTRICTS.names[now], DISTRICTS.titleTime);
+  }
+}
+
 function restart() {
+  district = null;
   isGameOver = false;
   isFinishing = false;
   queuedTurn = null;
@@ -462,6 +473,7 @@ renderer.setAnimationLoop((timestamp) => {
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     updateDistance(currentDistance());
+    updateDistrict();
     // Statues: some topple in the later phases (see statues.js).
     const statueSpeed = currentSpeed();
     track.statues.update(

@@ -289,6 +289,31 @@ body {
   100% { opacity: 0; }
 }
 
+#district-title {
+  position: fixed;
+  top: 30%;
+  left: 0;
+  right: 0;
+  color: #f6eedb;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.8rem, 8vw, 3rem);
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  opacity: 0;
+}
+
+#district-title.show {
+  animation: district-title 2.2s ease-out forwards;
+}
+
+@keyframes district-title {
+  0% { opacity: 0; transform: translateY(8px); }
+  15%, 65% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
+
 #compass {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));
