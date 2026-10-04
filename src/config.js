@@ -120,7 +120,7 @@ export const PHASES = {
       ashRate: 0.3,
       ashColor: 0xd9d3c7,
       speedMultiplier: 1,
-      tileRate: 0.25, // falling roof tiles per second (see TILES)
+      tileRate: 0.25, // falling roof tiles per second, for atmosphere (see TILES)
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
     },
     {
@@ -203,21 +203,27 @@ export const STUMBLE = {
 };
 
 // Roof tiles shaken loose by the earthquakes and the weight of pumice.
-// A shadow warns where one will land; the tile drops and shatters.
+// Atmosphere only: they never hit the player. A shadow shows where one
+// will land; the tile drops and shatters.
 export const TILES = {
   warningTime: 1.0, // seconds the shadow shows before the tile lands
-  fallTime: 0.45, // the tile is visible falling for the last part of the warning
-  dropHeight: 14, // metres above the road where the falling tile appears
+  // The tile is visible falling for this long (the whole warning). It must
+  // start low enough to be on screen: the camera sees only ~7–9 m up at
+  // the distance where tiles appear.
+  fallTime: 1.0,
+  dropHeight: 7, // metres above the road where the falling tile appears
+  startDistance: 150, // no tiles in the first metres of a run (~11 s)
   size: { x: 0.7, y: 0.14, z: 0.9 }, // one terracotta roof tile (tegula)
-  hitboxMargin: 0.1,
-  // Tiles never land closer than this (in seconds of running) to an
-  // obstacle row or to another tile, so all lanes are open around a tile
-  // and there is time to dodge it and still reach the next row's way through.
+  // Tiles land at least this far (in seconds of running) from obstacles and
+  // from each other, so they never clutter or hide an obstacle.
   clearanceTime: 0.3,
-  targetPlayerChance: 0.65, // chance a tile aims at the player's lane (else a random lane)
+  targetPlayerChance: 0.5, // chance a tile aims at the player's lane (else a random lane)
   maxTiles: 6, // most tiles in flight or in pieces at once
-  shadowRadius: 0.75,
-  shadowDarkness: 0.25, // 1 = no shadow, 0 = black
+  // Wider than the legionary, so it shows on both sides of him even though
+  // the camera is right behind him.
+  shadowRadius: 1.15,
+  shadowDarkness: 0.15, // 1 = no shadow, 0 = black
+  shadowFadeIn: 0.25, // seconds to reach full darkness
   pieces: 5, // fragments per broken tile
   pieceLifetime: 1.6, // seconds before fragments sink away
 };

@@ -109,19 +109,22 @@ function handleAction(action) {
 }
 
 // Clipping the side of an obstacle makes the player stumble; running into
-// one head-on, or being hit by a falling tile, ends the run.
+// one head-on ends the run. (Falling tiles are only atmosphere: they can't hit.)
+
+const CRASH_REASONS = {
+  low: 'You tripped on a stepping stone',
+  bar: 'You ran into a fallen roof beam',
+  block: 'You ran into a collapsed wall',
+};
 
 function checkCollisions() {
-  if (tiles.collides(player.hitbox)) {
-    gameOver();
-    return;
-  }
   if (player.inStumbleGrace) return;
-  const obstacle = track.findCollision(player.hitbox);
-  if (!obstacle) return;
+  const hit = track.findCollision(player.hitbox);
+  if (!hit) return;
 
+  const obstacle = hit.hitbox;
   if (!isSideClip(player.previousHitbox, player.hitbox, obstacle)) {
-    gameOver();
+    gameOver(CRASH_REASONS[hit.type]);
     return;
   }
   player.stumble((obstacle.min.x + obstacle.max.x) / 2);

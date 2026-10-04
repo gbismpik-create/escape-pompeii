@@ -167,10 +167,9 @@ export function createObstacles(scene, chunkCount) {
       }
     },
 
-    // The hitbox of the obstacle the player is touching, or null.
+    // The obstacle the player is touching as { type, hitbox }, or null.
     findCollision(hitbox) {
-      const slot = slots.find((s) => s.type && s.hitbox.intersectsBox(hitbox));
-      return slot ? slot.hitbox : null;
+      return slots.find((s) => s.type && s.hitbox.intersectsBox(hitbox)) ?? null;
     },
 
     // Distance along the track from z to the nearest obstacle (Infinity if none).

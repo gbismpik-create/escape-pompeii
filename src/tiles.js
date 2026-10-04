@@ -3,10 +3,10 @@ import { LANES, OBSTACLES, TILES, TOWN } from './config.js';
 import { laneToX } from './lanes.js';
 import { box, merge } from './geometry.js';
 
-// Falling roof tiles. Each tile goes through three stages:
-//   warning  – a shadow grows and darkens on the road where it will land
-//   falling  – the tile drops for the last part of the warning (dangerous)
-//   broken   – it shatters into pieces that scatter and sink away (harmless)
+// Falling roof tiles, for atmosphere only: they never hurt the player.
+// Each tile goes through two stages:
+//   falling  – a shadow darkens and grows on the road while the tile drops
+//   broken   – it shatters into pieces that scatter and sink away
 //
 // Everything is pooled and instanced: one mesh for all shadows, one for all
 // tiles and one for all pieces, so tiles cost 3 draw calls in total.
@@ -65,8 +65,6 @@ export function createTiles(scene, track) {
     x: 0,
     z: 0,
     spin: new THREE.Vector3(),
-    hitbox: new THREE.Box3(),
-    dangerous: false,
     shattered: false,
     pieces: Array.from({ length: TILES.pieces }, () => ({
       position: new THREE.Vector3(),
@@ -84,8 +82,8 @@ export function createTiles(scene, track) {
   const sc = new THREE.Vector3();
   const color = new THREE.Color();
 
-  // Picks a landing spot about warningTime ahead of the player and checks
-  // it can never make the way impossible; returns false if no spot is safe.
+  // Picks a landing spot about warningTime ahead of the player, away from
+  // obstacles and other tiles so it reads clearly; returns false if none fits.
   function trySpawn(playerPosition, speed) {
     const tile = pool.find((t) => !t.active);
     if (!tile) return false;
@@ -98,12 +96,12 @@ export function createTiles(scene, track) {
     // Try the spot the player will reach, then nearby spots.
     for (const offset of [0, -3, 3, -6, 6]) {
       const z = landZ + offset;
-      if (-z < OBSTACLES.safeStartDistance) continue;
+      if (-z < Math.max(OBSTACLES.safeStartDistance, TILES.startDistance)) continue;
       if (track.distanceToNearestObstacle(z) < clearance) continue;
       if (pool.some((t) => t.active && !t.shattered && Math.abs(t.z - z) < clearance)) continue;
 
-      Object.assign(tile, { active: true, age: 0, x: laneToX(lane), z, dangerous: false, shattered: false });
-      tile.spin.set(Math.random() * 6 - 3, Math.random() * 4 - 2, Math.random() * 6 - 3);
+      Object.assign(tile, { active: true, age: 0, x: laneToX(lane), z, shattered: false });
+      tile.spin.set(Math.random() * 3 - 1.5, Math.random() * 2 - 1, Math.random() * 3 - 1.5);
       return true;
     }
     return false;
@@ -111,7 +109,6 @@ export function createTiles(scene, track) {
 
   function shatter(tile) {
     tile.shattered = true;
-    tile.dangerous = false;
     tile.pieces.forEach((p, i) => {
       const angle = (i / TILES.pieces) * Math.PI * 2 + Math.random();
       const speed = 1.5 + Math.random() * 2.5;
@@ -128,12 +125,14 @@ export function createTiles(scene, track) {
     const W = TILES.warningTime;
     const t = tile.age;
 
-    // Shadow: grows and darkens until the tile lands.
+    // Shadow: darkens quickly so it's noticed at once, then grows (the tile
+    // getting closer) with a slight pulse until the tile lands.
     if (t < W) {
       const k = t / W;
-      const r = TILES.shadowRadius * (0.4 + 0.6 * k);
+      const pulse = 1 + 0.06 * Math.sin(t * 25);
+      const r = TILES.shadowRadius * (0.7 + 0.3 * k) * pulse;
       shadows.setMatrixAt(index, m.makeScale(r, 1, r).setPosition(tile.x, 0.02, tile.z));
-      shadows.setColorAt(index, color.lerpColors(WHITE, DARK, k));
+      shadows.setColorAt(index, color.lerpColors(WHITE, DARK, Math.min(1, t / TILES.shadowFadeIn)));
     } else {
       shadows.setMatrixAt(index, HIDDEN);
     }
@@ -146,10 +145,6 @@ export function createTiles(scene, track) {
       const tumble = 1 - f;
       q.setFromEuler(e.set(tile.spin.x * tumble, tile.spin.y * tumble, tile.spin.z * tumble));
       tiles.setMatrixAt(index, m.compose(v.set(tile.x, y, tile.z), q, sc.set(1, 1, 1)));
-      const h = Math.max(S.x, S.z) / 2 - TILES.hitboxMargin; // covers any tumble angle
-      tile.hitbox.min.set(tile.x - h, y - h, tile.z - h);
-      tile.hitbox.max.set(tile.x + h, y + h, tile.z + h);
-      tile.dangerous = true;
     } else {
       tiles.setMatrixAt(index, HIDDEN);
     }
@@ -223,9 +218,6 @@ export function createTiles(scene, track) {
       }
     },
 
-    collides(hitbox) {
-      return pool.some((tile) => tile.active && tile.dangerous && tile.hitbox.intersectsBox(hitbox));
-    },
   };
 }
 
