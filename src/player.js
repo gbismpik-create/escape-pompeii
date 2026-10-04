@@ -71,10 +71,13 @@ export function createPlayer(scene, model, shield = createShield()) {
 
     // Clipped the side of an obstacle centred at obstacleX: bounce back to
     // the lane on the player's side of it, slow down for a moment.
+    // Without obstacleX (hit from above) he stays in his lane.
     stumble(obstacleX) {
-      const obstacleLane = Math.round(obstacleX / LANES.width + (LANES.count - 1) / 2);
-      const side = object.position.x < obstacleX ? -1 : 1;
-      lane = THREE.MathUtils.clamp(obstacleLane + side, 0, LANES.count - 1);
+      if (obstacleX !== undefined) {
+        const obstacleLane = Math.round(obstacleX / LANES.width + (LANES.count - 1) / 2);
+        const side = object.position.x < obstacleX ? -1 : 1;
+        lane = THREE.MathUtils.clamp(obstacleLane + side, 0, LANES.count - 1);
+      }
       stumbleTimeLeft = STUMBLE.duration;
       legionary.stumble();
     },

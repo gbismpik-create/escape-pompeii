@@ -16,6 +16,7 @@ import {
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
+import { createFalling } from './falling.js';
 import { isSideClip } from './obstacles.js';
 import { loadBest, saveBest } from './storage.js';
 
@@ -66,6 +67,19 @@ setLoading(false);
 const shield = createShield();
 const player = createPlayer(scene, character, shield);
 const surge = createSurge(scene);
+// Falling tiles and pumice: bounce off the raised shield, or make him stumble.
+const falling = createFalling(scene, track, {
+  block: () => audio.shieldBlock(),
+  hit: () => {
+    if (player.inStumbleGrace) return;
+    player.stumble(); // stays in his lane; never counts towards the surge
+    audio.stumble();
+    shake = STUMBLE.cameraShake * 0.6;
+  },
+  smash: (kind, z) => audio.smash(player.object.position.z - z),
+});
+// What falling.js needs to know about the player each frame.
+const fallingTarget = { position: player.object.position, hitbox: player.hitbox, shieldRaised: false, velocityZ: 0 };
 player.settle(); // stand idle on the start screen
 let shake = 0; // camera shake after a stumble, fading out
 
@@ -127,6 +141,7 @@ function restart() {
   player.reset();
   track.reset();
   surge.reset();
+  falling.reset();
   setAshFade(0);
   shake = 0;
 }
@@ -217,6 +232,10 @@ renderer.setAnimationLoop((timestamp) => {
     updateDistance(currentDistance());
     updateShield(shield.state, shield.remaining);
     checkCollisions();
+    const speed = speedAt(currentDistance()) * speedMultiplier;
+    fallingTarget.shieldRaised = shield.isRaised;
+    fallingTarget.velocityZ = -speed * shield.speedFactor;
+    falling.update(dt, environment.phase.fallRate, speed * shield.speedFactor, fallingTarget);
     surge.update(dt, player.object.position, environment.phase.surgeVisibility);
   }
 

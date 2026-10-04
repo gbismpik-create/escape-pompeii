@@ -1,4 +1,4 @@
-import { AUDIO, CHARACTER, PLAYER } from './config.js';
+import { AUDIO, CHARACTER, PLAYER, FALLING } from './config.js';
 import { loadArrayBuffer } from './assets.js';
 import { loadMuted, saveMuted, loadVolumes, saveVolumes } from './storage.js';
 
@@ -214,6 +214,15 @@ export function createAudio() {
 
     stumble() {
       play('stumble');
+    },
+
+    shieldBlock() {
+      play('shieldBlock', { volume: FALLING.blockVolume, rate: 0.9 + Math.random() * 0.2 });
+    },
+
+    // Something falling hits the road; quieter the further ahead it lands.
+    smash(distance) {
+      play('smash', { volume: FALLING.smashVolume / (1 + Math.max(0, distance) / 15), rate: 0.85 + Math.random() * 0.3 });
     },
 
     // 0–1, from the eruption phase. Eased so changes never jump.

@@ -133,6 +133,8 @@ export const AUDIO = {
     slide: 'assets/audio/slide.mp3', // scrape along the stones
     impact: 'assets/audio/impact.mp3',
     stumble: 'assets/audio/stumble.mp3',
+    shieldBlock: 'assets/audio/shield-block.mp3', // a tile or pumice bouncing off the scutum
+    smash: 'assets/audio/tile.mp3', // a tile or pumice hitting the road
     rumble: 'assets/audio/rumble.wav', // loops
     roar: 'assets/audio/roar.wav', // loops: the surge cloud, louder as it closes in
     // Tension music (made with tools/compose-tension.py). No tunes: layers
@@ -168,6 +170,45 @@ export const SHIELD = {
   cooldown: 2, // seconds after lowering before it can be raised again
   speedMultiplier: 0.75, // run speed while raised
   speedEase: 0.15, // seconds (time constant) to ease into / out of the slower speed
+};
+
+// Roof tiles and pumice falling onto the street (falling.js). A shadow on
+// the road warns where each will land. With the shield raised they bounce
+// off; otherwise a hit makes him stumble (it never ends the run, and it
+// doesn't count towards the surge catching him). How often: PHASES fallRate.
+export const FALLING = {
+  maxFalling: 8, // at most this many at once
+  tileShare: 0.4, // share of roof tiles; the rest are pumice
+  targetPlayerChance: 0.7, // chance of landing in the player's lane (else a random lane)
+  warningTime: 1.3, // seconds from the shadow appearing to landing
+  fallTime: 0.6, // seconds of visible fall; it starts when he is this far from the shadow
+  dropHeight: 9, // metres it falls from (above the roofs)
+  startDistance: 60, // nothing falls in the first metres of a run
+  clearanceTime: 0.5, // seconds of running kept clear between it and obstacles
+  hitRadius: 0.2, // size of a falling object for the hit test
+  // The space the raised shield covers, around the player (metres).
+  shieldArea: { halfWidth: 0.6, halfDepth: 0.6, top: 2.3 },
+  shadowRadius: 0.55,
+  shadowDarkness: 0.3, // 1 = invisible, 0 = black
+  shadowFadeIn: 0.15,
+  tileSize: [0.45, 0.06, 0.6],
+  tileColor: 0xb15f3b,
+  tileEdgeColor: 0x8a4630,
+  pumiceRadius: 0.17,
+  pumiceColor: 0xcfc6b4, // pumice is light and pale
+  dust: {
+    maxParticles: 160,
+    perBlock: 14, // dust particles when something bounces off the shield
+    sparksPerBlock: 6, // plus a few bright sparks off the bronze
+    perSmash: 10, // when it hits the road or him
+    life: 0.7, // seconds
+    size: 0.45, // metres
+    opacity: 0.85,
+    color: 0x857c70, // ash grey: reads against both the pale walls and the dark road
+    sparkColor: 0xffc070,
+  },
+  blockVolume: 1,
+  smashVolume: 0.6,
 };
 
 export const INPUT = {
@@ -240,6 +281,7 @@ export const PHASES = {
       columnScale: 0.16, // size of the eruption column (1 = the kit's full 2.7 km)
       fireGlow: 0, // fires on Vesuvius's slopes (0–1)
       ashWaves: 0.3, // how strongly the falling ash comes in gusts (0–1)
+      fallRate: 0.2, // tiles and pumice falling per second (see FALLING)
       tension: { drone: 0, heartbeat: 0, high: 0 }, // music layers (see AUDIO)
     },
     {
@@ -264,6 +306,7 @@ export const PHASES = {
       columnScale: 0.3, // size of the eruption column (1 = the kit's full 2.7 km)
       fireGlow: 0.55, // fires on Vesuvius's slopes (0–1)
       ashWaves: 0.6, // how strongly the falling ash comes in gusts (0–1)
+      fallRate: 0.35, // tiles and pumice falling per second (see FALLING)
       tension: { drone: 0.7, heartbeat: 0.45, high: 0.15 }, // music layers (see AUDIO)
     },
     {
@@ -288,6 +331,7 @@ export const PHASES = {
       columnScale: 0.24, // size of the eruption column (1 = the kit's full 2.7 km)
       fireGlow: 1, // fires on Vesuvius's slopes (0–1)
       ashWaves: 0.8, // how strongly the falling ash comes in gusts (0–1)
+      fallRate: 0.25, // tiles and pumice falling per second (see FALLING)
       tension: { drone: 1, heartbeat: 1, high: 0.75 }, // music layers (see AUDIO)
     },
   ],
