@@ -30,13 +30,12 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-Turns at junctions.
+Statues.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
 
 From the GAME_DESIGN.md build order:
-- Statues: static landmarks first, then toppling ones
 - Rescued followers
 - Forum district
 - Theatre district
