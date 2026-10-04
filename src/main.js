@@ -36,6 +36,8 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(LIGHTS.sun.shadowMapSize, LIGHTS.sun.shadowMapSize);
 const s = LIGHTS.sun.shadowArea;
 Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s });
+sun.shadow.bias = LIGHTS.sun.shadowBias;
+sun.shadow.normalBias = LIGHTS.sun.shadowNormalBias;
 scene.add(sun);
 scene.add(sun.target); // the target must be in the scene for its position to update
 

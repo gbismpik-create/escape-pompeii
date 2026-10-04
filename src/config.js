@@ -85,6 +85,10 @@ export const LIGHTS = {
     offset: { x: 10, y: 20, z: 10 },
     shadowMapSize: 2048,
     shadowArea: 30, // half-width of the shadow camera frustum
+    // Small offsets that stop surfaces shadowing themselves in stripes
+    // ("shadow acne") and light leaking at corners.
+    shadowBias: -0.0005,
+    shadowNormalBias: 0.03,
   },
 };
 
@@ -96,15 +100,31 @@ export const TRACK = {
   chunksBehind: 1, // kept behind the player so the camera never sees a gap
   // Street width in lanes. 5 = the 3 running lanes plus one pavement lane each side.
   streetWidthInLanes: 5,
-  sideGroundWidth: 40, // plain ground beyond the street on each side, under the buildings
 };
 
-export const GROUND = {
-  streetColor: 0x808080,
-  sideColor: 0x6e6e6e,
-  lineColor: 0x5a5a5a,
-  lineWidthPx: 3, // out of a 64 px tile
-  anisotropy: 4,
+export const STREET = {
+  pavementHeight: 0.3, // raised pavements (crepidines) on both sides of the road
+  sideGroundWidth: 140, // plain ground under and beyond the buildings
+  anisotropy: 4, // keeps the distant paving sharp
+};
+
+// Colours of the town. Pompeii's walls were painted plaster, often with a
+// dark red band along the bottom; roofs were terracotta tiles.
+export const TOWN = {
+  plaster: { ochre: 0xd6a04a, terracotta: 0xc0643f, cream: 0xe9dcbc, rose: 0xd98c6c },
+  dado: 0x8e2b20, // "Pompeian red" lower band
+  roof: 0xa9502f,
+  stucco: 0xf1ead8, // white columns, door frames
+  columnRed: 0xa3342a, // lower third of columns
+  wood: 0x5b3a24,
+  interior: 0x2a1d15, // dark doorways and shop openings
+  stone: 0xb9b2a4,
+  marble: 0xeeeae2,
+  water: 0x6f9fae,
+  awning: [0xc9b48a, 0xa64235],
+  pavement: 0xb5aa96,
+  sideGround: 0x8a7a62,
+  road: { stones: [0x5d6064, 0x676a6e, 0x717478, 0x5a5c5f], gaps: 0x393b3d, ruts: 0x2e2f31 },
 };
 
 export const OBSTACLES = {
@@ -122,17 +142,11 @@ export const OBSTACLES = {
   // so near misses feel fair rather than cheap.
   hitboxMargin: 0.1,
   types: {
-    // Must jump: lower than the jump, too tall to slide under.
-    low: { bottom: 0, height: 0.9, depth: 1, color: 0x5c6a7a },
+    // Must jump: Pompeii's stepping stones. Solid to the ground, so no sliding.
+    low: { bottom: 0, height: 0.5, depth: 1, color: 0xc9c2b2 },
     // Must slide: bottom above a sliding player, top above the jump's peak.
     bar: { bottom: 1.2, height: 1.4, depth: 0.5, color: 0x7a5c6a },
     // Must change lane: taller than any jump.
     block: { bottom: 0, height: 3, depth: 1.5, color: 0x4a4a4a },
   },
-};
-
-export const BUILDINGS = {
-  // Variants pick a shade by index (0, 1, 2…). All grey for now.
-  colors: [0xa0a0a0, 0x8c8c8c, 0xb4b4b4],
-  defaultDepth: 8, // how far a building extends away from the street
 };
