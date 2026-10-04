@@ -91,21 +91,24 @@ export const LIGHTS = {
   glow: { color: 0xff5a1f, offset: { x: -4, y: 6, z: 30 } },
 };
 
-// The three phases of the eruption. Each phase sets the mood; between
-// phases everything blends over transitionTime seconds.
-// fogNear/fogFar: where fog starts and where it becomes solid (metres).
-// The fog colour is the sky's horizon colour, so the town fades into the sky.
-// Keep fogFar below TRACK.chunksAhead × chunkLength (180 m) to hide new chunks appearing.
+// The three phases of the eruption, driven by time since the run started.
+// Each phase sets the mood and difficulty; when the next phase begins,
+// every value blends into it over transitionTime seconds.
+//   fogDensity: higher = thicker. Things are nearly hidden at about
+//     2 / fogDensity metres (0.011 → 180 m, 0.03 → 65 m). The fog colour is
+//     the sky's horizon colour, so the town fades into the sky.
+//   ashRate: share of ASH.maxParticles falling (0–1).
+//   speedMultiplier: multiplies the run speed. Obstacle rows are spaced for
+//     the highest multiplier, so every pattern stays passable.
 export const PHASES = {
-  transitionTime: 8,
+  transitionTime: 5,
   list: [
     {
       name: 'Pumice fall',
       start: 0,
       skyTop: 0x7d93a8,
       skyHorizon: 0xd2bf9f, // yellow-grey haze under the eruption cloud
-      fogNear: 50,
-      fogFar: 175,
+      fogDensity: 0.0115,
       sunColor: 0xffe2b5,
       sunIntensity: 1.6,
       hemiSky: 0xc4d2e0,
@@ -113,14 +116,16 @@ export const PHASES = {
       hemiIntensity: 1.0,
       glowIntensity: 0,
       distantHaze: 0.35, // how much Vesuvius fades into the horizon colour
+      ashRate: 0.3,
+      ashColor: 0xd9d3c7,
+      speedMultiplier: 1,
     },
     {
       name: 'Ash & darkness',
       start: 60,
       skyTop: 0x2c2723,
       skyHorizon: 0x6b5b4b,
-      fogNear: 12,
-      fogFar: 95,
+      fogDensity: 0.021,
       sunColor: 0xd99a5c,
       sunIntensity: 0.55,
       hemiSky: 0x8a7f72,
@@ -128,14 +133,16 @@ export const PHASES = {
       hemiIntensity: 0.7,
       glowIntensity: 0,
       distantHaze: 0.7,
+      ashRate: 1,
+      ashColor: 0x8c857c,
+      speedMultiplier: 1.07,
     },
     {
       name: 'Surge',
       start: 150,
       skyTop: 0x16100d,
       skyHorizon: 0x3e2a20,
-      fogNear: 6,
-      fogFar: 65,
+      fogDensity: 0.031,
       sunColor: 0xb8693a,
       sunIntensity: 0.25,
       hemiSky: 0x5a4a40,
@@ -143,8 +150,29 @@ export const PHASES = {
       hemiIntensity: 0.6,
       glowIntensity: 1.8,
       distantHaze: 0.85,
+      ashRate: 1,
+      ashColor: 0x6e5146,
+      speedMultiplier: 1.15,
     },
   ],
+};
+
+// Falling ash: tiny flakes in a box that travels with the camera. The GPU
+// moves them (see ash.js), so they cost no JavaScript time per frame.
+export const ASH = {
+  maxParticles: 3000,
+  box: { x: 30, y: 18, z: 50 }, // size of the box of flakes around the camera
+  boxOffset: { x: 0, y: 3, z: -16 }, // box centre relative to the camera (mostly ahead)
+  fallSpeed: 2.2, // metres per second
+  drift: 0.8, // sideways swaying (metres)
+  size: 0.11, // flake size (metres)
+  nearFade: 2.5, // flakes closer to the camera than this fade out (no blobs on the lens)
+  opacity: 0.85,
+};
+
+export const DEBUG = {
+  // P jumps to the next eruption phase. Set to false before release.
+  phaseKey: true,
 };
 
 export const SKY = {

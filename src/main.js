@@ -1,9 +1,10 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG } from './config.js';
 import { createPlayer } from './player.js';
 import { createTrack } from './track.js';
 import { createEnvironment } from './environment.js';
+import { nextPhaseStart } from './phases.js';
 import { consumeActions } from './input.js';
 import { updateDistance, showBest, showGameOver, hideGameOver } from './ui.js';
 import { loadBest, saveBest } from './storage.js';
@@ -81,7 +82,9 @@ function restart() {
 }
 
 function handleAction(action) {
-  if (!isGameOver) {
+  if (action === 'debugNextPhase') {
+    if (DEBUG.phaseKey && !isGameOver) runTime = nextPhaseStart(runTime);
+  } else if (!isGameOver) {
     player.handleAction(action);
   } else if ((action === 'restart' || action === 'tap') && timeSinceGameOver >= GAME.restartDelay) {
     restart();
@@ -103,7 +106,7 @@ renderer.setAnimationLoop((timestamp) => {
     timeSinceGameOver += dt; // the world freezes; only the overlay is live
   } else {
     runTime += dt;
-    player.update(dt);
+    player.update(dt, environment.phase.speedMultiplier);
     track.update(player.object.position.z);
     updateDistance(currentDistance());
     if (track.collides(player.hitbox)) gameOver();

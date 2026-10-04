@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { LANES, TRACK, OBSTACLES, PLAYER, TOWN } from './config.js';
+import { LANES, TRACK, OBSTACLES, TOWN } from './config.js';
 import { laneToX } from './lanes.js';
-import { speedAt } from './speed.js';
+import { speedAt, MAX_SPEED_MULTIPLIER } from './speed.js';
 import { box, cylinder, merge } from './geometry.js';
 
 // Each obstacle type is one small model (merged, vertex-coloured shapes)
@@ -61,9 +61,15 @@ const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading
 
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
+// Rows are placed far ahead, before we know which phase (and so which speed
+// multiplier) the player will be in when they get there. So rows are spaced
+// for the fastest phase: the reaction time is never shorter than
+// rowSpacingTime, only longer in slower phases.
+const rowSpeed = (distance) => speedAt(distance) * MAX_SPEED_MULTIPLIER;
+
 // Rows are closest together at the slowest speed, so that decides how many
 // rows a chunk can ever hold.
-const minRowSpacing = PLAYER.startSpeed * OBSTACLES.rowSpacingTime;
+const minRowSpacing = rowSpeed(0) * OBSTACLES.rowSpacingTime;
 const rowsPerChunk = Math.ceil(TRACK.chunkLength / minRowSpacing);
 const slotsPerChunk = rowsPerChunk * LANES.count;
 
@@ -149,7 +155,7 @@ export function createObstacles(scene, chunkCount) {
       const chunkEnd = -chunkZ + TRACK.chunkLength;
       for (let r = 0; nextRowDistance < chunkEnd; r++) {
         const distance = nextRowDistance;
-        nextRowDistance += speedAt(distance) * OBSTACLES.rowSpacingTime;
+        nextRowDistance += rowSpeed(distance) * OBSTACLES.rowSpacingTime;
         if (r < rowsPerChunk && Math.random() < OBSTACLES.rowChance) {
           randomRow().forEach((type, lane) => setSlot(start + r * LANES.count + lane, type, distance, lane));
         }

@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { LIGHTS, SKY, VESUVIUS } from './config.js';
 import { createPhaseState, updatePhaseState } from './phases.js';
 import { createVesuvius } from './vesuvius.js';
+import { createAsh } from './ash.js';
 
-// Sky, fog, lights and Vesuvius, all driven by the eruption phase.
+// Sky, fog, lights, falling ash and Vesuvius, all driven by the eruption phase.
 
 // A big sphere around the camera, painted on the inside with a gradient
 // from the horizon colour up to the top colour. Drawn first, behind everything.
@@ -45,7 +46,9 @@ export function createEnvironment(scene) {
   const sky = createSkyDome();
   scene.add(sky);
 
-  scene.fog = new THREE.Fog(0xffffff, 10, 100);
+  // Exponential fog: thickens smoothly with distance, set by one density value.
+  scene.fog = new THREE.FogExp2(0xffffff, 0.01);
+  const ash = createAsh(scene);
 
   // Light from the sky above and bounced off the ground below: cheap and
   // much softer than a flat ambient light.
@@ -80,8 +83,9 @@ export function createEnvironment(scene) {
       sky.material.uniforms.horizonColor.value.copy(phase.skyHorizon);
 
       scene.fog.color.copy(phase.skyHorizon);
-      scene.fog.near = phase.fogNear;
-      scene.fog.far = phase.fogFar;
+      scene.fog.density = phase.fogDensity;
+
+      ash.update(runTime, camera, phase.ashRate, phase.ashColor);
 
       hemi.color.copy(phase.hemiSky);
       hemi.groundColor.copy(phase.hemiGround);

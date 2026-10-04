@@ -55,9 +55,10 @@ export function createPlayer(scene) {
       }
     },
 
-    update(dt) {
+    // speedMultiplier comes from the current eruption phase.
+    update(dt, speedMultiplier = 1) {
       // Forward is -z in Three.js when the camera looks down the track.
-      const moved = speedAt(-object.position.z) * dt;
+      const moved = speedAt(-object.position.z) * speedMultiplier * dt;
       object.position.z -= moved;
 
       // Ease towards the target lane. Using 1 - exp(-k·dt) keeps the motion

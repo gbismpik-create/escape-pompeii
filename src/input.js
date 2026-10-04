@@ -14,6 +14,7 @@ const KEY_ACTIONS = {
   ArrowDown: 'down',
   KeyS: 'down',
   KeyR: 'restart',
+  KeyP: 'debugNextPhase',
 };
 
 const queue = [];

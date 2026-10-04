@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { PHASES } from './config.js';
 
-// Turns "seconds since the run started" into the current mood of the
-// eruption: sky and light colours, fog distances, and so on.
+// Turns "seconds since the run started" into the current state of the
+// eruption: sky, fog, light, falling ash and a speed multiplier.
 // When a new phase begins, every value blends from the old phase to the
 // new one over PHASES.transitionTime seconds, so nothing changes suddenly.
 
-const COLOR_KEYS = ['skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround'];
-const NUMBER_KEYS = ['fogNear', 'fogFar', 'sunIntensity', 'hemiIntensity', 'glowIntensity', 'distantHaze'];
+const COLOR_KEYS = ['skyTop', 'skyHorizon', 'sunColor', 'hemiSky', 'hemiGround', 'ashColor'];
+const NUMBER_KEYS = [
+  'fogDensity', 'sunIntensity', 'hemiIntensity', 'glowIntensity', 'distantHaze', 'ashRate', 'speedMultiplier',
+];
 
 // Convert the hex colours to THREE.Color once, rather than every frame.
 const phases = PHASES.list.map((phase) => ({
@@ -39,4 +41,11 @@ export function updatePhaseState(state, time) {
   for (const k of COLOR_KEYS) state[k].lerpColors(previous[k], current[k], blend);
   for (const k of NUMBER_KEYS) state[k] = previous[k] + (current[k] - previous[k]) * blend;
   return state;
+}
+
+// The run time at which the phase after the current one starts; after
+// the last phase, wraps back to the first. Used by the debug key.
+export function nextPhaseStart(time) {
+  const next = phases.find((phase) => phase.start > time);
+  return next ? next.start : 0;
 }
