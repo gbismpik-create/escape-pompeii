@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { LANES, PLAYER, STUMBLE } from './config.js';
-import { laneToX } from './lanes.js';
 import { speedAt } from './speed.js';
 import { createShield } from './shield.js';
 
@@ -27,9 +26,14 @@ export function createPlayer(scene, model, shield = createShield()) {
   // steps. floorAt(x, z) is set by main.js (from the track).
   let floor = 0;
   let floorAt = () => 0;
+  // How many lanes there are at a z (the Forum is wider); set by main.js.
+  let lanesAt = () => LANES.count;
+  // His lane is counted from the middle one (0; -1 is one to the left), so
+  // it stays put when the road widens or narrows around him.
+  const sideLimit = () => (lanesAt(object.position.z) - 1) / 2;
 
   function reset() {
-    lane = Math.floor(LANES.count / 2);
+    lane = 0;
     feetY = 0; // height of the player's feet above the ground
     floor = 0;
     velocityY = 0;
@@ -38,7 +42,7 @@ export function createPlayer(scene, model, shield = createShield()) {
     slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
     stumbleTimeLeft = 0;
     shield.reset();
-    object.position.set(laneToX(lane), 0, 0);
+    object.position.set(0, 0, 0);
     legionary.reset();
   }
   reset();
@@ -65,6 +69,11 @@ export function createPlayer(scene, model, shield = createShield()) {
     // Where the floor is (path space x, z → height), for lanes that are steps.
     setFloor(fn) {
       floorAt = fn;
+    },
+
+    // How many lanes there are (z → count), where the road widens.
+    setLanes(fn) {
+      lanesAt = fn;
     },
 
     // The floor height under him now.
@@ -95,17 +104,17 @@ export function createPlayer(scene, model, shield = createShield()) {
     // Without obstacleX (hit from above) he stays in his lane.
     stumble(obstacleX) {
       if (obstacleX !== undefined) {
-        const obstacleLane = Math.round(obstacleX / LANES.width + (LANES.count - 1) / 2);
+        const obstacleLane = Math.round(obstacleX / LANES.width);
         const side = object.position.x < obstacleX ? -1 : 1;
-        lane = THREE.MathUtils.clamp(obstacleLane + side, 0, LANES.count - 1);
+        lane = THREE.MathUtils.clamp(obstacleLane + side, -sideLimit(), sideLimit());
       }
       stumbleTimeLeft = STUMBLE.duration;
       legionary.stumble();
     },
 
     handleAction(action) {
-      if (action === 'left') lane = Math.max(0, lane - 1);
-      if (action === 'right') lane = Math.min(LANES.count - 1, lane + 1);
+      if (action === 'left') lane = Math.max(-sideLimit(), lane - 1);
+      if (action === 'right') lane = Math.min(sideLimit(), lane + 1);
 
       if (action === 'shield') shield.toggle(slideTimeLeft <= 0 && !slideOnLanding);
 
@@ -141,7 +150,10 @@ export function createPlayer(scene, model, shield = createShield()) {
       // identical whatever the frame rate.
       const t = 1 - Math.exp(-PLAYER.laneChangeSharpness * dt);
       const previousX = object.position.x;
-      object.position.x += (laneToX(lane) - object.position.x) * t;
+      // Where the road narrows (leaving the Forum), an outer lane ends: he
+      // moves in to the nearest one left.
+      lane = THREE.MathUtils.clamp(lane, -sideLimit(), sideLimit());
+      object.position.x += (lane * LANES.width - object.position.x) * t;
 
       // Vertical motion: gravity changes velocity, velocity changes height.
       // The ½·g·dt² term makes the arc exact, so jumps reach the same height

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { LANES, TRACK, OBSTACLES } from './config.js';
+import { LANES, TRACK, OBSTACLES, DISTRICTS } from './config.js';
 import { laneToX } from './lanes.js';
 import { speedAt, MAX_SPEED_MULTIPLIER } from './speed.js';
 
@@ -22,6 +22,7 @@ const TURN = new THREE.Matrix4().makeRotationY(Math.PI); // kit street runs alon
 const rowSpeed = (distance) => speedAt(distance) * MAX_SPEED_MULTIPLIER;
 // Rows are closest together at the slowest speed, so that decides how many
 // rows a chunk can ever hold.
+const MAX_LANES = Math.max(LANES.count, DISTRICTS.forumLanes);
 const rowsPerChunk = Math.ceil(TRACK.chunkLength / (rowSpeed(0) * OBSTACLES.rowSpacingTime));
 
 function weightedPick(table) {
@@ -43,7 +44,7 @@ const weighted = (table = {}) => Object.fromEntries(Object.entries(table).map(([
 // and a mixed row always keeps at least one lane that isn't a block.
 // openSquare: no roof beams (the Forum has no roofs over the lanes).
 // rules: a district's own pieces ({ fullRowChance, fullRow, lane }, weights).
-function randomRow(openSquare, rules = null) {
+function randomRow(openSquare, rules = null, count = LANES.count) {
   const fullRowChance = rules ? rules.fullRowChance : OBSTACLES.fullRowChance;
   const laneTable = rules ? weighted(rules.lane) : OBSTACLES.lane;
   if (Math.random() < fullRowChance) {
@@ -52,14 +53,14 @@ function randomRow(openSquare, rules = null) {
     return { full: weightedPick(full) };
   }
   for (let tries = 0; tries < 20; tries++) {
-    const lanes = Array.from({ length: LANES.count }, () =>
+    const lanes = Array.from({ length: count }, () =>
       Math.random() < OBSTACLES.emptyLaneChance ? null : weightedPick(laneTable),
     );
     const hasObstacle = lanes.some(Boolean);
     const hasWayThrough = lanes.some((p) => !p || MOVES[p] !== 'block');
     if (hasObstacle && hasWayThrough) return { lanes };
   }
-  return { lanes: Array(LANES.count).fill(null) }; // an empty row is always safe
+  return { lanes: Array(count).fill(null) }; // an empty row is always safe
 }
 
 // A piece's hitbox around its own origin, in game orientation (turned 180°).
@@ -94,8 +95,8 @@ function pieceHitbox(parts, { move, hitboxLength, hitboxHeight }) {
 export function createObstacles(parent, chunkCount, kit, frameAt) {
   const pieces = {
     ...Object.fromEntries(Object.entries(OBSTACLES.fullRow).map(([name, p]) => [name, { ...p, perRow: 1 }])),
-    ...Object.fromEntries(Object.entries(OBSTACLES.lane).map(([name, p]) => [name, { ...p, perRow: LANES.count }])),
-    ...Object.fromEntries(Object.entries(OBSTACLES.special).map(([name, p]) => [name, { ...p, perRow: LANES.count }])),
+    ...Object.fromEntries(Object.entries(OBSTACLES.lane).map(([name, p]) => [name, { ...p, perRow: MAX_LANES }])),
+    ...Object.fromEntries(Object.entries(OBSTACLES.special).map(([name, p]) => [name, { ...p, perRow: MAX_LANES }])),
   };
   for (const [name, piece] of Object.entries(pieces)) {
     const parts = kit.near[name];
@@ -125,10 +126,14 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
 
   // Places a piece x metres across the path at a distance along it: drawn
   // in the path's frame there (straight or curved), tested in path space.
-  function place(name, x, distance, list, y = 0) {
+  // sx stretches it across (a full row over a wider road).
+  function place(name, x, distance, list, y = 0, sx = 1) {
     const piece = pieces[name];
-    const matrix = frameAt(distance).multiply(offset.makeTranslation(x, y, 0)).multiply(TURN);
-    const hitbox = piece.hitbox.clone().translate(new THREE.Vector3(x, y, -distance));
+    const matrix = frameAt(distance).multiply(offset.makeTranslation(x, y, 0)).multiply(stretch.makeScale(sx, 1, 1)).multiply(TURN);
+    const hitbox = piece.hitbox.clone();
+    hitbox.min.x *= sx;
+    hitbox.max.x *= sx;
+    hitbox.translate(new THREE.Vector3(x, y, -distance));
     list.push({ type: name, move: piece.move, hitbox, distance, matrix });
   }
 
@@ -147,6 +152,7 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
     }
   }
   const offset = new THREE.Matrix4();
+  const stretch = new THREE.Matrix4();
 
   return {
     // lastRow: no rows beyond this distance (Escape mode's finish), or Infinity.
@@ -170,7 +176,8 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
     // steps (floorAt(distance, x) gives each one's height; no full rows).
     // rulesAt(distance): a district's own pieces there, null for no row
     // there, or undefined for the usual ones.
-    fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false, stepped = false, floorAt = () => 0, rulesAt = () => undefined } = {}) {
+    // lanesAt(distance): how many lanes there are (the Forum is wider).
+    fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false, stepped = false, floorAt = () => 0, rulesAt = () => undefined, lanesAt = () => LANES.count } = {}) {
       const list = (active[chunkSlot] = []);
 
       const chunkStart = chunk.distance;
@@ -184,13 +191,15 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
         if (clear.some(([from, to]) => distance > from && distance < to)) continue;
         const rules = rulesAt(distance);
         if (rules === null) continue;
-        let row = randomRow(openSquare, rules);
-        while (stepped && row.full) row = randomRow(openSquare, rules);
+        const count = lanesAt(distance);
+        let row = randomRow(openSquare, rules, count);
+        while (stepped && row.full) row = randomRow(openSquare, rules, count);
         if (row.full) {
-          place(row.full, 0, distance, list);
+          place(row.full, 0, distance, list, 0, count / LANES.count);
         } else {
           row.lanes.forEach((name, lane) => {
-            if (name) place(name, laneToX(lane), distance, list, floorAt(distance, laneToX(lane)));
+            const x = laneToX(lane, count);
+            if (name) place(name, x, distance, list, floorAt(distance, x));
           });
         }
       }

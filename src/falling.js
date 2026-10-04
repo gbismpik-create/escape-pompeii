@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { FALLING, LANES, OBSTACLES } from './config.js';
-import { laneToX } from './lanes.js';
+import { FALLING, OBSTACLES } from './config.js';
+import { laneToX, xToLane } from './lanes.js';
 import { box, merge } from './geometry.js';
 
 // Roof tiles and lumps of pumice falling onto the street.
@@ -213,8 +213,9 @@ export function createFalling(scene, track, on) {
   function trySpawn(player, speed) {
     const item = pool.find((f) => !f.active);
     if (!item) return false;
-    const playerLane = Math.round(player.x / LANES.width + (LANES.count - 1) / 2);
-    const lane = Math.random() < FALLING.targetPlayerChance ? playerLane : Math.floor(Math.random() * LANES.count);
+    const count = track.lanesAt(-(player.z - speed * FALLING.warningTime)); // the Forum is wider
+    const playerLane = xToLane(player.x, count);
+    const lane = Math.random() < FALLING.targetPlayerChance ? playerLane : Math.floor(Math.random() * count);
     const clearance = FALLING.clearanceTime * speed;
     const landZ = player.z - speed * FALLING.warningTime;
     for (const offset of [0, -3, 3, -6, 6]) {
@@ -226,8 +227,8 @@ export function createFalling(scene, track, on) {
       item.kind = Math.random() < FALLING.tileShare ? 'tile' : 'pumice';
       item.age = 0;
       item.stage = 'warning';
-      item.position.set(laneToX(lane), FALLING.dropHeight, z);
-      item.ground = track.floorAt(-z, laneToX(lane)); // a step, where the lanes are steps
+      item.position.set(laneToX(lane, count), FALLING.dropHeight, z);
+      item.ground = track.floorAt(-z, laneToX(lane, count)); // a step, where the lanes are steps
       item.velocity.set(0, 0, 0);
       item.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
       item.spin.set(Math.random() * 6 - 3, Math.random() * 4 - 2, Math.random() * 6 - 3);

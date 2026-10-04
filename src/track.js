@@ -431,6 +431,10 @@ export function createTrack(scene, kit) {
 
   // The path chunk at a distance (the street the runner is on or will be).
   const chunkAt = (d) => path.find((c) => d >= c.distance && d < c.distance + L);
+  // How many lanes at a path distance: the Forum is wider, from just past
+  // its entrance arch to a little before its end.
+  const forumWide = (run, d) => run?.kind === 'forum' && d >= run.start + DISTRICTS.gateOpen && d < run.end - DISTRICTS.narrowBefore;
+  const lanesAt = (d) => (forumWide(chunkAt(d)?.run, d) ? DISTRICTS.forumLanes : LANES.count);
   const tmp = new THREE.Vector3();
   const toWorldFrame = new THREE.Matrix4();
 
@@ -470,6 +474,12 @@ export function createTrack(scene, kit) {
       const metres = STATUES.clearance * speedAt(toppler) * MAX_SPEED_MULTIPLIER;
       clear.push([toppler - metres, toppler + metres]);
     }
+    if (run?.kind === 'forum') {
+      // Nothing where the outer lanes end and the runner may be moving in.
+      const narrow = run.end - DISTRICTS.narrowBefore;
+      const metres = DISTRICTS.laneChangeClear * speedAt(narrow) * MAX_SPEED_MULTIPLIER;
+      clear.push([narrow - metres, narrow + metres]);
+    }
     obstacles.fill(chunk.slot, chunk, {
       empty: kind === 'T' || kind === 'X' || kind === 'side',
       clear,
@@ -478,6 +488,7 @@ export function createTrack(scene, kit) {
       stepped: steppedAt(distance, distance + L),
       floorAt,
       rulesAt: district === 'theatre' ? (d) => theatreRules(d - run.start) : undefined,
+      lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
     });
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, on the path.
@@ -669,6 +680,9 @@ export function createTrack(scene, kit) {
 
     // The floor height at a path distance, x across (0 except on steps).
     floorAt,
+
+    // How many lanes there are at a path distance.
+    lanesAt,
 
     // Path space (x across, y up, z = -metres along) → the world group's space.
     toWorld(point, target = new THREE.Vector3()) {

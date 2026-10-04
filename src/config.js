@@ -16,7 +16,10 @@ export const DISTRICTS = {
   forumChance: 0.35, // chance a way out of a junction leads into the Forum (never twice running)
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
   names: { residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre' },
-  gateOpen: 6, // metres into the Forum (past the entrance arch) where its name shows
+  gateOpen: 6, // metres into the Forum (past the entrance arch) where its name shows and the lanes widen
+  forumLanes: 5, // lanes across the Forum (LANES.count elsewhere)
+  narrowBefore: 20, // metres before the Forum's end where the lanes are back to LANES.count
+  laneChangeClear: 0.8, // seconds of running kept free of obstacle rows either side of where the lanes narrow
   titleTime: 2.2, // seconds the district name shows
 };
 
@@ -493,7 +496,7 @@ export const STATUES = {
   // free-standing columns further out (column.x) that fall across a lane.
   forumSpacing: [40, 70], // metres between them in the Forum
   forumToppleChance: 0.5,
-  forumX: 4.2,
+  forumX: 5.4,
   column: { chance: 0.5, x: 7.3, fallen: { halfWidth: 0.4, height: 0.8, from: 0.3, to: 6.4 }, lieHeight: 0.3 },
   shadowDarkness: 0.18,
   wobble: 0.06, // radians: the statue rocks on its pedestal while the shadow shows

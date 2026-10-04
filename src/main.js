@@ -71,6 +71,7 @@ const shield = createShield();
 const player = createPlayer(scene, character, shield);
 // Where the lanes are steps (the theatre's tiers), the floor comes from the track.
 player.setFloor((x, z) => track.floorAt(-z, x));
+player.setLanes((z) => track.lanesAt(-z));
 const surge = createSurge(scene);
 // Falling tiles and pumice: bounce off the raised shield, or make him stumble.
 const falling = createFalling(track.world, track, {
