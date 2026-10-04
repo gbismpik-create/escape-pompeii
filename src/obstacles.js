@@ -138,6 +138,11 @@ export function createObstacles(parent, chunkCount, kit) {
       lastRowDistance = lastRow;
     },
 
+    // The finish moved (a turn towards or away from the sea).
+    setLastRow(lastRow) {
+      lastRowDistance = lastRow;
+    },
+
     // Fills a chunk's block with the rows that fall inside it. Rows don't
     // line up with chunks: a running "next row" distance carries over from
     // one chunk to the next, so path chunks must be filled in order.

@@ -165,6 +165,14 @@ export const JOURNEY = {
   // shift them, and the last stretch is always the surge.
   phaseShares: [0.35, 0.35, 0.3],
   finishClearDistance: 40, // no obstacles or falling things in the last metres
+  // Route choice: the sea lies seaAngle degrees from the first street
+  // (+ = to the right). Each turn changes the distance left to the sea by
+  // seaTurnMetres × how much more (or less) the new street faces the sea:
+  // turning to face it shortens the journey, turning away lengthens it.
+  // (Real map: Vesuvius north-west of Pompeii, the shore to the west-south-west.)
+  seaAngle: -70,
+  seaTurnMetres: 250,
+  minAfterTurn: 150, // after a turn the sea is never closer than this
   stopTime: 1.2, // seconds to slow to a stop after the finish line
   // For now the finish is a plain open area: the houses end, a line crosses
   // the road and a signpost points to the sea.

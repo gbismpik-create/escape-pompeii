@@ -20,7 +20,7 @@ const JOURNEY_BAR = `<div class="journey" hidden>
   <div class="track"><div class="fill"></div><div class="marker"></div></div>
   <span class="to">${WAVE}the sea</span>
 </div>`;
-hud.innerHTML = `<div class="distance">0 m</div>${JOURNEY_BAR}<div class="best"></div><div class="shield" data-state="ready">${SHIELD_ICON}</div>`;
+hud.innerHTML = `<div class="distance">0 m</div>${JOURNEY_BAR}<div class="route-change" aria-live="polite"></div><div class="best"></div><div class="shield" data-state="ready">${SHIELD_ICON}</div>`;
 document.body.appendChild(hud);
 const shieldIcon = hud.querySelector('.shield');
 const shieldRing = shieldIcon.querySelector('.ring');
@@ -34,6 +34,44 @@ export function updateShield(state, remaining) {
   shownShield = key;
   shieldIcon.dataset.state = state;
   shieldRing.style.strokeDashoffset = String(100 - fill * 100);
+}
+
+// ---- Compass, top left: Vesuvius and the sea around a ring, up = ahead ----
+const compass = document.createElement('div');
+compass.id = 'compass';
+compass.setAttribute('role', 'img');
+compass.innerHTML = `<svg viewBox="-30 -30 60 60" aria-hidden="true">
+  <circle class="dial" r="27" />
+  <path class="ahead" d="M0 -29 L-3.5 -23 H3.5 Z" />
+  <g class="vesuvius"><path d="M-7 4 L-2 -4 H2 L7 4 Z" /><circle class="plume" cx="0" cy="-7" r="2.4" /></g>
+  <g class="sea"><path d="M-7 1 q1.75 -3 3.5 0 t3.5 0 t3.5 0 t3.5 0" /><path d="M-7 5 q1.75 -3 3.5 0 t3.5 0 t3.5 0 t3.5 0" /></g>
+</svg>`;
+document.body.appendChild(compass);
+const compassMarks = { vesuvius: compass.querySelector('.vesuvius'), sea: compass.querySelector('.sea') };
+let shownCompass = '';
+
+// bearings: { vesuvius, sea } in radians, clockwise from straight ahead.
+export function updateCompass(bearings) {
+  const key = `${bearings.vesuvius.toFixed(2)},${bearings.sea.toFixed(2)}`;
+  if (key === shownCompass) return; // only touch the page when it changes
+  shownCompass = key;
+  for (const [name, mark] of Object.entries(compassMarks)) {
+    const b = bearings[name];
+    mark.setAttribute('transform', `translate(${(Math.sin(b) * 17).toFixed(2)} ${(-Math.cos(b) * 17).toFixed(2)})`);
+  }
+  const ahead = (b) => Math.round((((b * 180) / Math.PI) % 360 + 540) % 360 - 180); // −180…180
+  compass.setAttribute('aria-label', `Compass: Vesuvius ${ahead(bearings.vesuvius)}°, the sea ${ahead(bearings.sea)}° from straight ahead`);
+}
+
+// Escape mode: a turn moved the sea nearer (metres < 0) or further away.
+const routeChange = hud.querySelector('.route-change');
+export function showRouteChange(metres) {
+  if (!metres) return;
+  routeChange.textContent = metres < 0 ? `−${-metres} m · towards the sea` : `+${metres} m · away from the sea`;
+  routeChange.dataset.kind = metres < 0 ? 'nearer' : 'further';
+  routeChange.classList.remove('show');
+  void routeChange.offsetWidth; // restart the fade animation
+  routeChange.classList.add('show');
 }
 
 // Mute button, top right. data-control keeps its taps away from the swipe

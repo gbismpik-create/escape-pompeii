@@ -210,7 +210,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: min(78vw, 420px);
+  width: min(100vw - 150px, 420px); /* clear of the compass and the buttons */
   margin: 4px auto 2px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -262,6 +262,73 @@ body {
   border-radius: 2px;
   background: #9a2026;
   box-shadow: 0 0 0 1.5px #e8c46a, 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+#hud .route-change {
+  height: 1.1em;
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0;
+}
+
+#hud .route-change.show {
+  animation: route-change 2.6s ease-out forwards;
+}
+
+#hud .route-change[data-kind='nearer'] {
+  color: #9fe3b0;
+}
+
+#hud .route-change[data-kind='further'] {
+  color: #ffb08a;
+}
+
+@keyframes route-change {
+  0% { opacity: 0; transform: translateY(4px); }
+  10%, 70% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
+
+#compass {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  width: 56px;
+  height: 56px;
+  pointer-events: none; /* never blocks swipes */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+#compass svg {
+  width: 100%;
+  height: 100%;
+}
+
+#compass .dial {
+  fill: rgba(0, 0, 0, 0.4);
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1.5;
+}
+
+#compass .ahead {
+  fill: #e8c46a;
+}
+
+#compass .vesuvius path {
+  fill: #6d5a4c;
+  stroke: #f0e2cc;
+  stroke-width: 1;
+}
+
+#compass .vesuvius .plume {
+  fill: #ff8a3d;
+}
+
+#compass .sea path {
+  fill: none;
+  stroke: #8fd3e8;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 #hud .shield {

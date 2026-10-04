@@ -458,6 +458,15 @@ export function createTrack(scene, kit) {
       return angle;
     },
 
+    // Escape mode: the sea moved nearer or further (a turn towards or away
+    // from it). Only the path not laid yet changes, so call this before
+    // take(): the new street is laid after the turn.
+    setFinish(finish) {
+      finishDistance = finish;
+      finishIndex = Math.floor(finish / L);
+      obstacles.setLastRow(finish - JOURNEY.finishClearDistance);
+    },
+
     // Which way the world faces (radians); the sky and the sun turn with it.
     get heading() {
       return world.rotation.y;

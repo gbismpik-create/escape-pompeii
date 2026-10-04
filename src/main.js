@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -13,7 +13,7 @@ import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
   updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish,
-  setupStartModes, showStart, setupMenuButtons, showMenuButtons,
+  setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
@@ -120,6 +120,7 @@ function updateFollowers() {
   }
 
   environment.update(runTime, p, camera, phaseTime(), track.heading);
+  updateCompassNeedle();
 }
 
 // ---- Junctions ----
@@ -140,7 +141,42 @@ function inTurnWindow() {
   return d >= j.centre - currentSpeed() * TURNS.window && d < j.centre + ROAD_HALF;
 }
 
+// Real directions, as angles clockwise from the first street of a run.
+// The world's heading is how far the runner's street is turned from it
+// (a left turn takes a quarter turn off), so a direction's bearing from
+// straight ahead is its angle minus the heading.
+const VESUVIUS_ANGLE = THREE.MathUtils.degToRad(BACKDROP.angle);
+const SEA_ANGLE = THREE.MathUtils.degToRad(JOURNEY.seaAngle);
+const compassBearings = { vesuvius: 0, sea: 0 };
+
+// The compass eases round with the camera (turnYaw) after a turn.
+function updateCompassNeedle() {
+  const facing = track.heading - turnYaw;
+  compassBearings.vesuvius = VESUVIUS_ANGLE - facing;
+  compassBearings.sea = SEA_ANGLE - facing;
+  updateCompass(compassBearings);
+}
+
+// Escape mode: turning to face the sea more brings it nearer, turning away
+// moves it further. The change follows how much more (or less) the street
+// faces the sea: cos(bearing) goes from -1 (behind) to 1 (straight ahead).
+function routeChangeFor(angle) {
+  const before = Math.cos(SEA_ANGLE - track.heading);
+  const after = Math.cos(SEA_ANGLE - (track.heading + angle));
+  return Math.round((-(after - before) * JOURNEY.seaTurnMetres) / 10) * 10;
+}
+
 function turn(way) {
+  const turnAngle = way === 'left' ? -Math.PI / 2 : way === 'right' ? Math.PI / 2 : 0;
+  if (mode === 'escape' && turnAngle) {
+    // Move the sea before the new street is laid (see track.setFinish).
+    const centre = track.junction.centre;
+    const length = Math.max(journeyLength + routeChangeFor(turnAngle), centre + JOURNEY.minAfterTurn);
+    showRouteChange(length - journeyLength);
+    journeyLength = length;
+    track.setFinish(length);
+    setJourney(length);
+  }
   const angle = track.take(way);
   if (!angle) return;
   turnFrom = turnYaw + angle; // a turn during a turn carries on from where the camera is
@@ -179,8 +215,11 @@ let isGameOver = false;
 let timeSinceGameOver = 0;
 let runTime = 0; // seconds since this run started; drives the eruption phases
 let isCaught = false; // the surge is rolling over the player; game over follows
-// 'escape': a journey of JOURNEY.length metres to the sea. 'endless': no end.
+// 'escape': a journey to the sea, JOURNEY.length metres unless turns move
+// it (journeyLength). 'endless': no end.
 let mode = 'escape';
+let journeyLength = JOURNEY.length;
+let phaseProgress = 0; // Escape mode: progress for the phases; never goes back
 let debugPhaseSkip = 0; // the P key's jump ahead in phase time (Escape mode)
 // Escape mode's finish: after the line he slows to a stop (stopProgress
 // 0 → 1), then the end screen shows.
@@ -192,7 +231,10 @@ let endlessUnlocked = loadEndlessUnlocked();
 // What sets the eruption phase: progress to the sea, or time in Endless.
 function phaseTime() {
   if (mode === 'endless') return runTime;
-  return journeyPhaseTime(currentDistance() / JOURNEY.length) + debugPhaseSkip;
+  // A turn away from the sea lengthens the journey; the eruption doesn't
+  // step back a phase for it.
+  phaseProgress = Math.max(phaseProgress, Math.min(1, currentDistance() / journeyLength));
+  return journeyPhaseTime(phaseProgress) + debugPhaseSkip;
 }
 let best = loadBest();
 // The best distance only means something in Endless mode.
@@ -210,7 +252,7 @@ function gameOver(reason = '') {
   timeSinceGameOver = 0;
   const distance = currentDistance();
   if (mode === 'escape') {
-    showGameOver(distance, best, false, reason, { length: JOURNEY.length, bestTime });
+    showGameOver(distance, best, false, reason, { length: journeyLength, bestTime });
     return;
   }
   const isNewBest = distance > best;
@@ -250,7 +292,7 @@ function showEndScreen() {
     showMenuButtons(true);
   }
   showFinish({
-    distance: JOURNEY.length,
+    distance: journeyLength,
     time,
     artifacts: 0, // not collected yet (see CLAUDE.md "Later")
     saved: 0, // no followers yet
@@ -269,6 +311,8 @@ function restart() {
   player.setTurn(0);
   runTime = 0;
   debugPhaseSkip = 0;
+  journeyLength = JOURNEY.length;
+  phaseProgress = 0;
   setJourney(mode === 'escape' ? JOURNEY.length : null);
   showModeBest();
   audio.setGameOver(false);
@@ -415,14 +459,14 @@ renderer.setAnimationLoop((timestamp) => {
     fallingTarget.shieldRaised = shield.isRaised;
     fallingTarget.velocityZ = -speed * shield.speedFactor;
     // Nothing new falls on the last stretch before the sea.
-    const nearFinish = mode === 'escape' && currentDistance() > JOURNEY.length - JOURNEY.finishClearDistance;
+    const nearFinish = mode === 'escape' && currentDistance() > journeyLength - JOURNEY.finishClearDistance;
     falling.update(dt, nearFinish ? 0 : environment.phase.fallRate, speed * shield.speedFactor, fallingTarget);
     surge.update(dt, player.object.position, environment.phase.surgeVisibility);
-    if (mode === 'escape' && currentDistance() >= JOURNEY.length && !isGameOver && !isCaught) startFinish();
+    if (mode === 'escape' && currentDistance() >= journeyLength && !isGameOver && !isCaught) startFinish();
   }
 
   // At the sea the surge's glow and roar die away.
-  const reachedSea = mode === 'escape' && (isFinishing || (isGameOver && currentDistance() >= JOURNEY.length));
+  const reachedSea = mode === 'escape' && (isFinishing || (isGameOver && currentDistance() >= journeyLength));
   const calm = reachedSea ? (isFinishing ? 1 - stopProgress : 0) : 1;
 
   // The glow at the screen edges: steady during the surge phase, stronger
