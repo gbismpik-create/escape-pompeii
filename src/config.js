@@ -59,12 +59,27 @@ export const LIGHTS = {
   },
 };
 
+export const TRACK = {
+  // Length of one street chunk (metres = world units). Keep it a multiple of
+  // LANES.width so the ground lines join up seamlessly between chunks.
+  chunkLength: 30,
+  chunksAhead: 6, // how many chunks exist in front of the player (6 × 30 = 180 m view)
+  chunksBehind: 1, // kept behind the player so the camera never sees a gap
+  // Street width in lanes. 5 = the 3 running lanes plus one pavement lane each side.
+  streetWidthInLanes: 5,
+  sideGroundWidth: 40, // plain ground beyond the street on each side, under the buildings
+};
+
 export const GROUND = {
-  length: 100,
-  // Width is LANES.width × this. Keep it odd so grid lines fall on lane edges.
-  widthInLanes: 41,
-  color: 0x808080,
+  streetColor: 0x808080,
+  sideColor: 0x6e6e6e,
   lineColor: 0x5a5a5a,
   lineWidthPx: 3, // out of a 64 px tile
   anisotropy: 4,
+};
+
+export const BUILDINGS = {
+  // Variants pick a shade by index (0, 1, 2…). All grey for now.
+  colors: [0xa0a0a0, 0x8c8c8c, 0xb4b4b4],
+  defaultDepth: 8, // how far a building extends away from the street
 };
