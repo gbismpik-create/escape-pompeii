@@ -2,7 +2,6 @@
 
 export const RENDERER = {
   maxPixelRatio: 2,
-  clearColor: 0x87a0b8,
 };
 
 export const LANES = {
@@ -66,7 +65,7 @@ export const INPUT = {
 export const CAMERA = {
   fov: 60,
   near: 0.1,
-  far: 1000,
+  far: 600, // just beyond the sky dome
   // Position relative to the player: behind (+z) and above (+y).
   offset: { x: 0, y: 3.2, z: 5.2 },
   // The point the camera looks at, relative to the player (ahead = -z).
@@ -77,10 +76,7 @@ export const CAMERA = {
 };
 
 export const LIGHTS = {
-  ambient: { color: 0xffffff, intensity: 0.4 },
   sun: {
-    color: 0xffffff,
-    intensity: 1.5,
     // Offset from the player; the sun travels with the player so shadows never run out.
     offset: { x: 10, y: 20, z: 10 },
     shadowMapSize: 2048,
@@ -90,7 +86,85 @@ export const LIGHTS = {
     shadowBias: -0.0005,
     shadowNormalBias: 0.03,
   },
+  // Light from the surge behind the player (phase 3): lights his back and
+  // the sides of the buildings orange, without casting shadows.
+  glow: { color: 0xff5a1f, offset: { x: -4, y: 6, z: 30 } },
 };
+
+// The three phases of the eruption. Each phase sets the mood; between
+// phases everything blends over transitionTime seconds.
+// fogNear/fogFar: where fog starts and where it becomes solid (metres).
+// The fog colour is the sky's horizon colour, so the town fades into the sky.
+// Keep fogFar below TRACK.chunksAhead × chunkLength (180 m) to hide new chunks appearing.
+export const PHASES = {
+  transitionTime: 8,
+  list: [
+    {
+      name: 'Pumice fall',
+      start: 0,
+      skyTop: 0x7d93a8,
+      skyHorizon: 0xd2bf9f, // yellow-grey haze under the eruption cloud
+      fogNear: 50,
+      fogFar: 175,
+      sunColor: 0xffe2b5,
+      sunIntensity: 1.6,
+      hemiSky: 0xc4d2e0,
+      hemiGround: 0x8a7a62,
+      hemiIntensity: 1.0,
+      glowIntensity: 0,
+      distantHaze: 0.35, // how much Vesuvius fades into the horizon colour
+    },
+    {
+      name: 'Ash & darkness',
+      start: 60,
+      skyTop: 0x2c2723,
+      skyHorizon: 0x6b5b4b,
+      fogNear: 12,
+      fogFar: 95,
+      sunColor: 0xd99a5c,
+      sunIntensity: 0.55,
+      hemiSky: 0x8a7f72,
+      hemiGround: 0x4a4038,
+      hemiIntensity: 0.7,
+      glowIntensity: 0,
+      distantHaze: 0.7,
+    },
+    {
+      name: 'Surge',
+      start: 150,
+      skyTop: 0x16100d,
+      skyHorizon: 0x3e2a20,
+      fogNear: 6,
+      fogFar: 65,
+      sunColor: 0xb8693a,
+      sunIntensity: 0.25,
+      hemiSky: 0x5a4a40,
+      hemiGround: 0x6e2c14, // red light bouncing up from the ground
+      hemiIntensity: 0.6,
+      glowIntensity: 1.8,
+      distantHaze: 0.85,
+    },
+  ],
+};
+
+export const SKY = {
+  radius: 450, // the sky dome follows the camera at this distance
+};
+
+// Vesuvius on the horizon. The town's harbour lies west and the volcano to
+// the north, so while fleeing it sits ahead and to the right. It is placed
+// just right of the street's vanishing point so the camera (even on an
+// upright phone) sees it in the gap of sky above the street.
+export const VESUVIUS = {
+  angle: 9, // degrees right of straight ahead
+  distance: 420,
+  height: 40,
+  baseRadius: 130,
+  // The eruption column and its "umbrella pine" cloud (Pliny's words).
+  // Far shorter than the real 30 km, so it fits on screen.
+  plumeHeight: 85,
+};
+
 
 export const TRACK = {
   // Length of one street chunk (metres = world units). Keep it a multiple of

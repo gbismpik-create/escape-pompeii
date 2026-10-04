@@ -1,8 +1,9 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, LIGHTS, GAME } from './config.js';
+import { RENDERER, CAMERA, GAME } from './config.js';
 import { createPlayer } from './player.js';
 import { createTrack } from './track.js';
+import { createEnvironment } from './environment.js';
 import { consumeActions } from './input.js';
 import { updateDistance, showBest, showGameOver, hideGameOver } from './ui.js';
 import { loadBest, saveBest } from './storage.js';
@@ -13,7 +14,6 @@ const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, RENDERER.maxPixelRatio));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setClearColor(RENDERER.clearColor);
 renderer.shadowMap.enabled = true;
 
 // Scene
@@ -27,21 +27,8 @@ const camera = new THREE.PerspectiveCamera(
   CAMERA.far,
 );
 
-// Lights
-const ambient = new THREE.AmbientLight(LIGHTS.ambient.color, LIGHTS.ambient.intensity);
-scene.add(ambient);
-
-const sun = new THREE.DirectionalLight(LIGHTS.sun.color, LIGHTS.sun.intensity);
-sun.castShadow = true;
-sun.shadow.mapSize.set(LIGHTS.sun.shadowMapSize, LIGHTS.sun.shadowMapSize);
-const s = LIGHTS.sun.shadowArea;
-Object.assign(sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s });
-sun.shadow.bias = LIGHTS.sun.shadowBias;
-sun.shadow.normalBias = LIGHTS.sun.shadowNormalBias;
-scene.add(sun);
-scene.add(sun.target); // the target must be in the scene for its position to update
-
 // Game objects
+const environment = createEnvironment(scene);
 const track = createTrack(scene);
 const player = createPlayer(scene);
 
@@ -53,9 +40,7 @@ function updateFollowers() {
   camera.position.set(camX + CAMERA.offset.x, CAMERA.offset.y, p.z + CAMERA.offset.z);
   camera.lookAt(camX + CAMERA.lookAhead.x, CAMERA.lookAhead.y, p.z + CAMERA.lookAhead.z);
 
-  const o = LIGHTS.sun.offset;
-  sun.position.set(o.x, o.y, p.z + o.z);
-  sun.target.position.set(0, 0, p.z);
+  environment.update(runTime, p, camera);
 }
 
 // Resize
@@ -68,6 +53,7 @@ window.addEventListener('resize', () => {
 // Game state
 let isGameOver = false;
 let timeSinceGameOver = 0;
+let runTime = 0; // seconds since this run started; drives the eruption phases
 let best = loadBest();
 showBest(best);
 
@@ -88,6 +74,7 @@ function gameOver() {
 
 function restart() {
   isGameOver = false;
+  runTime = 0;
   hideGameOver();
   player.reset();
   track.reset();
@@ -115,6 +102,7 @@ renderer.setAnimationLoop((timestamp) => {
   if (isGameOver) {
     timeSinceGameOver += dt; // the world freezes; only the overlay is live
   } else {
+    runTime += dt;
     player.update(dt);
     track.update(player.object.position.z);
     updateDistance(currentDistance());
