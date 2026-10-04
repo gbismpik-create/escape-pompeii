@@ -133,6 +133,15 @@ function updateFollowers() {
   updateCompassNeedle();
 }
 
+// A toppled statue hit the road (position in the world group's space).
+const landed = new THREE.Vector3();
+function onStatueLanded(position) {
+  landed.copy(position).applyMatrix4(track.world.matrixWorld);
+  falling.puff(landed.x, landed.y + 0.2, landed.z, 24);
+  audio.smash(player.object.position.z - landed.z);
+  shake = Math.max(shake, STUMBLE.cameraShake * 0.4);
+}
+
 // ---- Junctions ----
 // Inside the turn window a left/right swipe chooses a way out instead of
 // changing lane. The turn itself happens on the junction's centre line.
@@ -404,6 +413,7 @@ const CRASH_REASONS = {
   FallenBeam: 'You ran into a fallen roof beam',
   Cart: 'You ran into an abandoned cart',
   AmphoraStack: 'You ran into a stack of amphorae',
+  FallenStatue: 'You tripped over a fallen statue',
 };
 
 function checkCollisions() {
@@ -461,7 +471,16 @@ renderer.setAnimationLoop((timestamp) => {
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     updateDistance(currentDistance());
-    const found = track.statues.update(currentDistance());
+    // Statues: some topple in the later phases (see statues.js).
+    const statueSpeed = currentSpeed();
+    const found = track.statues.update(
+      dt,
+      currentDistance(),
+      statueSpeed,
+      environment.phase.index >= STATUES.toppleFromPhase,
+      (d) => track.clearOfRows(d, statueSpeed * STATUES.clearance),
+      onStatueLanded,
+    );
     if (found && !museumFound.has(found)) {
       museumFound.add(found);
       saveMuseum(museumFound);

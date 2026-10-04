@@ -148,8 +148,8 @@ export function createObstacles(parent, chunkCount, kit) {
     // one chunk to the next, so path chunks must be filled in order.
     // chunk: { distance (along the path where it starts), matrix (its frame) }.
     // empty: no rows, and the running distance is left alone (junctions,
-    // side streets, freed slots). No rows between clearFrom and clearTo.
-    fill(chunkSlot, chunk, { empty = false, clearFrom = Infinity, clearTo = -Infinity } = {}) {
+    // side streets, freed slots). clear: [from, to] distance ranges with no rows.
+    fill(chunkSlot, chunk, { empty = false, clear = [] } = {}) {
       const list = (active[chunkSlot] = []);
 
       const chunkStart = chunk.distance;
@@ -160,7 +160,7 @@ export function createObstacles(parent, chunkCount, kit) {
         const distance = nextRowDistance;
         nextRowDistance += rowSpeed(distance) * OBSTACLES.rowSpacingTime;
         if (r >= rowsPerChunk || distance > lastRowDistance || Math.random() >= OBSTACLES.rowChance) continue;
-        if (distance > clearFrom && distance < clearTo) continue;
+        if (clear.some(([from, to]) => distance > from && distance < to)) continue;
         const row = randomRow();
         const z = -(distance - chunkStart);
         if (row.full) {

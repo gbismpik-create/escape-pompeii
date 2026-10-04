@@ -331,6 +331,11 @@ export function createFalling(scene, track, on) {
       dust.update(dt);
       flush();
     },
+    // A puff of dust at (x, y, z) in scene space (e.g. a statue landing).
+    puff(x, y, z, count) {
+      dust.burst(x, y, z, count);
+    },
+
     reset() {
       pool.forEach((item, i) => item.active && finish(item, i));
       dust.reset();

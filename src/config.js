@@ -464,6 +464,19 @@ export const STATUES = {
   spacing: [150, 250], // metres between statues (random in this range)
   pavementX: 3.5, // pedestal centre, metres from the middle of the street
   pavementHeight: 0.36, // the pavement's top: pedestals stand on it
+  // Toppling (eruption phases 2 and 3, never at junctions): a shadow shows
+  // where it will land, then the figure tips off its pedestal onto the road
+  // and lies across one lane: jump it or change lane.
+  toppleChance: 0.3,
+  toppleFromPhase: 1, // phase index (0 = pumice, 1 = ash, 2 = surge)
+  triggerTime: 2.5, // seconds before the runner reaches it that the shadow appears
+  warningTime: 1.0, // seconds of shadow before it falls
+  fallTime: 0.5, // seconds to fall
+  clearance: 0.7, // seconds of running kept free of obstacle rows around it
+  // The fallen figure's hitbox, in the statue's frame (z: out towards the road).
+  fallen: { halfWidth: 0.3, height: 0.55, from: 0.6, to: 2.6 },
+  shadowDarkness: 0.18,
+  wobble: 0.06, // radians: the statue rocks on its pedestal while the shadow shows
   pedestalHeight: 1.1, // the figure stands this high
   // Per type: the name and one-line fact shown in the Museum.
   types: {

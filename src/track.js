@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES } from './config.js';
 import { createObstacles } from './obstacles.js';
 import { createStatues } from './statues.js';
 import { isLowEnd } from './device.js';
@@ -314,11 +314,17 @@ export function createTrack(scene, kit) {
     }
     // Game-orientation frame of the chunk: its start, turned to its heading.
     chunk.matrix.makeRotationAxis(up, angleOf(heading)).setPosition(position);
+    // A statue, if one is due here. One that may topple keeps the road
+    // around where it would land clear of obstacle rows.
+    const toppler = kind === 'street' || kind === 'T' || kind === 'X' ? statues.place(chunk, layout.free) : null;
     // Rows of obstacles: none in junctions and side streets (they start
-    // after them), and none on the run-up to a junction.
-    const clearFrom = nextJunction - TURNS.clearBefore * speedAt(nextJunction) * MAX_SPEED_MULTIPLIER;
-    obstacles.fill(chunk.slot, chunk, { empty: kind === 'T' || kind === 'X' || kind === 'side', clearFrom, clearTo: nextJunction + L });
-    if (kind === 'street' || kind === 'T' || kind === 'X') statues.place(chunk, layout.free);
+    // after them), none on the run-up to a junction, none by a toppler.
+    const clear = [[nextJunction - TURNS.clearBefore * speedAt(nextJunction) * MAX_SPEED_MULTIPLIER, nextJunction + L]];
+    if (toppler !== null) {
+      const metres = STATUES.clearance * speedAt(toppler) * MAX_SPEED_MULTIPLIER;
+      clear.push([toppler - metres, toppler + metres]);
+    }
+    obstacles.fill(chunk.slot, chunk, { empty: kind === 'T' || kind === 'X' || kind === 'side', clear });
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, in this chunk's frame.
       finishMarks.position.copy(position).addScaledVector(forward(heading, tmp), finishDistance - distance);
@@ -428,18 +434,28 @@ export function createTrack(scene, kit) {
     // box stays an exact box, so the player's box is moved into that space.
     findCollision(hitbox) {
       inverse.copy(world.matrixWorld).invert();
-      const hit = obstacles.findCollision(localBox.copy(hitbox).applyMatrix4(inverse));
+      localBox.copy(hitbox).applyMatrix4(inverse);
+      const hit = obstacles.findCollision(localBox) ?? statues.findCollision(localBox);
       if (!hit) return null;
       return { ...hit, hitbox: hit.hitbox.clone().applyMatrix4(world.matrixWorld) };
     },
 
     // How far (metres along the path) from `distance` to the nearest obstacle
-    // row, or 0 inside a junction's clear zone (nothing should fall there).
+    // row or statue that may topple, or 0 inside a junction's clear zone
+    // (nothing should fall there).
     distanceToObstacle(distance) {
       if (junction && Math.abs(distance - (junction.distance + CENTRE)) < L) return 0;
       let best = Infinity;
       for (const o of obstacles.list()) best = Math.min(best, Math.abs(o.distance - distance));
+      for (const d of statues.toppleDistances()) best = Math.min(best, Math.abs(d - distance));
       return best;
+    },
+
+    // Is a statue free to topple here? No obstacle row and no junction
+    // within `metres` (statues themselves don't count).
+    clearOfRows(distance, metres) {
+      if (junction && Math.abs(distance - (junction.distance + CENTRE)) < L + metres) return false;
+      return obstacles.list().every((o) => Math.abs(o.distance - distance) >= metres);
     },
 
     // The junction ahead, if the path is waiting at one: its type, the path
