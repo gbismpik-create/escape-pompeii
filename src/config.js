@@ -50,6 +50,30 @@ export const LEGIONARY = {
   sideLeanAmount: 0.02, // lean per unit of sideways speed
 };
 
+// The player's 3D model (glTF files in public/assets, made with tools/).
+// Each needs the animations Run, Jump, Slide and Stumble.
+export const CHARACTER = {
+  hdModel: 'assets/legionary-hd.glb', // ~70k triangles: desktop
+  lowModel: 'assets/legionary.glb', // low-poly: phones and weaker devices
+  // 'auto' picks by device; 'hd' or 'low' forces one (handy for testing).
+  // If a file is missing or fails to load, the game falls back to the
+  // built-in low-poly legionary (legionary.js).
+  quality: 'auto',
+  facing: Math.PI, // the models face +z; the game runs towards -z
+  crossFade: 0.12, // seconds to blend between run / jump / slide
+  stumbleFade: 0.06, // a quicker blend into the stumble
+  // Metres covered per Run cycle (two steps). Ties leg speed to run speed.
+  runCycleLength: 5.5,
+  // The Jump clip starts with a crouch; the player is already airborne, so
+  // start this far into the clip (0–1).
+  jumpClipStart: 0.2,
+  // Extra bone rotations (radians, local x/y/z) added during the Slide clip.
+  // As exported, the slide holds the shield upright (top at 1.43 m, above
+  // the beams at 1.2 m) and pushes the right foot 0.25 m into the road.
+  // These keep him between 0 and 1.16 m. Bones missing from a model are skipped.
+  slidePoseFix: { Thigh_R: [-0.5, 0, 0], Shoulder_L: [0.8, 0, 0] },
+};
+
 export const GAME = {
   // After a crash, ignore restart input for this long so a swipe that was
   // already in progress doesn't skip the game-over screen.
@@ -122,6 +146,7 @@ export const PHASES = {
       speedMultiplier: 1,
       tileRate: 0.25, // falling roof tiles per second, for atmosphere (see TILES)
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
+      envIntensity: 1, // reflections on the legionary's armour (see environment.js)
     },
     {
       name: 'Ash & darkness',
@@ -141,6 +166,7 @@ export const PHASES = {
       speedMultiplier: 1.07,
       tileRate: 0.5, // falling roof tiles per second (see TILES)
       surgeVisibility: 0, // the glowing surge cloud behind the player (see SURGE)
+      envIntensity: 0.45, // reflections on the legionary's armour (see environment.js)
     },
     {
       name: 'Surge',
@@ -160,6 +186,7 @@ export const PHASES = {
       speedMultiplier: 1.15,
       tileRate: 0.85, // falling roof tiles per second (see TILES)
       surgeVisibility: 1, // the glowing surge cloud behind the player (see SURGE)
+      envIntensity: 0.3, // reflections on the legionary's armour (see environment.js)
     },
   ],
 };

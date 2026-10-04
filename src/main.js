@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE } from './config.js';
 import { createPlayer } from './player.js';
+import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart } from './phases.js';
@@ -33,9 +34,10 @@ const camera = new THREE.PerspectiveCamera(
 );
 
 // Game objects
-const environment = createEnvironment(scene);
+const environment = createEnvironment(scene, renderer);
 const track = createTrack(scene);
-const player = createPlayer(scene);
+const character = await loadCharacter(environment.envMap);
+const player = createPlayer(scene, character);
 const tiles = createTiles(scene, track);
 const surge = createSurge(scene);
 let shake = 0; // camera shake after a stumble, fading out
@@ -152,7 +154,8 @@ renderer.setAnimationLoop((timestamp) => {
     if (surge.caughtProgress >= 1) gameOver('The surge caught up with you');
   } else {
     runTime += dt;
-    const { speedMultiplier, tileRate } = environment.phase;
+    const { speedMultiplier, tileRate, envIntensity } = environment.phase;
+    character.setEnvIntensity?.(envIntensity); // the built-in legionary has no metal
     player.update(dt, speedMultiplier);
     track.update(player.object.position.z);
     const speed = speedAt(currentDistance()) * speedMultiplier;

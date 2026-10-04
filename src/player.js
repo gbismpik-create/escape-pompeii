@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { LANES, PLAYER, STUMBLE } from './config.js';
 import { laneToX } from './lanes.js';
 import { speedAt } from './speed.js';
-import { createLegionary } from './legionary.js';
 
-export function createPlayer(scene) {
+// model: the loaded character (character.js) or the built-in legionary;
+// both have root, update(), stumble() and reset().
+export function createPlayer(scene, model) {
   const size = PLAYER.size;
-  const legionary = createLegionary();
-  // The legionary's root sits at his feet; moving it moves the whole model.
+  const legionary = model;
+  // The model's root sits at his feet; moving it moves the whole model.
   const object = legionary.root;
   scene.add(object);
 

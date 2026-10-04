@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LIGHTS, SKY, VESUVIUS } from './config.js';
 import { createPhaseState, updatePhaseState } from './phases.js';
 import { createVesuvius } from './vesuvius.js';
@@ -40,8 +41,18 @@ function createSkyDome() {
   return mesh;
 }
 
-export function createEnvironment(scene) {
+export function createEnvironment(scene, renderer) {
   const phase = createPhaseState();
+
+  // Reflections for the legionary's metal armour: a simple lit room,
+  // pre-blurred once at load by PMREMGenerator. Metal reflects its
+  // surroundings, so without this the iron and brass look dark grey.
+  // It is given to the character's materials only (not scene.environment):
+  // in this Three.js version scene.environment also tints every Lambert
+  // material, which would change the look of the whole town.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
 
   const sky = createSkyDome();
   scene.add(sky);
@@ -73,6 +84,7 @@ export function createEnvironment(scene) {
 
   return {
     phase,
+    envMap,
 
     update(runTime, playerPosition, camera) {
       updatePhaseState(phase, runTime);
