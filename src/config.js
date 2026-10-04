@@ -114,11 +114,13 @@ export const TOWN = {
   plaster: { ochre: 0xd6a04a, terracotta: 0xc0643f, cream: 0xe9dcbc, rose: 0xd98c6c },
   dado: 0x8e2b20, // "Pompeian red" lower band
   roof: 0xa9502f,
+  roofDark: 0x7f3a22, // shadowed rows of tiles
   stucco: 0xf1ead8, // white columns, door frames
   columnRed: 0xa3342a, // lower third of columns
   wood: 0x5b3a24,
   interior: 0x2a1d15, // dark doorways and shop openings
   stone: 0xb9b2a4,
+  limestone: 0xc9c2b2, // stepping stones
   marble: 0xeeeae2,
   water: 0x6f9fae,
   awning: [0xc9b48a, 0xa64235],
@@ -143,10 +145,11 @@ export const OBSTACLES = {
   hitboxMargin: 0.1,
   types: {
     // Must jump: Pompeii's stepping stones. Solid to the ground, so no sliding.
-    low: { bottom: 0, height: 0.5, depth: 1, color: 0xc9c2b2 },
-    // Must slide: bottom above a sliding player, top above the jump's peak.
-    bar: { bottom: 1.2, height: 1.4, depth: 0.5, color: 0x7a5c6a },
-    // Must change lane: taller than any jump.
-    block: { bottom: 0, height: 3, depth: 1.5, color: 0x4a4a4a },
+    low: { bottom: 0, height: 0.5, depth: 1 },
+    // Must slide: a collapsed roof beam. Bottom above a sliding player,
+    // top above the jump's peak.
+    bar: { bottom: 1.2, height: 1.4, depth: 0.5 },
+    // Must change lane: a collapsed wall, taller than any jump.
+    block: { bottom: 0, height: 3, depth: 1.5 },
   },
 };

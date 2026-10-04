@@ -1,16 +1,64 @@
 import * as THREE from 'three';
-import { LANES, TRACK, OBSTACLES, PLAYER } from './config.js';
+import { LANES, TRACK, OBSTACLES, PLAYER, TOWN } from './config.js';
 import { laneToX } from './lanes.js';
 import { speedAt } from './speed.js';
+import { box, cylinder, merge } from './geometry.js';
 
-// Each obstacle type is drawn by one InstancedMesh for the whole track.
-// Stepping stones are rounded (an 10-sided cylinder squashed into an oval);
-// bars and blocks are boxes for now.
-const GEOMETRIES = {
-  low: new THREE.CylinderGeometry(0.5, 0.5, 1, 10),
-  bar: new THREE.BoxGeometry(1, 1, 1),
-  block: new THREE.BoxGeometry(1, 1, 1),
-};
+// Each obstacle type is one small model (merged, vertex-coloured shapes)
+// drawn by one InstancedMesh for the whole track. Models are built from the
+// sizes in config.js, so what you see matches the hitbox. Origin: the centre
+// of the lane at ground level; the player approaches from +z.
+const W = OBSTACLES.width;
+const T = OBSTACLES.types;
+
+function steppingStone() {
+  const stone = cylinder(0.45, 0.5, 1, 10, [0, 0.5, 0], TOWN.limestone);
+  stone.scale(W * 0.9, T.low.height, T.low.depth); // squash into an oval
+  return stone;
+}
+
+// A roof beam that has come down across the lane, still holding a section
+// of tiles, propped up by two poles at the lane edges (clear of a slide).
+function fallenBeam() {
+  const b = T.bar.bottom;
+  const top = b + T.bar.height;
+  const tilt = 0.2; // the tile section leans towards the player
+  const slabY = (b + 0.32 + top) / 2;
+  const shapes = [
+    box([W + 0.2, 0.32, 0.4], [0, b + 0.16, 0], TOWN.wood, [0, 0, 0.06]),
+    box([W, top - b - 0.36, 0.12], [0, slabY, 0.04], TOWN.roof, [tilt, 0, 0.05]),
+  ];
+  // Rows of curved tiles on the face the player sees.
+  for (let y = b + 0.55; y < top - 0.1; y += 0.32) {
+    const z = 0.04 + (y - slabY) * Math.tan(tilt) + 0.08;
+    shapes.push(box([W - 0.1, 0.07, 0.06], [0, y, z], TOWN.roofDark, [tilt, 0, 0.05]));
+  }
+  for (const side of [-1, 1]) {
+    shapes.push(cylinder(0.06, 0.07, b + 0.1, 6, [side * 0.85, b / 2, 0], TOWN.wood, [0, 0, side * 0.08]));
+  }
+  return merge(shapes);
+}
+
+// A section of house wall that has collapsed into the street: plaster with
+// the red band, a broken top, a toppled column drum and rubble in front.
+function collapsedWall() {
+  const h = T.block.height;
+  return merge([
+    box([W - 0.2, h - 0.7, 0.6], [0, (h - 0.7) / 2, -0.2], TOWN.plaster.ochre),
+    box([W - 0.18, 1.0, 0.04], [0, 0.5, 0.11], TOWN.dado),
+    box([1.1, 0.45, 0.6], [-0.35, h - 0.7 + 0.22, -0.2], TOWN.plaster.ochre),
+    box([0.5, 0.25, 0.6], [-0.6, h - 0.12, -0.2], TOWN.plaster.ochre),
+    box([0.3, 0.2, 0.3], [0.45, h - 0.6, -0.2], TOWN.plaster.ochre, [0, 0.3, 0.5]),
+    cylinder(0.32, 0.32, 1.2, 8, [0.1, 0.32, 0.45], TOWN.stucco, [0, 0.25, Math.PI / 2]),
+    box([0.45, 0.3, 0.35], [-0.6, 0.15, 0.5], TOWN.stone, [0.2, 0.5, 0.1]),
+    box([0.3, 0.22, 0.3], [0.7, 0.11, 0.55], TOWN.plaster.ochre, [0, 0.9, 0.2]),
+    box([0.35, 0.18, 0.25], [-0.15, 0.09, 0.62], TOWN.stone, [0.1, 1.3, 0]),
+  ]).translate(0, 0, -0.2); // centre the wall and its rubble over the hitbox
+}
+
+const GEOMETRIES = { low: steppingStone(), bar: fallenBeam(), block: collapsedWall() };
+const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 
 // Rows are closest together at the slowest speed, so that decides how many
@@ -52,12 +100,8 @@ export function createObstacles(scene, chunkCount) {
   const slots = Array.from({ length: total }, () => ({ type: null, hitbox: new THREE.Box3() }));
 
   const meshes = Object.fromEntries(
-    Object.entries(OBSTACLES.types).map(([type, t]) => {
-      const mesh = new THREE.InstancedMesh(
-        GEOMETRIES[type],
-        new THREE.MeshLambertMaterial({ color: t.color, flatShading: true }),
-        total,
-      );
+    Object.keys(OBSTACLES.types).map((type) => {
+      const mesh = new THREE.InstancedMesh(GEOMETRIES[type], material, total);
       mesh.name = `obstacle:${type}`;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -82,9 +126,7 @@ export function createObstacles(scene, chunkCount) {
     const t = OBSTACLES.types[type];
     const x = laneToX(lane);
     const z = -distance;
-    const width = type === 'low' ? OBSTACLES.width * 0.9 : OBSTACLES.width;
-    matrix.makeScale(width, t.height, t.depth).setPosition(x, t.bottom + t.height / 2, z);
-    meshes[type].setMatrixAt(index, matrix);
+    meshes[type].setMatrixAt(index, matrix.makeTranslation(x, 0, z));
 
     const m = OBSTACLES.hitboxMargin;
     slot.hitbox.min.set(x - OBSTACLES.width / 2 + m, t.bottom + m, z - t.depth / 2 + m);
