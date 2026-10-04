@@ -431,6 +431,24 @@ export const TRACK = {
   chunksBehind: 1, // kept behind the player so the camera never sees a gap
 };
 
+// Junctions and turns (track.js). The street is a path of chunks, each with
+// a heading; every so often a junction chunk ends the straight: a T-junction
+// (turn left or right, or run into the wall) or a crossroads (turn, or run
+// straight on). On a turn the whole town rotates 90° around the runner.
+export const TURNS = {
+  enabled: false,
+  interval: [20, 40], // seconds of running between junctions (random in this range)
+  firstAfter: 15, // seconds before the first junction of a run
+  crossroadsChance: 0.4, // the rest are T-junctions
+  window: 1.0, // seconds before the junction's centre when a swipe turns instead of changing lane
+  cameraTurnTime: 0.35, // seconds for the camera (and the legionary) to swing round
+  clearBefore: 1.5, // seconds of running before a junction kept free of obstacles
+  finishMargin: 100, // no junction within this many metres of the sea
+  // Junction chunk, in metres from its start: the street (3 houses a side),
+  // then the square where the streets cross, 2 × KIT.facadeX wide.
+  housesBeforeSquare: 3,
+};
+
 export const STREET = {
   sideGroundWidth: 140, // plain ground under and beyond the buildings
   sideGroundColor: 0x8a7a62,

@@ -8,10 +8,11 @@ import { speedAt, MAX_SPEED_MULTIPLIER } from './speed.js';
 // mix of single-lane pieces (rubble to jump; a cart or amphorae to dodge).
 //
 // Each piece is drawn with one InstancedMesh per material for the whole
-// track. Each chunk owns a fixed block of instances; filling a chunk
-// rewrites its block. Hitboxes come from the models (see OBSTACLES).
+// track. After a chunk is filled, the pieces in use are packed at the front
+// of each InstancedMesh and only those are drawn (mesh.count): hidden
+// spare instances would still cost the GPU their triangles.
+// Hitboxes come from the models (see OBSTACLES).
 
-const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const TURN = new THREE.Matrix4().makeRotationY(Math.PI); // kit street runs along +z; the game to -z
 
 // Rows are placed far ahead, before we know which phase (and so which speed
@@ -73,7 +74,8 @@ function pieceHitbox(parts, { move, hitboxLength, hitboxHeight }) {
   return box;
 }
 
-export function createObstacles(scene, chunkCount, kit) {
+// parent: the group the obstacles live in (the track's turning world).
+export function createObstacles(parent, chunkCount, kit) {
   const pieces = {
     ...Object.fromEntries(Object.entries(OBSTACLES.fullRow).map(([name, p]) => [name, { ...p, perRow: 1 }])),
     ...Object.fromEntries(Object.entries(OBSTACLES.lane).map(([name, p]) => [name, { ...p, perRow: LANES.count }])),
@@ -89,25 +91,45 @@ export function createObstacles(scene, chunkCount, kit) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.frustumCulled = false; // instances move all over the track
-      for (let i = 0; i < capacity; i++) mesh.setMatrixAt(i, HIDDEN);
-      scene.add(mesh);
+      mesh.count = 0;
+      parent.add(mesh);
       return mesh;
     });
   }
 
-  // The active obstacles of each chunk: { type, move, hitbox } (world space).
+  // The active obstacles of each chunk: { type, move, hitbox, distance }.
+  // Hitboxes are in the parent's (world group's) space; distance is how far
+  // along the path the row is.
   const active = Array.from({ length: chunkCount }, () => []);
   const matrix = new THREE.Matrix4();
   let nextRowDistance = 0;
   let lastRowDistance = Infinity; // no rows beyond this (the finish)
 
-  function place(name, index, x, z, list) {
+  // Places a piece at (x, z) in the chunk's game-orientation frame
+  // (street along -z from the chunk's start), then into the world group.
+  function place(name, x, z, chunkMatrix, distance, list) {
     const piece = pieces[name];
-    matrix.makeTranslation(x, 0, z).multiply(TURN);
-    for (const mesh of piece.meshes) mesh.setMatrixAt(index, matrix);
-    const hitbox = piece.hitbox.clone().translate(new THREE.Vector3(x, 0, z));
-    list.push({ type: name, move: piece.move, hitbox });
+    const matrix = chunkMatrix.clone().multiply(offset.makeTranslation(x, 0, z)).multiply(TURN);
+    // Chunks only turn in quarter turns, so the box stays an exact box.
+    const hitbox = piece.hitbox.clone().translate(new THREE.Vector3(x, 0, z)).applyMatrix4(chunkMatrix);
+    list.push({ type: name, move: piece.move, hitbox, distance, matrix });
   }
+
+  // Packs every piece in use at the front of its InstancedMeshes.
+  function pack() {
+    for (const [name, piece] of Object.entries(pieces)) {
+      let n = 0;
+      for (const list of active) for (const o of list) if (o.type === name) {
+        for (const mesh of piece.meshes) mesh.setMatrixAt(n, o.matrix);
+        n++;
+      }
+      for (const mesh of piece.meshes) {
+        mesh.count = n;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }
+  const offset = new THREE.Matrix4();
 
   return {
     // lastRow: no rows beyond this distance (Escape mode's finish), or Infinity.
@@ -118,38 +140,33 @@ export function createObstacles(scene, chunkCount, kit) {
 
     // Fills a chunk's block with the rows that fall inside it. Rows don't
     // line up with chunks: a running "next row" distance carries over from
-    // one chunk to the next, so chunks must be filled in order.
-    // chunkZ is the world z where the chunk starts (it extends towards -z).
-    fill(chunkSlot, chunkZ) {
-      for (const piece of Object.values(pieces)) {
-        const block = rowsPerChunk * piece.perRow;
-        for (let i = 0; i < block; i++) for (const mesh of piece.meshes) mesh.setMatrixAt(chunkSlot * block + i, HIDDEN);
-      }
+    // one chunk to the next, so path chunks must be filled in order.
+    // chunk: { distance (along the path where it starts), matrix (its frame) }.
+    // empty: no rows, and the running distance is left alone (junctions,
+    // side streets, freed slots). No rows between clearFrom and clearTo.
+    fill(chunkSlot, chunk, { empty = false, clearFrom = Infinity, clearTo = -Infinity } = {}) {
       const list = (active[chunkSlot] = []);
 
-      const chunkEnd = -chunkZ + TRACK.chunkLength;
-      for (let r = 0; nextRowDistance < chunkEnd; r++) {
+      const chunkStart = chunk.distance;
+      const chunkEnd = chunkStart + TRACK.chunkLength;
+      // Rows due before this chunk (skipped over a junction) are dropped.
+      while (!empty && nextRowDistance < chunkStart) nextRowDistance += rowSpeed(nextRowDistance) * OBSTACLES.rowSpacingTime;
+      for (let r = 0; !empty && nextRowDistance < chunkEnd; r++) {
         const distance = nextRowDistance;
         nextRowDistance += rowSpeed(distance) * OBSTACLES.rowSpacingTime;
         if (r >= rowsPerChunk || distance > lastRowDistance || Math.random() >= OBSTACLES.rowChance) continue;
+        if (distance > clearFrom && distance < clearTo) continue;
         const row = randomRow();
-        const rowIndex = chunkSlot * rowsPerChunk + r;
+        const z = -(distance - chunkStart);
         if (row.full) {
-          place(row.full, rowIndex, 0, -distance, list);
+          place(row.full, 0, z, chunk.matrix, distance, list);
         } else {
           row.lanes.forEach((name, lane) => {
-            if (name) place(name, rowIndex * LANES.count + lane, laneToX(lane), -distance, list);
+            if (name) place(name, laneToX(lane), z, chunk.matrix, distance, list);
           });
         }
       }
-
-      for (const piece of Object.values(pieces)) {
-        const block = rowsPerChunk * piece.perRow;
-        for (const mesh of piece.meshes) {
-          mesh.instanceMatrix.addUpdateRange(chunkSlot * block * 16, block * 16);
-          mesh.instanceMatrix.needsUpdate = true;
-        }
-      }
+      pack();
     },
 
     // The obstacle the player is touching ({ type, move, hitbox }), or null.

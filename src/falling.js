@@ -187,12 +187,9 @@ export function createFalling(scene, track, on) {
   const one = new THREE.Vector3(1, 1, 1);
   const color = new THREE.Color();
 
-  // Nearest obstacle row to a z, in metres.
-  function distanceToObstacle(z) {
-    let best = Infinity;
-    for (const o of track.obstacles.list()) best = Math.min(best, Math.abs((o.hitbox.min.z + o.hitbox.max.z) / 2 - z));
-    return best;
-  }
+  // Nearest obstacle row to a z, in metres (0 at a junction). On the
+  // runner's street, z = -distance along the path (see track.js).
+  const distanceToObstacle = (z) => track.distanceToObstacle(-z);
 
   // Picks a landing spot warningTime ahead of the player, clear of obstacles
   // (so dodging one never means running under the other) and of other
