@@ -4,7 +4,7 @@ import { laneToX } from './lanes.js';
 import { speedAt, MAX_SPEED_MULTIPLIER } from './speed.js';
 
 // Obstacles from the street kit. A row is either one piece across all
-// three lanes (stepping stones to jump, a fallen beam to slide under) or a
+// three lanes (a fallen column to jump, a fallen beam to slide under) or a
 // mix of single-lane pieces (rubble to jump; a cart or amphorae to dodge).
 //
 // Each piece is drawn with one InstancedMesh per material for the whole
@@ -47,7 +47,7 @@ function randomRow() {
 }
 
 // A piece's hitbox around its own origin, in game orientation (turned 180°).
-function pieceHitbox(parts, { move, hitboxLength }) {
+function pieceHitbox(parts, { move, hitboxLength, hitboxHeight }) {
   const box = new THREE.Box3();
   for (const { geometry } of parts) {
     geometry.computeBoundingBox();
@@ -63,6 +63,7 @@ function pieceHitbox(parts, { move, hitboxLength }) {
     box.max.y = OBSTACLES.slideGap.top - m;
   }
   if (move === 'block') box.max.y = OBSTACLES.blockHeight - m;
+  if (hitboxHeight) box.max.y = Math.min(box.max.y, hitboxHeight - m);
   if (hitboxLength) {
     // Only hitboxLength metres around the model's origin count (not the cart's thin poles).
     const z = 0;

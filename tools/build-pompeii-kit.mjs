@@ -204,18 +204,6 @@ const pieces = [];
   pieces.push(P);
 }
 
-// ================================================================== STEPPING STONES (jump obstacle)
-{
-  const P = new Piece('SteppingStones');
-  for (const x of [-1.8, 0, 1.8]) {
-    const s = new THREE.Shape(); s.absellipse(0, 0, 0.42, 0.3, 0, TAU);
-    const g = new THREE.ExtrudeGeometry(s, { depth: 0.36, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05, bevelSegments: 3, curveSegments: 24 });
-    xf(g, [x, -0.06, 0], [-Math.PI / 2, 0, 0]);
-    P.add(g, 'stone', { colorFn: p => COL.lime.clone().lerp(COL.chip, smooth((p.y - 0.25) * 6) * 0.35).multiplyScalar(0.92), noise: 0.1, freq: 7 });
-  }
-  pieces.push(P);
-}
-
 // ================================================================== HOUSE FRONTS
 function house(name, scheme) {
   const P = new Piece(name);
@@ -455,47 +443,71 @@ function amphora(P, pos, rot, scale = 1, broken = false) {
   pieces.push(P);
 }
 
-// ================================================================== COLUMN (Greek Doric, like the Triangular Forum)
-// No base: the shaft stands straight on a stepped stylobate. 20 shallow
-// flutes meet in sharp ridges (arrises) and run the full height; the shaft
-// tapers and swells slightly (entasis). Capital: three annulets, a
-// cushion-shaped echinus and a square abacus. Weathered tuff under cream
-// stucco, darker where dust and ash collect at the foot.
+// ================================================================== FALLEN COLUMN (jump obstacle, full row)
+// A Greek Doric column (like those of Pompeii's Triangular Forum) toppled by
+// the earthquakes, its drums lying across the street. 20 shallow flutes meet
+// in sharp ridges; the shaft tapers towards the capital, which has broken off
+// onto the pavement. Weathered cream stucco over grey tuff; the broken drum
+// faces show bare stone.
 {
-  const P = new Piece('Column');
-  const H = 3.6;                               // total height, as before
-  const STEP = 0.12, Y0 = 2 * STEP;            // two steps
-  const CAP = 0.36, Y1 = H - CAP;              // shaft from Y0 to Y1
-  const R0 = 0.26, R1 = 0.205;                 // radius at foot and neck
-  const FLUTES = 20, SEG = 5, RINGS = 18, DEPTH = 0.022;
+  const P = new Piece('FallenColumn');
+  const FLUTES = 20, SEG = 5, DEPTH = 0.022;
+  const R0 = 0.3, R1 = 0.24;                   // radius at the foot and the neck
+  const X0 = -2.64, X1 = 3.0;                  // the shaft lies from x0 (foot) to x1 (neck)
+  const radiusAt = (x) => lerp(R0, R1, (x - X0) / (X1 - X0));
   const stucco = (p) => {
     let c = COL.cream.clone().lerp(COL.whiteWash, 0.5);
-    const wear = fbm(p.x * 3 + 2, p.y * 0.9, p.z * 3 + 7);
-    if (wear > 0.64) c = COL.tuff.clone();             // stucco fallen away
+    const wear = fbm(p.x * 3 + 2, p.y * 3, p.z * 3 + 7);
+    if (wear > 0.64) c = COL.tuff.clone();       // stucco fallen away
     else if (wear > 0.6) c.lerp(COL.tuff, 0.5);
-    c.multiplyScalar(0.93 + 0.07 * clamp((p.y - Y0) / 1.5)); // a little grimier low down
-    return dustUp(c, p.y - Y0, 0.9, 0.35);
+    return dustUp(c, p.y, 0.25, 0.3);
   };
-  // shaft radius along its height: straight taper plus a gentle swelling
-  const radius = (v) => lerp(R0, R1, Math.pow(v, 1.3)) + 0.008 * Math.sin(Math.PI * v);
-  for (let f = 0; f < FLUTES; f++) {
-    // each flute is its own strip, so the ridges between them stay sharp
-    P.add(grid(SEG, RINGS, (u, v) => {
-      const a = ((f + u) / FLUTES) * TAU;
-      const r = radius(v) - DEPTH * Math.sqrt(Math.max(0, 1 - (2 * u - 1) ** 2)) * (1 - 0.25 * v);
-      return V(Math.sin(a) * r, Y0 + v * (Y1 - Y0), Math.cos(a) * r);
-    }), 'plaster', { colorFn: stucco, noise: 0.05, freq: 9 });
+  const bare = (p) => COL.tuff.clone().lerp(COL.chip, 0.25 + 0.2 * fbm(p.x * 6, p.y * 6, p.z * 6));
+  // one drum lying along x, resting on the road, slightly turned (yaw)
+  const drum = (xa, xb, z, yaw, roll) => {
+    const ra = radiusAt(xa), rb = radiusAt(xb), len = xb - xa;
+    const parts = [];
+    for (let f = 0; f < FLUTES; f++) {
+      parts.push([grid(SEG, 3, (u, v) => {
+        const a = ((f + u) / FLUTES) * TAU + roll;
+        const r = lerp(ra, rb, v) - DEPTH * Math.sqrt(Math.max(0, 1 - (2 * u - 1) ** 2));
+        return V(Math.sin(a) * r, v * len, Math.cos(a) * r);
+      }), 'plaster', stucco]);
+    }
+    for (const [y, r, flip] of [[0, ra, 1], [len, rb, -1]]) {
+      const g = new THREE.CircleGeometry(r - DEPTH * 0.6, FLUTES * 2);
+      parts.push([xf(g, [0, y, 0], [flip * Math.PI / 2, 0, 0]), 'stone', bare]);
+    }
+    const centre = ra; // rests on its widest end
+    for (const [g, mat, colorFn] of parts) {
+      // stand the drum on its side along +x, then place it
+      xf(g, [0, 0, 0], [0, 0, -Math.PI / 2]);
+      xf(g, [xa, centre, 0], [0, yaw, 0]);
+      g.translate(0, 0, z);
+      P.add(g, mat, { colorFn, noise: 0.05, freq: 9 });
+    }
+  };
+  // drums: [from x, to x, z offset, yaw, roll] - fixed values keep the kit reproducible
+  drum(-2.64, -1.62, 0.04, 0.04, 0.0);
+  drum(-1.55, -0.6, -0.08, -0.06, 0.4);
+  drum(-0.52, 0.55, 0.06, 0.04, 0.9);
+  drum(0.63, 1.62, 0.12, 0.08, 1.3);
+  drum(1.7, 2.6, 0.03, -0.04, 0.2);
+  // the capital, broken off and lying on its side on the pavement
+  {
+    const parts = [];
+    for (let i = 0; i < 3; i++) parts.push(xf(new THREE.TorusGeometry(R1 + 0.012 + i * 0.006, 0.009, 5, 40), [0, 0.02 + i * 0.022, 0], [Math.PI / 2, 0, 0]));
+    parts.push(xf(lathe([[R1 + 0.02, 0], [R1 + 0.06, 0.03], [0.33, 0.08], [0.38, 0.13], [0.4, 0.16], [0, 0.16]], 40), [0, 0.06, 0]));
+    parts.push(xf(block(0.86, 0.15, 0.86, 0.012), [0, 0.22, 0]));
+    const stub = new THREE.CylinderGeometry(R1, R1, 0.1, FLUTES * 2); stub.translate(0, -0.03, 0);
+    parts.push(stub);
+    for (const g of parts) {
+      // tip it over: lying on its side, abacus towards the houses, on the pavement (top 0.36)
+      xf(g, [0, 0, 0], [0.25, 0, -Math.PI / 2 + 0.12]);
+      xf(g, [3.35, 0.36 + 0.43, -0.15], [0, 0.5, 0]);
+      P.add(g, 'plaster', { colorFn: stucco, noise: 0.05 });
+    }
   }
-  // stylobate: two steps of tuff blocks
-  P.add(block(0.84, STEP, 0.84, 0.015), 'stone', { color: COL.tuff, noise: 0.12, freq: 8 });
-  P.add(xf(block(0.7, STEP, 0.7, 0.015), [0, STEP, 0]), 'stone', { color: COL.lime, noise: 0.12, freq: 8 });
-  // capital
-  const yc = Y1;
-  for (let i = 0; i < 3; i++) {
-    P.add(xf(new THREE.TorusGeometry(R1 + 0.012 + i * 0.006, 0.009, 5, 40), [0, yc + 0.02 + i * 0.022, 0], [Math.PI / 2, 0, 0]), 'plaster', { colorFn: stucco, noise: 0.04 });
-  }
-  P.add(xf(lathe([[R1 + 0.02, 0], [R1 + 0.06, 0.03], [0.29, 0.08], [0.33, 0.13], [0.345, 0.16], [0, 0.16]], 40), [0, yc + 0.06, 0]), 'plaster', { colorFn: stucco, noise: 0.05 });
-  P.add(xf(block(0.74, CAP - 0.22, 0.74, 0.012), [0, yc + 0.22, 0]), 'plaster', { colorFn: stucco, noise: 0.05 });
   pieces.push(P);
 }
 

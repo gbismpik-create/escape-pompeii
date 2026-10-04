@@ -156,7 +156,7 @@ function handleAction(action) {
 // one head-on ends the run.
 
 const CRASH_REASONS = {
-  SteppingStones: 'You tripped on the stepping stones',
+  FallenColumn: 'You tripped over a fallen column',
   Rubble: 'You tripped over rubble',
   FallenBeam: 'You ran into a fallen roof beam',
   Cart: 'You ran into an abandoned cart',

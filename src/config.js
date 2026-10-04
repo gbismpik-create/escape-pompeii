@@ -61,7 +61,6 @@ export const KIT = {
   props: {
     perSide: [1, 3], // how many per side of a chunk (min, max)
     // name: [distance from the street centre, chance of being picked]
-    Column: [3.45, 3],
     Amphora: [3.35, 3],
     Fountain: [3.7, 1],
     Thermopolium: [3.55, 1],
@@ -366,7 +365,9 @@ export const OBSTACLES = {
   // single-lane pieces. The value is how often each piece is picked.
   fullRowChance: 0.3,
   fullRow: {
-    SteppingStones: { move: 'jump', weight: 1 }, // Pompeii's stepping stones
+    // A toppled Greek Doric column across the street. hitboxHeight: only the
+    // drums in the lanes count, not the capital lying on the pavement.
+    FallenColumn: { move: 'jump', weight: 1, hitboxHeight: 0.6 },
     FallenBeam: { move: 'slide', weight: 1 }, // a roof beam down across the street
   },
   emptyLaneChance: 0.4, // chance that a lane in a row is left empty
