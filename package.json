@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:kit": "cd tools && node build-pompeii-kit.mjs && cd .. && gltf-transform meshopt tools/pompeii-kit.glb public/assets/pompeii-kit.glb && gltf-transform simplify tools/pompeii-kit.glb tools/pompeii-kit-far.glb --ratio 0.25 --error 0.004 && gltf-transform meshopt tools/pompeii-kit-far.glb public/assets/pompeii-kit-far.glb && rm tools/pompeii-kit.glb tools/pompeii-kit-far.glb"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
     "vite": "^8.3.2"
   },
   "dependencies": {
