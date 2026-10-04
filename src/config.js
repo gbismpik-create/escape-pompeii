@@ -339,27 +339,6 @@ export const STREET = {
   sideGroundColor: 0x8a7a62,
 };
 
-// Colours of the town. Pompeii's walls were painted plaster, often with a
-// dark red band along the bottom; roofs were terracotta tiles.
-export const TOWN = {
-  plaster: { ochre: 0xd6a04a, terracotta: 0xc0643f, cream: 0xe9dcbc, rose: 0xd98c6c },
-  dado: 0x8e2b20, // "Pompeian red" lower band
-  roof: 0xa9502f,
-  roofDark: 0x7f3a22, // shadowed rows of tiles
-  stucco: 0xf1ead8, // white columns, door frames
-  columnRed: 0xa3342a, // lower third of columns
-  wood: 0x5b3a24,
-  interior: 0x2a1d15, // dark doorways and shop openings
-  stone: 0xb9b2a4,
-  limestone: 0xc9c2b2, // stepping stones
-  marble: 0xeeeae2,
-  water: 0x6f9fae,
-  awning: [0xc9b48a, 0xa64235],
-  pavement: 0xb5aa96,
-  sideGround: 0x8a7a62,
-  road: { stones: [0x5d6064, 0x676a6e, 0x717478, 0x5a5c5f], gaps: 0x393b3d, ruts: 0x2e2f31 },
-};
-
 export const OBSTACLES = {
   // Obstacles come in rows across the 3 lanes. Spacing is measured in
   // seconds of running, so rows spread out as speed rises and the player
@@ -368,19 +347,26 @@ export const OBSTACLES = {
   rowSpacingTime: 0.8,
   safeStartDistance: 40, // the first row is this far in; nothing before it
   rowChance: 0.75, // chance that a row has any obstacles at all
-  emptyLaneChance: 0.4, // chance that a lane in a row is left empty
-  weights: { low: 1, bar: 1, block: 1.2 }, // how often each type is picked
-  width: 1.5, // across the lane (lane is 1.8 wide)
-  // Hitboxes are this much smaller than the visible box on every side,
-  // so near misses feel fair rather than cheap.
-  hitboxMargin: 0.1,
-  types: {
-    // Must jump: Pompeii's stepping stones. Solid to the ground, so no sliding.
-    low: { bottom: 0, height: 0.5, depth: 1 },
-    // Must slide: a collapsed roof beam. Bottom above a sliding player,
-    // top above the jump's peak.
-    bar: { bottom: 1.2, height: 1.4, depth: 0.5 },
-    // Must change lane: a collapsed wall, taller than any jump.
-    block: { bottom: 0, height: 3, depth: 1.5 },
+  // Some rows are one piece across all three lanes; the rest mix
+  // single-lane pieces. The value is how often each piece is picked.
+  fullRowChance: 0.3,
+  fullRow: {
+    SteppingStones: { move: 'jump', weight: 1 }, // Pompeii's stepping stones
+    FallenBeam: { move: 'slide', weight: 1 }, // a roof beam down across the street
   },
+  emptyLaneChance: 0.4, // chance that a lane in a row is left empty
+  lane: {
+    Rubble: { move: 'jump', weight: 1 },
+    Cart: { move: 'block', weight: 1 }, // abandoned, 4.3 m long
+    AmphoraStack: { move: 'block', weight: 1 },
+  },
+  // Hitboxes come from each model's size, shrunk by hitboxMargin on every
+  // side so near misses feel fair, with two exceptions while the jump is
+  // 2.2 m high (higher than these models):
+  //   slide pieces: the band from slideGap.bottom to slideGap.top (too high
+  //     to jump over, clear of a sliding player at 0.8 m)
+  //   block pieces: blockHeight tall, so they can't be jumped
+  hitboxMargin: 0.1,
+  slideGap: { bottom: 1.2, top: 2.6 },
+  blockHeight: 3,
 };

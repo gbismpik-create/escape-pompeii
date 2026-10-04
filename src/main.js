@@ -154,9 +154,11 @@ function handleAction(action) {
 // one head-on ends the run.
 
 const CRASH_REASONS = {
-  low: 'You tripped on a stepping stone',
-  bar: 'You ran into a fallen roof beam',
-  block: 'You ran into a collapsed wall',
+  SteppingStones: 'You tripped on the stepping stones',
+  Rubble: 'You tripped over rubble',
+  FallenBeam: 'You ran into a fallen roof beam',
+  Cart: 'You ran into an abandoned cart',
+  AmphoraStack: 'You ran into a stack of amphorae',
 };
 
 function checkCollisions() {

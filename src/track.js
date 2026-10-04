@@ -105,7 +105,7 @@ function createGround(scene) {
 export function createTrack(scene, kit) {
   const chunkCount = TRACK.chunksBehind + 1 + TRACK.chunksAhead;
   const ground = createGround(scene);
-  const obstacles = createObstacles(scene, chunkCount);
+  const obstacles = createObstacles(scene, chunkCount, kit);
   const materials = Object.values(kit.materials);
 
   // Build the layouts once.
@@ -176,6 +176,8 @@ export function createTrack(scene, kit) {
     findCollision(hitbox) {
       return obstacles.findCollision(hitbox);
     },
+
+    obstacles,
 
     // fogDistance: beyond this, the fog hides everything (metres).
     update(playerZ, fogDistance = Infinity) {
