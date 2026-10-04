@@ -14,14 +14,12 @@ import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
   updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange,
-  setupMuseum, updateMuseum, showMuseumFind,
 } from './ui.js';
 import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
 import { createFalling } from './falling.js';
 import { isSideClip } from './obstacles.js';
-import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked, loadMuseum, saveMuseum } from './storage.js';
-import { renderStatuePictures } from './statues.js';
+import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked } from './storage.js';
 
 const canvas = document.getElementById('game');
 
@@ -66,13 +64,6 @@ setLoading(true);
 const [kit, character] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap)]);
 const track = createTrack(scene, kit);
 
-// The Museum: statues found by running past them (saved in the browser).
-const museumFound = loadMuseum();
-const STATUE_COUNT = Object.keys(STATUES.types).length;
-setupMuseum(STATUES.types, renderStatuePictures(renderer, kit), {
-  onOpenChange: (open) => (isPaused = open),
-});
-updateMuseum(museumFound, STATUE_COUNT);
 environment.addVolcano(kit);
 setLoading(false);
 const shield = createShield();
@@ -473,7 +464,7 @@ renderer.setAnimationLoop((timestamp) => {
     updateDistance(currentDistance());
     // Statues: some topple in the later phases (see statues.js).
     const statueSpeed = currentSpeed();
-    const found = track.statues.update(
+    track.statues.update(
       dt,
       currentDistance(),
       statueSpeed,
@@ -481,12 +472,6 @@ renderer.setAnimationLoop((timestamp) => {
       (d) => track.clearOfRows(d, statueSpeed * STATUES.clearance),
       onStatueLanded,
     );
-    if (found && !museumFound.has(found)) {
-      museumFound.add(found);
-      saveMuseum(museumFound);
-      updateMuseum(museumFound, STATUE_COUNT);
-      showMuseumFind(STATUES.types[found].name);
-    }
     updateShield(shield.state, shield.remaining);
     checkCollisions();
     if (!isGameOver) updateJunction();

@@ -79,60 +79,6 @@ export function showRouteChange(metres) {
   showNotice(metres < 0 ? `−${-metres} m · towards the sea` : `+${metres} m · away from the sea`, metres < 0 ? 'nearer' : 'further');
 }
 
-export function showMuseumFind(name) {
-  showNotice(`New in the Museum: ${name}`, 'museum');
-}
-
-// ---- Museum: the statues found so far ----
-const museum = document.createElement('div');
-museum.id = 'museum';
-museum.hidden = true;
-museum.dataset.control = '';
-museum.setAttribute('role', 'dialog');
-museum.setAttribute('aria-labelledby', 'museum-title');
-museum.innerHTML = `
-  <h2 id="museum-title">Museum</h2>
-  <p class="intro">Statues you have run past on your way to the sea.</p>
-  <div class="cards"></div>
-  <button type="button" class="back">Back</button>
-`;
-document.body.appendChild(museum);
-const museumButton = document.createElement('button');
-museumButton.type = 'button';
-museumButton.className = 'museum-button';
-museumButton.dataset.control = '';
-
-// types: { id: { name, fact } }; pictures: { id: image URL }.
-export function setupMuseum(types, pictures, { onOpenChange }) {
-  const cards = museum.querySelector('.cards');
-  cards.innerHTML = Object.entries(types)
-    .map(([id, t]) => `<figure class="card" data-id="${id}">
-      <img src="${pictures[id] ?? ''}" alt="" />
-      <figcaption><b class="name">${t.name}</b><span class="fact">${t.fact}</span><span class="locked">Not found yet</span></figcaption>
-    </figure>`)
-    .join('');
-  const close = () => {
-    museum.hidden = true;
-    onOpenChange(false);
-  };
-  museum.querySelector('.back').addEventListener('click', close);
-  window.addEventListener('keydown', (e) => e.code === 'Escape' && !museum.hidden && close());
-  museumButton.addEventListener('click', () => {
-    museumButton.blur();
-    museum.hidden = false;
-    onOpenChange(true);
-    museum.scrollTop = 0;
-    museum.querySelector('.back').focus({ preventScroll: true });
-  });
-  start.querySelector('.modes').after(museumButton);
-}
-
-// found: Set of type ids.
-export function updateMuseum(found, total) {
-  museumButton.textContent = `Museum (${found.size}/${total})`;
-  for (const card of museum.querySelectorAll('.card')) card.classList.toggle('found', found.has(card.dataset.id));
-}
-
 // Mute button, top right. data-control keeps its taps away from the swipe
 // and tap handling in input.js.
 const SPEAKER_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';

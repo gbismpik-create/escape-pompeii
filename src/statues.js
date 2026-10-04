@@ -16,7 +16,7 @@ import { STATUES, TRACK } from './config.js';
 // shows on the road where the figure will land, then it tips forward off
 // its pedestal and lies across one lane as an obstacle.
 
-const TYPES = Object.keys(STATUES.types);
+const TYPES = STATUES.types;
 const POOL = 4; // statues are 150 m+ apart, so few are ever near
 const L = TRACK.chunkLength;
 const ROAD_Y = -STATUES.pavementHeight; // the road, from the pedestal's foot
@@ -68,7 +68,7 @@ export function createStatues(world, kit) {
     root.visible = false;
     world.add(root);
     return {
-      root, figures, shadow, active: false, type: null, distance: 0, slot: -1, side: 1, passed: false,
+      root, figures, shadow, active: false, type: null, distance: 0, slot: -1, side: 1,
       // toppling: 'standing' | 'warning' | 'falling' | 'down'
       willTopple: false, state: 'standing', time: 0, hitbox: new THREE.Box3(),
     };
@@ -134,7 +134,6 @@ export function createStatues(world, kit) {
       const statue = pool.find((s) => !s.active);
       if (!statue) return null;
       statue.active = true;
-      statue.passed = false;
       statue.slot = chunk.slot;
       statue.type = TYPES[Math.floor(Math.random() * TYPES.length)];
       statue.willTopple = chunk.kind === 'street' && Math.random() < STATUES.toppleChance;
@@ -182,10 +181,7 @@ export function createStatues(world, kit) {
     // Each frame. speed: the runner's (m/s). canTopple: the eruption is in a
     // toppling phase. isClear(distance): nothing else is near that spot.
     // onLand(position in world-group space): the figure hit the road.
-    // Returns the type of an intact statue the runner has just passed (for
-    // the Museum), or null.
     update(dt, playerDistance, speed, canTopple, isClear, onLand) {
-      let found = null;
       for (const s of pool) {
         if (!s.active) continue;
         const ahead = s.distance - playerDistance;
@@ -216,56 +212,7 @@ export function createStatues(world, kit) {
             }
           }
         }
-        if (!s.passed && playerDistance > s.distance) {
-          s.passed = true;
-          if (s.state === 'standing') found = s.type; // only an intact statue goes to the Museum
-        }
       }
-      return found;
     },
   };
-}
-
-// Small pictures of each statue for the Museum, drawn once with the game's
-// renderer into an off-screen target and copied to image URLs.
-export function renderStatuePictures(renderer, kit, size = [160, 200]) {
-  const [w, h] = size;
-  const target = new THREE.WebGLRenderTarget(w, h, { samples: 4 });
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x2a2420);
-  scene.add(new THREE.HemisphereLight(0xfff1dc, 0x4a3a2c, 2.2));
-  const sun = new THREE.DirectionalLight(0xffe2b8, 2.2);
-  sun.position.set(2, 4, 4);
-  scene.add(sun);
-  const camera = new THREE.PerspectiveCamera(30, w / h, 0.1, 50);
-  camera.position.set(1.6, 2.4, 5.6);
-  camera.lookAt(0, 1.75, 0);
-  const pixels = new Uint8Array(w * h * 4);
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  const pictures = {};
-  const previousTarget = renderer.getRenderTarget();
-  for (const type of TYPES) {
-    const statue = partsMesh(kit.near.Pedestal);
-    const figure = partsMesh(kit.near[type]);
-    figure.position.y = STATUES.pedestalHeight;
-    statue.add(figure);
-    statue.rotation.y = -0.35;
-    scene.add(statue);
-    renderer.setRenderTarget(target);
-    renderer.clear();
-    renderer.render(scene, camera);
-    renderer.readRenderTargetPixels(target, 0, 0, w, h, pixels);
-    scene.remove(statue);
-    // WebGL rows run bottom to top; the canvas's top to bottom.
-    const image = ctx.createImageData(w, h);
-    for (let y = 0; y < h; y++) image.data.set(pixels.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
-    ctx.putImageData(image, 0, 0);
-    pictures[type] = canvas.toDataURL('image/png');
-  }
-  renderer.setRenderTarget(previousTarget);
-  target.dispose();
-  return pictures;
 }

@@ -95,23 +95,3 @@ export function saveEndlessUnlocked() {
     // Not saved: it unlocks again on the next finish.
   }
 }
-
-// The Museum: which statue types have been found (a list of kit piece names).
-const MUSEUM_KEY = 'escape-pompeii.museum';
-
-export function loadMuseum() {
-  try {
-    const list = JSON.parse(localStorage.getItem(MUSEUM_KEY) ?? '[]');
-    return new Set(Array.isArray(list) ? list : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function saveMuseum(found) {
-  try {
-    localStorage.setItem(MUSEUM_KEY, JSON.stringify([...found]));
-  } catch {
-    // Not saved: found again on a later run.
-  }
-}

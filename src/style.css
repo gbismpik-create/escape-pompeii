@@ -279,10 +279,6 @@ body {
   color: #9fe3b0;
 }
 
-#hud .route-change[data-kind='museum'] {
-  color: #f3d88c;
-}
-
 #hud .route-change[data-kind='further'] {
   color: #ffb08a;
 }
@@ -291,111 +287,6 @@ body {
   0% { opacity: 0; transform: translateY(4px); }
   10%, 70% { opacity: 1; transform: none; }
   100% { opacity: 0; }
-}
-
-#start .museum-button {
-  margin-top: 0.2rem;
-  padding: 0.5rem 1.4rem;
-  border: 1px solid rgba(241, 234, 216, 0.6);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.3);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-#museum {
-  position: fixed;
-  inset: 0;
-  z-index: 4; /* above the start screen it opens from */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.8rem;
-  padding: max(20px, env(safe-area-inset-top)) 16px 20px;
-  overflow-y: auto;
-  background: rgba(22, 18, 15, 0.94);
-  color: #f1ead8;
-  font-family: system-ui, sans-serif;
-  text-align: center;
-}
-
-#museum[hidden] {
-  display: none;
-}
-
-#museum h2 {
-  margin: 0;
-  font-size: 2rem;
-  letter-spacing: 0.04em;
-}
-
-#museum .intro {
-  margin: 0;
-  opacity: 0.75;
-}
-
-#museum .cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  width: min(100%, 720px);
-}
-
-#museum .card {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid rgba(216, 178, 90, 0.4);
-  border-radius: 12px;
-  background: #2a2420;
-}
-
-#museum .card img {
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
-  filter: brightness(0) opacity(0.55); /* a dark silhouette until found */
-}
-
-#museum .card.found img {
-  filter: none;
-}
-
-#museum figcaption {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.6rem 0.7rem 0.8rem;
-  font-size: 0.85rem;
-  line-height: 1.35;
-  text-align: left;
-}
-
-#museum .name {
-  font-size: 1rem;
-}
-
-#museum .card:not(.found) .name,
-#museum .card:not(.found) .fact,
-#museum .card.found .locked {
-  display: none;
-}
-
-#museum .locked {
-  opacity: 0.6;
-  font-style: italic;
-}
-
-#museum .back {
-  padding: 0.55rem 1.8rem;
-  border: 1px solid rgba(241, 234, 216, 0.6);
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
 }
 
 #compass {
