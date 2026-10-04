@@ -2,18 +2,17 @@ import * as THREE from 'three';
 import { LANES, PLAYER } from './config.js';
 import { laneToX } from './lanes.js';
 import { speedAt } from './speed.js';
+import { createLegionary } from './legionary.js';
 
 export function createPlayer(scene) {
   const size = PLAYER.size;
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(size.x, size.y, size.z),
-    new THREE.MeshStandardMaterial({ color: PLAYER.color }),
-  );
-  mesh.castShadow = true;
-  scene.add(mesh);
+  const legionary = createLegionary();
+  // The legionary's root sits at his feet; moving it moves the whole model.
+  const object = legionary.root;
+  scene.add(object);
 
-  // The box the obstacles will be tested against. It is kept equal to the
-  // visible box, so what you see is what can be hit.
+  // The box the obstacles are tested against. It doesn't follow every arm
+  // and leg: it's a fixed box the model fits inside, shorter while sliding.
   const hitbox = new THREE.Box3();
 
   let lane, feetY, velocityY, slideTimeLeft, slideOnLanding;
@@ -24,15 +23,15 @@ export function createPlayer(scene) {
     velocityY = 0;
     slideTimeLeft = 0;
     slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
-    mesh.position.set(laneToX(lane), size.y / 2, 0);
-    mesh.scale.y = 1;
+    object.position.set(laneToX(lane), 0, 0);
+    legionary.reset();
   }
   reset();
 
   const isGrounded = () => feetY <= 0;
 
   return {
-    mesh,
+    object,
     hitbox,
     reset,
 
@@ -58,12 +57,14 @@ export function createPlayer(scene) {
 
     update(dt) {
       // Forward is -z in Three.js when the camera looks down the track.
-      mesh.position.z -= speedAt(-mesh.position.z) * dt;
+      const moved = speedAt(-object.position.z) * dt;
+      object.position.z -= moved;
 
       // Ease towards the target lane. Using 1 - exp(-k·dt) keeps the motion
       // identical whatever the frame rate.
       const t = 1 - Math.exp(-PLAYER.laneChangeSharpness * dt);
-      mesh.position.x += (laneToX(lane) - mesh.position.x) * t;
+      const previousX = object.position.x;
+      object.position.x += (laneToX(lane) - object.position.x) * t;
 
       // Vertical motion: gravity changes velocity, velocity changes height.
       // The ½·g·dt² term makes the arc exact, so jumps reach the same height
@@ -81,14 +82,22 @@ export function createPlayer(scene) {
         }
       }
 
-      // Slide: squash the box (and so the hitbox) for a short time.
+      // Slide: the hitbox shrinks for a short time.
       slideTimeLeft = Math.max(0, slideTimeLeft - dt);
-      const height = slideTimeLeft > 0 ? PLAYER.slideHeight : size.y;
-      mesh.scale.y = height / size.y;
-      mesh.position.y = feetY + height / 2; // box is centred, so lift by half its height
+      const sliding = slideTimeLeft > 0;
+      const height = sliding ? PLAYER.slideHeight : size.y;
+      object.position.y = feetY;
 
-      hitbox.min.set(mesh.position.x - size.x / 2, feetY, mesh.position.z - size.z / 2);
-      hitbox.max.set(mesh.position.x + size.x / 2, feetY + height, mesh.position.z + size.z / 2);
+      legionary.update(dt, {
+        moved,
+        grounded: isGrounded(),
+        sliding,
+        sideSpeed: dt > 0 ? (object.position.x - previousX) / dt : 0,
+      });
+
+      const p = object.position;
+      hitbox.min.set(p.x - size.x / 2, feetY, p.z - size.z / 2);
+      hitbox.max.set(p.x + size.x / 2, feetY + height, p.z + size.z / 2);
     },
   };
 }

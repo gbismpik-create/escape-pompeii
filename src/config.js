@@ -11,8 +11,7 @@ export const LANES = {
 };
 
 export const PLAYER = {
-  size: { x: 1, y: 1.8, z: 1 },
-  color: 0xe07a2f,
+  size: { x: 1, y: 1.8, z: 1 }, // the hitbox; the legionary model fits inside it
   startSpeed: 12, // forward speed at the start of a run (units per second)
   maxSpeed: 22, // speed never goes above this
   acceleration: 0.15, // speed gained per second; 0.15 reaches max after ~67 s
@@ -28,6 +27,28 @@ export const PLAYER = {
 
   slideDuration: 0.8, // seconds
   slideHeight: 0.8, // player (and hitbox) height while sliding
+};
+
+export const LEGIONARY = {
+  colors: {
+    skin: 0xc68a64,
+    tunic: 0xa3241c, // Roman red
+    steel: 0x9aa1a8, // lorica segmentata (banded armour)
+    steelDark: 0x6c737a,
+    bronze: 0xb08a3e, // helmet trim, buckles
+    leather: 0x5a3a22, // belt, sandals, straps
+    crest: 0xc4261d,
+    hilt: 0xd8c9a3,
+  },
+  // Distance covered by one full running cycle (two steps). Smaller = faster legs.
+  runCycleLength: 4.2,
+  strideAngle: 0.8, // how far the legs swing forward/back (radians)
+  armSwing: 0.65,
+  bodyBob: 0.06, // up-and-down per step (units)
+  forwardLean: 0.18, // radians
+  poseBlendSpeed: 14, // how quickly he moves between run / jump / slide poses
+  maxSideLean: 0.35, // lean into lane changes (radians)
+  sideLeanAmount: 0.02, // lean per unit of sideways speed
 };
 
 export const GAME = {
@@ -47,7 +68,7 @@ export const CAMERA = {
   near: 0.1,
   far: 1000,
   // Position relative to the player: behind (+z) and above (+y).
-  offset: { x: 0, y: 4, z: 7 },
+  offset: { x: 0, y: 3.2, z: 5.2 },
   // The point the camera looks at, relative to the player (ahead = -z).
   lookAhead: { x: 0, y: 1, z: -6 },
   // How closely the camera follows the player sideways (0–1).

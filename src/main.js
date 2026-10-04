@@ -44,7 +44,7 @@ const track = createTrack(scene);
 const player = createPlayer(scene);
 
 function updateFollowers() {
-  const p = player.mesh.position;
+  const p = player.object.position;
 
   const camX = p.x * CAMERA.sideFollow;
   // Height is fixed (not p.y) so the camera stays steady during jumps and slides.
@@ -69,7 +69,7 @@ let timeSinceGameOver = 0;
 let best = loadBest();
 showBest(best);
 
-const currentDistance = () => Math.floor(-player.mesh.position.z);
+const currentDistance = () => Math.floor(-player.object.position.z);
 
 function gameOver() {
   isGameOver = true;
@@ -114,7 +114,7 @@ renderer.setAnimationLoop((timestamp) => {
     timeSinceGameOver += dt; // the world freezes; only the overlay is live
   } else {
     player.update(dt);
-    track.update(player.mesh.position.z);
+    track.update(player.object.position.z);
     updateDistance(currentDistance());
     if (track.collides(player.hitbox)) gameOver();
   }
