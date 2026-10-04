@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LANES, PLAYER } from './config.js';
 import { laneToX } from './lanes.js';
+import { speedAt } from './speed.js';
 
 export function createPlayer(scene) {
   const size = PLAYER.size;
@@ -57,7 +58,7 @@ export function createPlayer(scene) {
 
     update(dt) {
       // Forward is -z in Three.js when the camera looks down the track.
-      mesh.position.z -= PLAYER.runSpeed * dt;
+      mesh.position.z -= speedAt(-mesh.position.z) * dt;
 
       // Ease towards the target lane. Using 1 - exp(-k·dt) keeps the motion
       // identical whatever the frame rate.

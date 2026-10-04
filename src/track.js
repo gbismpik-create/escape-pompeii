@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LANES, TRACK, GROUND, BUILDINGS } from './config.js';
 import { CHUNK_VARIANTS } from './chunkVariants.js';
-import { createObstacleSlots, placeObstacles, hitsObstacle } from './obstacles.js';
+import { createObstacleSlots, createObstacleSpawner, hitsObstacle } from './obstacles.js';
 
 const toCss = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 
@@ -105,13 +105,14 @@ export function createTrack(scene) {
   const maxBoxes = Math.max(...CHUNK_VARIANTS.map((v) => v.length));
 
   const chunks = []; // ordered from furthest behind to furthest ahead
+  const spawner = createObstacleSpawner();
 
   function placeChunk(chunk, index) {
     chunk.index = index;
     chunk.group.position.z = -index * L;
     const variant = CHUNK_VARIANTS[Math.floor(Math.random() * CHUNK_VARIANTS.length)];
     applyVariant(chunk, variant, shared);
-    placeObstacles(chunk.obstacles, chunk.group.position.z);
+    spawner.fill(chunk.obstacles, chunk.group.position.z);
   }
 
   for (let i = -TRACK.chunksBehind; i <= TRACK.chunksAhead; i++) {
@@ -122,6 +123,7 @@ export function createTrack(scene) {
 
   // Lays every chunk out fresh from the start line (used for new runs).
   function reset() {
+    spawner.reset();
     chunks.forEach((chunk, i) => placeChunk(chunk, i - TRACK.chunksBehind));
   }
   reset();

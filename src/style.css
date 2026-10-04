@@ -45,11 +45,38 @@ body {
 }
 
 #game-over .distance {
-  margin: 0 0 1.5em;
+  margin: 0 0 0.5em;
   font-size: 1.5rem;
+}
+
+#game-over .best {
+  margin: 0 0 1.5em;
 }
 
 #game-over .hint {
   margin: 0;
   opacity: 0.7;
+}
+
+#hud {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top)); /* clear of phone notches */
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none; /* never blocks swipes */
+}
+
+#hud .distance {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums; /* digits don't jiggle as they change */
+}
+
+#hud .best {
+  font-size: 0.9rem;
+  opacity: 0.8;
 }

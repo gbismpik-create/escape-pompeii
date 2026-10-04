@@ -4,7 +4,8 @@ import { RENDERER, CAMERA, LIGHTS, GAME } from './config.js';
 import { createPlayer } from './player.js';
 import { createTrack } from './track.js';
 import { consumeActions } from './input.js';
-import { showGameOver, hideGameOver } from './ui.js';
+import { updateDistance, showBest, showGameOver, hideGameOver } from './ui.js';
+import { loadBest, saveBest } from './storage.js';
 
 const canvas = document.getElementById('game');
 
@@ -65,11 +66,22 @@ window.addEventListener('resize', () => {
 // Game state
 let isGameOver = false;
 let timeSinceGameOver = 0;
+let best = loadBest();
+showBest(best);
+
+const currentDistance = () => Math.floor(-player.mesh.position.z);
 
 function gameOver() {
   isGameOver = true;
   timeSinceGameOver = 0;
-  showGameOver(Math.floor(-player.mesh.position.z));
+  const distance = currentDistance();
+  const isNewBest = distance > best;
+  if (isNewBest) {
+    best = distance;
+    saveBest(best);
+    showBest(best);
+  }
+  showGameOver(distance, best, isNewBest);
 }
 
 function restart() {
@@ -103,6 +115,7 @@ renderer.setAnimationLoop((timestamp) => {
   } else {
     player.update(dt);
     track.update(player.mesh.position.z);
+    updateDistance(currentDistance());
     if (track.collides(player.hitbox)) gameOver();
   }
 

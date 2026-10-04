@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { LANES, TRACK, OBSTACLES } from './config.js';
+import { LANES, TRACK, OBSTACLES, PLAYER } from './config.js';
 import { laneToX } from './lanes.js';
+import { speedAt } from './speed.js';
 
 // Shared by every obstacle (see the note on pooling in track.js).
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -11,7 +12,10 @@ const materials = Object.fromEntries(
   ]),
 );
 
-const rowsPerChunk = Math.floor((TRACK.chunkLength - OBSTACLES.firstRowOffset) / OBSTACLES.rowSpacing) + 1;
+// Rows are closest together at the slowest speed, so that decides how many
+// rows (and so how many meshes) a chunk can ever need.
+const minRowSpacing = PLAYER.startSpeed * OBSTACLES.rowSpacingTime;
+const rowsPerChunk = Math.ceil(TRACK.chunkLength / minRowSpacing);
 
 function randomType() {
   const entries = Object.entries(OBSTACLES.weights);
@@ -52,36 +56,56 @@ export function createObstacleSlots(group) {
   return slots;
 }
 
-// Fills a chunk's slots with a fresh random set of obstacle rows.
-// chunkZ is the world z where the chunk starts (it extends towards -z).
-export function placeObstacles(slots, chunkZ) {
+// Places obstacle rows along the track. Rows don't line up with chunks:
+// a running "next row" distance carries over from one chunk to the next.
+export function createObstacleSpawner() {
+  let nextRowDistance = 0;
+
+  return {
+    reset() {
+      nextRowDistance = OBSTACLES.safeStartDistance;
+    },
+
+    // Fills a chunk's slots with the rows that fall inside it.
+    // Chunks must be filled in order. chunkZ is the world z where the chunk
+    // starts (it extends towards -z).
+    fill(slots, chunkZ) {
+      for (const slot of slots) {
+        slot.active = false;
+        slot.mesh.visible = false;
+      }
+
+      const chunkEnd = -chunkZ + TRACK.chunkLength;
+      for (let r = 0; nextRowDistance < chunkEnd; r++) {
+        const distance = nextRowDistance;
+        nextRowDistance += speedAt(distance) * OBSTACLES.rowSpacingTime;
+        if (r < rowsPerChunk && Math.random() < OBSTACLES.rowChance) {
+          placeRow(slots.slice(r * LANES.count, (r + 1) * LANES.count), randomRow(), distance, chunkZ);
+        }
+      }
+    },
+  };
+}
+
+function placeRow(rowSlots, row, distance, chunkZ) {
   const m = OBSTACLES.hitboxMargin;
-  for (let r = 0; r < rowsPerChunk; r++) {
-    const localZ = -(OBSTACLES.firstRowOffset + r * OBSTACLES.rowSpacing);
-    const distanceFromStart = -(chunkZ + localZ);
-    const spawn = distanceFromStart >= OBSTACLES.safeStartDistance && Math.random() < OBSTACLES.rowChance;
-    const row = spawn ? randomRow() : [];
+  const z = -distance; // world z of the row
+  row.forEach((type, lane) => {
+    if (!type) return;
+    const slot = rowSlots[lane];
+    const t = OBSTACLES.types[type];
+    const x = laneToX(lane);
+    slot.active = true;
+    slot.mesh.visible = true;
+    slot.mesh.material = materials[type];
+    slot.mesh.scale.set(OBSTACLES.width, t.height, t.depth);
+    slot.mesh.position.set(x, t.bottom + t.height / 2, z - chunkZ); // local to the chunk
 
-    for (let lane = 0; lane < LANES.count; lane++) {
-      const slot = slots[r * LANES.count + lane];
-      const type = row[lane];
-      slot.active = Boolean(type);
-      slot.mesh.visible = slot.active;
-      if (!type) continue;
-
-      const t = OBSTACLES.types[type];
-      const x = laneToX(lane);
-      slot.mesh.material = materials[type];
-      slot.mesh.scale.set(OBSTACLES.width, t.height, t.depth);
-      slot.mesh.position.set(x, t.bottom + t.height / 2, localZ);
-
-      // The hitbox is in world coordinates, so collision checks don't need
-      // to know which chunk an obstacle belongs to.
-      const z = chunkZ + localZ;
-      slot.hitbox.min.set(x - OBSTACLES.width / 2 + m, t.bottom + m, z - t.depth / 2 + m);
-      slot.hitbox.max.set(x + OBSTACLES.width / 2 - m, t.bottom + t.height - m, z + t.depth / 2 - m);
-    }
-  }
+    // The hitbox is in world coordinates, so collision checks don't need
+    // to know which chunk an obstacle belongs to.
+    slot.hitbox.min.set(x - OBSTACLES.width / 2 + m, t.bottom + m, z - t.depth / 2 + m);
+    slot.hitbox.max.set(x + OBSTACLES.width / 2 - m, t.bottom + t.height - m, z + t.depth / 2 - m);
+  });
 }
 
 export function hitsObstacle(slots, hitbox) {

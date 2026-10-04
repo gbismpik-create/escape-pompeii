@@ -13,7 +13,9 @@ export const LANES = {
 export const PLAYER = {
   size: { x: 1, y: 1.8, z: 1 },
   color: 0xe07a2f,
-  runSpeed: 12, // units per second, forward
+  startSpeed: 12, // forward speed at the start of a run (units per second)
+  maxSpeed: 22, // speed never goes above this
+  acceleration: 0.15, // speed gained per second; 0.15 reaches max after ~67 s
   // How quickly the player slides into a new lane. Higher = snappier.
   // ~12 means the move is mostly done in about 0.25 s.
   laneChangeSharpness: 12,
@@ -85,12 +87,12 @@ export const GROUND = {
 };
 
 export const OBSTACLES = {
-  // Obstacles come in rows across the 3 lanes, this far apart. 10 m at run
-  // speed 12 gives ~0.8 s between rows: enough to switch two lanes.
-  // If run speed goes up later, this may need to grow.
-  rowSpacing: 10,
-  firstRowOffset: 5, // first row's distance from the start of each chunk
-  safeStartDistance: 40, // no obstacles in the first metres of a run
+  // Obstacles come in rows across the 3 lanes. Spacing is measured in
+  // seconds of running, so rows spread out as speed rises and the player
+  // always gets the same reaction time. It must stay longer than a jump
+  // (~0.6 s), or a jump could carry the player into the next row.
+  rowSpacingTime: 0.8,
+  safeStartDistance: 40, // the first row is this far in; nothing before it
   rowChance: 0.75, // chance that a row has any obstacles at all
   emptyLaneChance: 0.4, // chance that a lane in a row is left empty
   weights: { low: 1, bar: 1, block: 1.2 }, // how often each type is picked
