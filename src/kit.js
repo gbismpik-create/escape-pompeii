@@ -69,9 +69,12 @@ function readPieces(gltf, materials, envMap, prefix = '') {
     node.traverse((o) => {
       if (!o.isMesh) return;
       // The HD street's untextured, non-metal materials differ only in
-      // roughness: one material for all of them saves draw calls.
-      const plain = prefix && !o.material.map && !o.material.normalMap && o.material.metalness < 0.3;
-      const name = prefix + (plain ? 'plain' : o.material.name);
+      // roughness: one material for all of them saves draw calls. (The far
+      // file has no textures at all: a material the near file already made
+      // under its own name is a textured one, so the far parts take it.)
+      const own = prefix + o.material.name;
+      const plain = prefix && !materials[own] && !o.material.map && !o.material.normalMap && o.material.metalness < 0.3;
+      const name = plain ? prefix + 'plain' : own;
       const material = (materials[name] ??= gameMaterial(o.material, envMap));
       const geometry = toFloat(o.geometry, Boolean(material.map || material.normalMap));
       geometry.applyMatrix4(o.matrixWorld); // into the piece's own space
