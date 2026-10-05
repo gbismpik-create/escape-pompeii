@@ -1415,6 +1415,153 @@ function hull(L, B, D, segs = 20) {
   pieces.push(P);
 }
 
+// ================================================================== THE STABIAN BATHS (a district)
+// The rooms in their real order under low stucco barrel vaults: changing
+// room (apodyterium) with benches and niches, the round cold room
+// (frigidarium) with its oculus and plunge pool, the warm room (tepidarium),
+// the hot room (caldarium) with its hot pool along one wall. Kit space as
+// for the street: +z along the way, lanes at x = -1.8, 0, 1.8.
+const BATH = { spring: 2.4, stucco: C(0xe9e2d3), red: C(0x8e2a20), yellow: C(0xc99a3a), black: C(0x2a2522), marble: C(0xe6e0d4) };
+// Painted walls: a dark dado, panels framed in white, a stucco cornice.
+function bathWall(panel) {
+  return (p) => {
+    if (p.y < 0.9) return BATH.black.clone().lerp(BATH.red, 0.25);
+    if (p.y > BATH.spring - 0.12) return BATH.stucco.clone().multiplyScalar(0.95 + 0.05 * vnoise(p.z * 3, p.y * 3, 1));
+    const u = ((p.z % 3) + 3) % 3;
+    if (u < 0.25 || u > 2.75 || p.y < 1.0 || p.y > BATH.spring - 0.25) return BATH.stucco.clone();
+    return panel.clone().multiplyScalar(0.9 + 0.15 * vnoise(p.z * 2, p.y * 2, 3));
+  };
+}
+// A floor of black and white mosaic in squares.
+const bathFloor = (p) => ((Math.floor(p.x / 0.6) + Math.floor(p.z / 0.6)) % 2 ? BATH.marble.clone() : BATH.black.clone().lerp(BATH.marble, 0.15)).multiplyScalar(0.92 + 0.1 * vnoise(p.x * 9, 0, p.z * 9));
+// The barrel vault: white stucco with a coffer grid, skylights along its crown.
+function vault(P, half, length, skylights = []) {
+  P.add(grid(16, Math.max(2, Math.round(length)), (u, v) => {
+    const a = Math.PI * u;
+    return V(-Math.cos(a) * half, BATH.spring + Math.sin(a) * half * 0.75, v * length);
+  }), 'plaster', {
+    colorFn: (p) => {
+      if (skylights.some((z) => Math.abs(p.z - z) < 0.7 && Math.abs(p.x) < 0.6)) return C(0xfff4dc).multiplyScalar(1.4);
+      const coffer = (Math.abs(((p.z % 1.2) + 1.2) % 1.2 - 0.6) < 0.06) || Math.abs(((p.x % 1.2) + 1.2) % 1.2 - 0.6) < 0.06;
+      return BATH.stucco.clone().multiplyScalar(coffer ? 0.8 : 0.97);
+    },
+    noise: 0.04,
+  });
+}
+// A wall along z at x, from the floor to the vault's spring: rows of points
+// at the paint's edges and a column every half metre, so the vertex colours
+// can draw the dado, the framed panels and the cornice.
+const BATH_ROWS = [0, 0.88, 0.92, 1.02, 1.1, 2.08, 2.16, 2.26, 2.4];
+function bathWallGrid(x, length) {
+  const n = Math.round(length * 2);
+  return grid(BATH_ROWS.length - 1, n, (u, v) => V(x, BATH_ROWS[Math.round(u * (BATH_ROWS.length - 1))], v * length));
+}
+function bathHall(name, { length = 30, half = 3.6, panel = BATH.yellow, benches = false, niches = false, skylights = [8, 22] } = {}) {
+  const P = new Piece(name);
+  P.add(xf(new THREE.PlaneGeometry(half * 2, length), [0, 0.01, length / 2], [-Math.PI / 2, 0, 0]), 'stone', { colorFn: bathFloor, noise: 0.05, freq: 3 });
+  for (const s of [-1, 1]) {
+    P.add(bathWallGrid(s * half, length), 'plaster', { colorFn: bathWall(panel), noise: 0.04 });
+    if (benches) P.add(xf(block(0.5, 0.45, length - 2, 0.03), [s * (half - 0.25), 0, length / 2]), 'stone', { color: BATH.marble, noise: 0.06 });
+    if (niches) for (let z = 2; z < length - 1; z += 1.5) P.add(xf(new THREE.BoxGeometry(0.06, 0.5, 0.9), [s * (half - 0.03), 1.75, z]), 'plaster', { color: BATH.black });
+  }
+  vault(P, half, length, skylights);
+  return P;
+}
+pieces.push(bathHall('Baths_Apodyterium_30m', { benches: true, niches: true }));
+pieces.push(bathHall('Baths_Tepidarium_12m', { length: 12, panel: BATH.red, skylights: [6] }));
+{
+  // The hot room, wider: the hot pool (alveus) along its right wall, steps down into it.
+  const P = bathHall('Baths_Caldarium_30m', { half: 5.4, panel: BATH.red, skylights: [5, 15, 25] });
+  P.name = 'Baths_Caldarium_30m';
+  P.add(xf(block(1.8, 0.55, 22, 0.03), [4.35, 0, 15]), 'stone', { color: BATH.marble, noise: 0.05 }); // its marble rim
+  P.add(xf(new THREE.PlaneGeometry(1.4, 21.6), [4.35, 0.5, 15], [-Math.PI / 2, 0, 0]), 'water', { color: C(0x5c8a8c), noise: 0.05 });
+  P.add(xf(block(0.3, 0.3, 22, 0.02), [3.3, 0, 15]), 'stone', { color: BATH.marble }); // a step along it
+  pieces.push(P);
+}
+{
+  // The round cold room: a domed rotunda with an oculus, painted garden
+  // scenes in niches, a plunge pool sunk in the middle of the floor.
+  const P = new Piece('Baths_Frigidarium_18m');
+  const R = 6.5, cz = 9, door = 2.9;
+  P.add(xf(new THREE.CircleGeometry(R, 32), [0, 0.01, cz], [-Math.PI / 2, 0, 0]), 'stone', { colorFn: bathFloor, noise: 0.05 });
+  // its wall, in two arcs either side of the way through (the doorways)
+  const gap = Math.asin(door / R);
+  for (const from of [gap, Math.PI + gap]) {
+    P.add(grid(20, 4, (u, v) => {
+      const a = from + u * (Math.PI - 2 * gap);
+      return V(Math.sin(a) * R, [0, 0.9, 1.0, 2.9, 3.2][Math.round(v * 4)], cz + Math.cos(a) * R);
+    }), 'plaster', { colorFn: (p) => (p.y < 0.95 ? BATH.black.clone() : p.y > 2.85 ? BATH.stucco.clone() : C(0x4f6b3a).lerp(C(0x9fb0a8), 0.5 * vnoise(p.x * 2, p.y * 2, p.z * 2))) });
+  }
+  // short vaults over the ways in and out, up to the dome
+  for (const z of [0, 18 - 3.2]) {
+    P.add(grid(12, 3, (u, v) => {
+      const b = Math.PI * u;
+      return V(-Math.cos(b) * door, 3.2 + Math.sin(b) * door * 0.8, z + v * 3.2);
+    }), 'plaster', { color: BATH.stucco, noise: 0.04 });
+    for (const s of [-1, 1]) P.add(xf(block(0.4, 6, 3.2, 0.02), [s * (door + 0.2), 0, z + 1.6]), 'plaster', { color: BATH.stucco });
+  }
+  // the floor of the way in and out, where it crosses the round room's edge
+  P.add(xf(new THREE.PlaneGeometry(door * 2, 18), [0, 0.005, 9], [-Math.PI / 2, 0, 0]), 'stone', { colorFn: bathFloor, noise: 0.05 });
+  // the dome, open at the top (the oculus)
+  P.add(grid(48, 10, (u, v) => {
+    const a = u * Math.PI * 2, b = lerp(0, Math.PI / 2 - 0.16, v);
+    return V(Math.sin(a) * R * Math.cos(b), 3.2 + Math.sin(b) * 3.6, cz + Math.cos(a) * R * Math.cos(b));
+  }), 'plaster', { colorFn: (p) => C(0x31506a).lerp(BATH.stucco, 0.35 + 0.1 * vnoise(p.x * 3, p.y * 3, p.z * 3)) });
+  // the passage walls into and out of the rotunda
+  for (const z of [0, 18]) for (const s of [-1, 1]) P.add(xf(block(R - door, 3.2, 1.2, 0.02), [s * (door + (R - door) / 2), 0, z + (z ? -0.6 : 0.6)]), 'plaster', { color: BATH.stucco });
+  // the plunge pool in the middle of the floor: marble rim, cold green water
+  for (const [w, d, x, z] of [[1.9, 0.2, 0, cz - 2.05], [1.9, 0.2, 0, cz + 2.05], [0.2, 3.9, -0.85, cz], [0.2, 3.9, 0.85, cz]]) {
+    P.add(xf(block(w, 0.14, d, 0.02), [x, 0, z]), 'stone', { color: BATH.marble });
+  }
+  P.add(xf(new THREE.PlaneGeometry(1.5, 3.9), [0, 0.07, cz], [-Math.PI / 2, 0, 0]), 'water', { color: C(0x2f6a66), noise: 0.05 });
+  pieces.push(P);
+}
+// A wall across the way (x from -half to half, up to top) with an arched
+// doorway (door wide either side, the arch springing at spring), depth
+// thick from z = z0: two side blocks and the part over the arch, whose
+// underside is the arch (no cut-out holes: they can come out filled).
+function archedWall(P, { half, top, door, spring, depth, z0 }, mat, opts) {
+  for (const s of [-1, 1]) P.add(xf(block(half - door, top, depth, 0.02), [s * (door + half) / 2, 0, z0 + depth / 2]), mat, opts);
+  const over = new THREE.Shape();
+  over.moveTo(-door, spring);
+  over.absarc(0, spring, door, Math.PI, 0, true);
+  over.lineTo(door, top); over.lineTo(-door, top); over.lineTo(-door, spring);
+  P.add(xf(new THREE.ExtrudeGeometry(over, { depth, bevelEnabled: false, curveSegments: 12 }), [0, 0, z0]), mat, opts);
+}
+{
+  // A wall across the way with an arched doorway (between rooms).
+  const P = new Piece('Baths_Door');
+  archedWall(P, { half: 6, top: 6.5, door: 2.9, spring: 2.6, depth: 0.6, z0: -0.3 }, 'plaster', { colorFn: bathWall(BATH.red), noise: 0.04 });
+  pieces.push(P);
+}
+{
+  // The entrance from the street: a plastered front between the house
+  // corners, pilasters, a painted inscription board over the arched door.
+  const P = new Piece('Baths_Facade');
+  archedWall(P, { half: 4.6, top: 7.5, door: 2.9, spring: 2.8, depth: 0.6, z0: -0.6 }, 'plaster', { colorFn: (p) => (p.y < 1 ? BATH.red.clone() : C(0xe2d5bb)), noise: 0.05 });
+  for (const s of [-1, 1]) P.add(xf(block(0.5, 6.2, 0.25, 0.02), [s * 3.5, 0, 0.1]), 'stone', { color: COL.tuff });
+  P.add(xf(new THREE.BoxGeometry(4.2, 0.6, 0.05), [0, 6.4, 0.03]), 'plaster', { color: BATH.stucco });
+  for (let i = 0; i < 12; i++) P.add(xf(new THREE.BoxGeometry(0.22, 0.32, 0.02), [-1.85 + i * 0.336, 6.4, 0.06]), 'plaster', { color: BATH.red });
+  pieces.push(P);
+}
+{
+  // The labrum: a great round marble basin on a fluted pedestal, where
+  // bathers splashed cold water on themselves in the hot room.
+  const P = new Piece('Labrum');
+  P.add(lathe([[0.32, 0], [0.24, 0.12], [0.2, 0.8], [0.3, 0.9], [0, 0.9]], 20), 'stone', { color: BATH.marble, noise: 0.04 });
+  P.add(lathe([[0, 0.9], [0.4, 0.92], [0.95, 1.12], [1.05, 1.25], [1.0, 1.28], [0.9, 1.16], [0, 1.1]], 28), 'stone', { color: BATH.marble, noise: 0.04 });
+  P.add(xf(new THREE.CircleGeometry(0.9, 24), [0, 1.18, 0], [-Math.PI / 2, 0, 0]), 'water', { color: C(0x6c9898) });
+  pieces.push(P);
+}
+{
+  // A bronze brazier on lion's legs, still glowing (it warmed the warm room).
+  const P = new Piece('Brazier');
+  P.add(xf(new THREE.BoxGeometry(1.4, 0.18, 0.9), [0, 0.72, 0]), 'metal', { color: COL.bronze });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) P.add(xf(new THREE.CylinderGeometry(0.05, 0.07, 0.72, 6), [sx * 0.6, 0.36, sz * 0.38]), 'metal', { color: COL.bronze });
+  for (let i = 0; i < 14; i++) P.add(xf(new THREE.IcosahedronGeometry(rr(0.07, 0.12), 0), [rr(-0.55, 0.55), 0.85, rr(-0.3, 0.3)]), 'stone', { color: (i % 3 ? C(0x3a2a22) : C(0xff8a3a)), noise: 0.1 });
+  pieces.push(P);
+}
+
 // ================================================================== EXPORT
 const scene = new THREE.Scene();
 let total = 0;

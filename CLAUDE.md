@@ -30,13 +30,12 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-The finale: Porta Stabia, the tombs road, vineyards and fields, the beach at Stabiae, end screen with epilogue.
+Two more districts: the baths (indoor, low vaults, pools as a splash, steam vents that hide the next obstacle) and the Great Palaestra by the amphitheatre (5 lanes, calmer, plane trees). At most one district per junction, picked by weight, preferring ones not seen this run.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
 
 From the GAME_DESIGN.md build order:
-- Two more districts (planned; next after the finale): the baths (indoor, low vaults, pools, steam vents that hide the next obstacle) and the Great Palaestra by the amphitheatre (a calmer, wide stretch with plane trees)
 - Rescued followers
 - Gladiator barracks courtyard with gladiator followers (last step of the theatre district)
 - Villa: tighter random obstacle rows inside the house

@@ -13,10 +13,16 @@ export const LANES = {
 // is "residential" (Via dell'Abbondanza); some ways lead into the Forum, a
 // wide square (still three lanes), for a few chunks, then back into the streets.
 export const DISTRICTS = {
-  forumChance: 0.35, // chance a way out of a junction leads into the Forum (never twice running)
+  // A junction may offer a district down one of its ways (never the same
+  // district twice running, none once the pumice has begun). Which one is
+  // picked by weight; one already seen this run counts for less.
+  offerChance: 0.6,
+  weights: { forum: 3, theatre: 2, baths: 3 },
+  seenWeight: 0.25, // a district already seen this run: its weight times this
+  only: null, // tests only: always offer this district
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
   names: {
-    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)',
+    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)', baths: 'The Stabian Baths',
     // the finale (FINALE)
     gate: 'Porta Stabia', tombs: 'The Tombs outside Porta Stabia', fields: 'The Road to Stabiae', beach: 'The Shore at Stabiae',
   },
@@ -607,6 +613,25 @@ export const PUMICE = {
   colors: [0x5f5f5c, 0xc4c3bc], // dark and light grey-white pumice
 };
 
+// The Stabian Baths (a district): four chunks of rooms under low vaults,
+// changing room, round cold room, warm room, hot room, then out by a door
+// into the street. Its fixed obstacles, in metres from where it starts and
+// lanes from the middle (-1 = left): the cold plunge pool (jump it; running
+// in is a splash), the warm room's brazier and the hot room's basin (dodge).
+export const BATHS = {
+  chunks: 4,
+  exitAt: 12, // metres into the last chunk where its street door is
+  fixed: [
+    { type: 'plunge pool', from: 37, to: 41, lane: 0, move: 'jump', halfWidth: 0.8, splash: true },
+    { type: 'brazier', from: 53.5, to: 54.5, lane: -1, move: 'block', halfWidth: 0.7 },
+    { type: 'labrum', from: 81, to: 83, lane: 0, move: 'block', halfWidth: 1.05 },
+  ],
+  jumpHeight: 0.35, // a pool's hitbox ('jump' obstacles); 'block' ones are OBSTACLES.blockHeight
+  clearAround: 0.7, // seconds of running kept free of obstacle rows around each fixed obstacle
+  // Rows inside: things dropped in the rush and fallen stucco, one lane at a time.
+  obstacles: { fullRowChance: 0, lane: { Basket: 2, Rubble: 1, AmphoraStack: 1 } },
+};
+
 // The rich house (domus) shortcut: the far side of some T-junctions is a
 // house front with its door open, a third way, straight through it (the
 // model: tools/build-villa.mjs, loaded by villa.js). Inside, its own
@@ -632,7 +657,7 @@ export const VILLA = {
 // steps), round the tier, and out through a vaulted exit (vomitorium).
 // Sizes follow the real theatre (seating about 31 m in radius, ~5,000 seats).
 export const THEATRE = {
-  chance: 0.25, // chance a way out of a junction leads into it (once a run)
+  // (offered at junctions like the other districts, DISTRICTS.weights; once a run)
   passage: 29.5, // metres of vaulted passage
   stage: 36.5, // metres across the stage
   turnRadius: 3.5, // the tight curve onto the tier (= the stage front's distance from the path)
@@ -661,7 +686,7 @@ export const THEATRE = {
     // the three steps: things left behind on them, one lane at a time
     tier: { fullRowChance: 0, lane: { Basket: 2, Rubble: 1, AmphoraStack: 1 } },
   },
-  testRepeat: false, // tests only: offer the theatre at every junction, not once a run
+  testRepeat: false, // tests only: the theatre may come more than once a run
   groundDrop: -1.8, // the plain ground sinks this low in the theatre (the orchestra is below the street)
 };
 

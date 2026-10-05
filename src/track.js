@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE, BATHS } from './config.js';
 import { createGateCollapse } from './gate.js';
 import { createBeach } from './beach.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
@@ -215,6 +215,30 @@ function planFields(random) {
     for (let z = random() * 6; z < L; z += 8 + random() * 6) if (random() < 0.7) country(placements, 'Cypress', side, 4.4, z);
   }
   return placements;
+}
+
+// The Stabian Baths, chunk by chunk (kit space; a path lane L is at kit
+// x = -L × lane width, the street being turned half round).
+function planBaths(index, random) {
+  const lane = (l) => -l * LANES.width;
+  const fixed = (type) => BATHS.fixed.find((f) => f.type === type);
+  const door = (z) => ({ piece: 'Baths_Door', x: 0, z, angle: 0 });
+  switch (index) {
+    case 0: // in from the street: the changing room
+      return [{ piece: 'Baths_Facade', x: 0, z: 0, angle: Math.PI }, { piece: 'Baths_Apodyterium_30m', x: 0, z: 0, angle: 0 }, door(L - 0.3)];
+    case 1: { // the round cold room, then the warm room with its brazier
+      const brazier = fixed('brazier');
+      return [{ piece: 'Baths_Frigidarium_18m', x: 0, z: 0, angle: 0 }, door(18), { piece: 'Baths_Tepidarium_12m', x: 0, z: 18, angle: 0 },
+        { piece: 'Brazier', x: lane(brazier.lane), z: (brazier.from + brazier.to) / 2 - L, angle: 0 }, door(L - 0.3)];
+    }
+    case 2: { // the hot room with its hot pool, and the basin
+      const labrum = fixed('labrum');
+      return [{ piece: 'Baths_Caldarium_30m', x: 0, z: 0, angle: 0 }, { piece: 'Labrum', x: lane(labrum.lane), z: (labrum.from + labrum.to) / 2 - 2 * L, angle: 0 }, door(L - 0.3)];
+    }
+    default: // a last warm passage, and out by a door into the street
+      return [{ piece: 'Baths_Tepidarium_12m', x: 0, z: 0, angle: 0 }, { piece: 'Baths_Facade', x: 0, z: BATHS.exitAt, angle: 0 },
+        ...planLayout(random, { from: BATHS.exitAt })];
+  }
 }
 
 // Merges a layout's pieces into one geometry per material.
@@ -535,6 +559,11 @@ export function createTrack(scene, kit, villa = null) {
   const backLaneLayout = build(planLayout(random, { from: VILLA.length % L }));
   // The finale: Porta Stabia, then (for now) the open road beyond.
   const gateLayout = build(planGate(random));
+  const bathsLayouts = Array.from({ length: BATHS.chunks }, (_, i) => build(planBaths(i, random)));
+  const BATHS_LENGTH = BATHS.chunks * L;
+  const BATHS_INDOORS = (BATHS.chunks - 1) * L + BATHS.exitAt; // metres from its start to its street door
+  // The baths' own obstacles once its way is taken: path-space hitboxes.
+  let bathsFixed = [];
   const countryLayouts = {
     tombs: [build(planTombs(random)), build(planTombs(random)), build(planTombs(random))],
     fields: [build(planFields(random)), build(planFields(random)), build(planFields(random))],
@@ -637,7 +666,6 @@ export function createTrack(scene, kit, villa = null) {
   let finishIndex = Infinity; // first open chunk (Escape mode)
   // Where the next chunk on the path goes (and the Forum it is in, if any).
   const cursor = { position: new THREE.Vector3(), angle: 0, distance: 0, run: null };
-  let cameFromForum = false;
 
   // Stretches where the lanes are steps: { from, to, heights: [lane 0, 1, 2] }
   // (rising from flat over TRACK.stepRamp metres and sinking back at the end),
@@ -697,6 +725,7 @@ export function createTrack(scene, kit, villa = null) {
       : kind === 'open' ? openLayout
       : district === 'theatre' ? emptyLayout
       : district === 'villa' ? (distance === run.end - L ? backLaneLayout : emptyLayout)
+      : district === 'baths' ? bathsLayouts[Math.round((distance - run.start) / L)]
       : kind === 'finale'
         ? district === 'gate' ? gateLayout
           : district === 'beach' ? (distance + L <= finishDistance + FINALE.beach.shore ? beachLayout : distance < finishDistance + FINALE.beach.shore ? shoreLayout : emptyLayout) // sand, then the sea (beach.js)
@@ -742,6 +771,7 @@ export function createTrack(scene, kit, villa = null) {
         : FINALE.obstacles[district] ? () => FINALE.obstacles[district]
         : district === 'beach' ? () => FINALE.beach.obstacles
         : district === 'theatre' ? (d) => theatreRules(d - run.start)
+        : district === 'baths' ? (d) => bathsRules(d - run.start, d)
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
         : undefined,
       lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
@@ -803,27 +833,30 @@ export function createTrack(scene, kit, villa = null) {
     exits = {};
     const centre = chunk.start.clone().addScaledVector(forward(chunk.angle, tmp), CENTRE);
     const ways = chunk.kind === 'X' || chunk.villa ? { left: 1, right: -1, straight: 0 } : { left: 1, right: -1 };
+    // At most one district, down one of the ways (the house is its own offer).
+    const offer = chunk.villa ? null : pickDistrict(cursor.distance);
+    const offerWay = offer ? Object.keys(ways)[Math.floor(Math.random() * Object.keys(ways).length)] : null;
     for (const [way, turn] of Object.entries(ways)) {
       const side = free.pop();
       if (!side) continue;
       const angle = chunk.angle + turn * QUARTER;
       const start = turn === 0 ? cursor.position.clone() : centre.clone().addScaledVector(forward(angle, tmp), SQUARE / 2);
-      // Where this way leads: sometimes into the theatre (once a run, if it
-      // ends well before the sea), or the Forum (never twice running).
+      // Where this way leads: the house's door (straight on), the district
+      // on offer, or another street.
       const d = cursor.distance;
-      const theatreFits = (!finishDistance || d + ROUTE.length < lastJunctionBefore()) && beforePumice(d + ROUTE.length);
       let run = null;
       if (chunk.villa && way === 'straight') {
         // Straight on: through the house's door, down its rooms, out of the back door.
         run = villaRun = { kind: 'villa', start: d, end: d + Math.ceil(VILLA.length / L) * L };
         house.place(start, angle, run);
-      } else if ((!theatreUsed || THEATRE.testRepeat) && !theatreRun && theatreFits && Math.random() < THEATRE.chance) {
+      } else if (way === offerWay && offer === 'theatre') {
         run = theatreRun = { kind: 'theatre', start: d, end: d + ROUTE.length };
         theatre.place(start, angle);
-      } else if (!cameFromForum && Math.random() < DISTRICTS.forumChance) {
+      } else if (way === offerWay && offer === 'forum') {
         const [min, max] = DISTRICTS.forumChunks;
         run = { kind: 'forum', start: d, end: d + L * (min + Math.floor(Math.random() * (max - min + 1))) };
-        if (!beforePumice(run.end)) run = null;
+      } else if (way === offerWay && offer === 'baths') {
+        run = { kind: 'baths', start: d, end: d + BATHS_LENGTH };
       }
       // Beside the house, the side streets leave a gap for it on its side.
       side.gap = chunk.villa && way !== 'straight' ? way : null;
@@ -848,7 +881,20 @@ export function createTrack(scene, kit, villa = null) {
     cursor.position.copy(chosen.start).addScaledVector(forward(chosen.angle, tmp), L);
     cursor.distance = chosen.distance + L;
     cursor.run = chosen.run; // into the Forum or the theatre, or null
-    cameFromForum = chosen.run?.kind === 'forum';
+    lastDistrict = chosen.run?.kind ?? null;
+    if (chosen.run) districtsSeen.add(chosen.run.kind);
+    if (chosen.run?.kind === 'baths') {
+      // The baths' own obstacles, now that this is the way.
+      const run = chosen.run;
+      bathsFixed = BATHS.fixed.map((f) => {
+        const x = f.lane * LANES.width;
+        const top = f.move === 'jump' ? BATHS.jumpHeight : OBSTACLES.blockHeight;
+        return {
+          type: f.type, move: f.move, stumbleOnly: Boolean(f.splash), used: false, distance: run.start + (f.from + f.to) / 2,
+          hitbox: new THREE.Box3(new THREE.Vector3(x - f.halfWidth, 0, -(run.start + f.to)), new THREE.Vector3(x + f.halfWidth, top, -(run.start + f.from))),
+        };
+      });
+    }
     if (chosen.run?.kind === 'theatre') {
       // The path follows the theatre's route: its curves, and its floors.
       theatreUsed = true;
@@ -872,6 +918,38 @@ export function createTrack(scene, kit, villa = null) {
     exits = null;
     // The next junction comes after the Forum, out in the streets again.
     planNextJunction(chosen.run ? chosen.run.end : cursor.distance);
+  }
+
+  // Rows in the baths: none at the doors, none near its own obstacles,
+  // the usual ones in the street beyond its exit.
+  function bathsRules(rel, d) {
+    if (rel > BATHS_INDOORS + 6) return undefined;
+    if (rel < 8 || rel > BATHS_INDOORS - 4) return null;
+    const metres = BATHS.clearAround * speedAt(d) * MAX_SPEED_MULTIPLIER;
+    if (BATHS.fixed.some((f) => rel > f.from - metres && rel < f.to + metres)) return null;
+    return BATHS.obstacles;
+  }
+
+  // Which district (if any) a junction at path distance d offers: picked by
+  // weight among those that fit before the pumice and the finale, never the
+  // last one taken, a district already seen this run counting for less.
+  let lastDistrict = null;
+  let districtsSeen = new Set();
+  function pickDistrict(d) {
+    const fits = (length) => beforePumice(d + length) && (!finishDistance || d + length < lastJunctionBefore());
+    const [, maxForum] = DISTRICTS.forumChunks;
+    const can = {
+      forum: fits(maxForum * L),
+      theatre: (!theatreUsed || THEATRE.testRepeat) && !theatreRun && fits(ROUTE.length),
+      baths: fits(BATHS_LENGTH),
+    };
+    if (DISTRICTS.only) return can[DISTRICTS.only] ? DISTRICTS.only : null;
+    if (Math.random() >= DISTRICTS.offerChance) return null;
+    const choices = Object.entries(DISTRICTS.weights)
+      .filter(([kind]) => can[kind] && kind !== lastDistrict)
+      .map(([kind, weight]) => [kind, weight * (districtsSeen.has(kind) ? DISTRICTS.seenWeight : 1)]);
+    let pick = Math.random() * choices.reduce((sum, [, w]) => sum + w, 0);
+    return choices.find(([, w]) => (pick -= w) < 0)?.[0] ?? null;
   }
 
   // Is there room for the house before the sea, after a junction at d?
@@ -916,7 +994,9 @@ export function createTrack(scene, kit, villa = null) {
     villaLast = false;
     placeWorld(0);
     cursor.run = null;
-    cameFromForum = false;
+    lastDistrict = null;
+    districtsSeen = new Set();
+    bathsFixed = [];
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
     statues.reset();
     planNextJunction(0);
@@ -960,11 +1040,12 @@ export function createTrack(scene, kit, villa = null) {
     // runner's own street that is exactly the scene, so his hitbox can be
     // used as it is, on straights, after turns and round curves alike.
     findCollision(hitbox) {
-      return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? gate.findCollision(hitbox) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null);
+      return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? gate.findCollision(hitbox) ??
+        bathsFixed.find((o) => !o.used && o.hitbox.intersectsBox(hitbox)) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null);
     },
 
     // The rich house's own obstacles while it is on the path (tests and tools).
-    houseObstacles: () => (villaRun && !villaRun.declined ? house.list() : []),
+    houseObstacles: () => [...(villaRun && !villaRun.declined ? house.list() : []), ...bathsFixed],
 
     // The floor height at a path distance, x across (0 except on steps).
     floorAt,
@@ -1015,6 +1096,8 @@ export function createTrack(scene, kit, villa = null) {
         const rel = distance - theatreRun.start;
         if ((rel > -2 && rel < ROUTE.passageEnd) || (rel > ROUTE.tunnelStart - 2 && rel < ROUTE.tunnelEnd + 2)) return 0;
       }
+      const inside = chunkAt(distance)?.run;
+      if (inside?.kind === 'baths' && distance - inside.start < BATHS_INDOORS + 2) return 0; // under the baths' vaults
       if (villaRun && !villaRun.declined) {
         // Nothing falls under the house's roofs: only in its open garden.
         const rel = distance - villaRun.start;
@@ -1091,6 +1174,7 @@ export function createTrack(scene, kit, villa = null) {
         leftovers.forEach(release);
         leftovers = [];
       }
+      if (bathsFixed.length && bathsFixed.every((o) => o.distance < playerDistance - 20)) bathsFixed = [];
       // The house goes once it is behind (or once its way was not taken).
       if (villaRun && ((villaRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > villaRun.end + TRACK.chunksBehind * L)) {
         house.hide();

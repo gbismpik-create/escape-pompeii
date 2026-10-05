@@ -539,6 +539,7 @@ const CRASH_REASONS = {
   'hypocaust hole': 'You fell through the bath floor',
   'hot pool': 'You fell into the hot pool',
   labrum: 'You ran into the bath basin',
+  brazier: 'You ran into a bronze brazier',
 };
 
 function checkCollisions() {
