@@ -207,8 +207,7 @@ function planFields(random) {
   const placements = [{ piece: 'Road_30m', x: 0, z: 0, angle: 0 }];
   for (const side of [-1, 1]) {
     country(placements, 'Country_Ground_30m', side, 0, 0, { length: true });
-    country(placements, 'Field_Wall_30m', side, 6, 0, { length: true });
-    const farm = random() < 0.35;
+    const farm = random() < 0.35; // (no wall by the road: frightened animals burst out of the vines)
     const { from, to, every } = FINALE.vineRows;
     for (let x = from; x <= to; x += every) if (!(farm && x > 16)) country(placements, 'Vine_Row_30m', side, x, 0, { length: true });
     if (farm) country(placements, 'Farmhouse', side, 22, 10 + random() * 10);

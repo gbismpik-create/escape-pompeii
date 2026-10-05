@@ -646,6 +646,22 @@ export const CROWDS = {
   tunicColors: [0xb5452f, 0xd8c9a8, 0x6f7f5a, 0x8a6a45, 0x5d6f8a, 0xc49a3c, 0x9c8f86],
 };
 
+// Frightened farm animals bolting across the road in the finale's fields
+// (animals.js), timed like the Forum's crowds to cross as the runner comes.
+// Running into one is a stumble. Per kind: how many run together, their
+// speed across the road (m/s), legs (hip height and spacing, metres; swings
+// per second), a hitbox and the legs' colour.
+export const ANIMALS = {
+  spacing: [2.6, 4.2], // seconds of running between groups
+  startX: 9.5, // they burst out from between the vines this far from the road's middle
+  kinds: {
+    sheep: { weight: 3, group: [3, 5], speed: 4.2, hip: 0.5, legs: [0.14, 0.3], stride: 4.5, hitbox: { halfWidth: 0.5, height: 0.95, halfDepth: 0.3 }, legColor: 0x3b3430 },
+    goat: { weight: 2, group: [2, 3], speed: 5.8, hip: 0.62, legs: [0.11, 0.3], stride: 5.5, hitbox: { halfWidth: 0.45, height: 1.2, halfDepth: 0.22 }, legColor: 0x4a3a2c },
+    ox: { weight: 1, group: [1, 1], speed: 2.6, hip: 0.9, legs: [0.28, 0.7], stride: 2.4, hitbox: { halfWidth: 1.1, height: 1.6, halfDepth: 0.45 }, legColor: 0x6b4f36 },
+  },
+  max: 14, // animals on the road at once
+};
+
 export const STREET = {
   sideGroundWidth: 140, // plain ground under and beyond the buildings
   sideGroundColor: 0x8a7a62,

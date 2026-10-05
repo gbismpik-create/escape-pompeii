@@ -1287,6 +1287,63 @@ function inscription(P, x, y, z, w, rows = 3) {
   pieces.push(P);
 }
 
+// ================================================================== FRIGHTENED ANIMALS (the finale's fields)
+// Farm animals bolting across the road: a body (with head) per kind, and one
+// leg piece for all of them, scaled to each kind's legs and swung by the game.
+// Built facing +z, origin on the ground under the body; the leg's top (its
+// hip) is at its origin and it hangs to y = -1.
+{
+  const P = new Piece('Animal_Leg');
+  P.add(xf(new THREE.CylinderGeometry(0.05, 0.035, 0.9, 6), [0, -0.45, 0]), 'cloth', { color: C(0xffffff), noise: 0.05 });
+  P.add(xf(new THREE.CylinderGeometry(0.04, 0.05, 0.1, 6), [0, -0.95, 0]), 'cloth', { color: C(0x3a3330), noise: 0.05 });
+  pieces.push(P);
+}
+// A lumpy ellipsoid (fleece, a belly, a head).
+function lump(rx, ry, rz, bump = 0.12, detail = 2) {
+  const g = new THREE.IcosahedronGeometry(1, detail), p = g.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const k = 1 + bump * (vnoise(v.x * 4 + 9, v.y * 4, v.z * 4) - 0.5);
+    p.setXYZ(i, v.x * rx * k, v.y * ry * k, v.z * rz * k);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+{
+  // Sheep: a woolly fleece, a dark face and ears.
+  const P = new Piece('Sheep_Body');
+  P.add(xf(lump(0.3, 0.27, 0.5, 0.35), [0, 0.68, 0]), 'cloth', { colorFn: (p) => C(0xd9d2c2).multiplyScalar(0.8 + 0.3 * vnoise(p.x * 12, p.y * 12, p.z * 12)), noise: 0.1 });
+  P.add(xf(lump(0.11, 0.13, 0.17, 0.1, 1), [0, 0.82, 0.55], [0.5, 0, 0]), 'cloth', { color: C(0x3b3430) });
+  for (const s of [-1, 1]) P.add(xf(lump(0.08, 0.025, 0.04, 0, 0), [s * 0.12, 0.88, 0.5], [0, 0, s * 0.4]), 'cloth', { color: C(0x3b3430) });
+  pieces.push(P);
+}
+{
+  // Goat: lean, rough-coated, curved horns and a beard.
+  const P = new Piece('Goat_Body');
+  const coat = (p) => C(0x6b4f36).lerp(C(0x2e2620), vnoise(p.x * 6, p.y * 6, p.z * 3)).multiplyScalar(0.9 + 0.2 * vnoise(p.x * 20, p.y * 20, p.z * 20));
+  P.add(xf(lump(0.2, 0.22, 0.48, 0.15), [0, 0.8, 0]), 'cloth', { colorFn: coat, noise: 0.1 });
+  P.add(xf(lump(0.1, 0.12, 0.2, 0.1, 1), [0, 1.0, 0.55], [0.7, 0, 0]), 'cloth', { colorFn: coat });
+  for (const s of [-1, 1]) {
+    const pts = [V(s * 0.05, 1.1, 0.5), V(s * 0.09, 1.25, 0.42), V(s * 0.13, 1.28, 0.3)];
+    P.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 6, 0.025, 5), 'cloth', { color: C(0x8a7a62) });
+  }
+  P.add(xf(new THREE.ConeGeometry(0.04, 0.14, 5), [0, 0.86, 0.66], [Math.PI, 0, 0]), 'cloth', { color: C(0x2e2620) });
+  pieces.push(P);
+}
+{
+  // Ox: a big, heavy body, a dewlap, wide horns.
+  const P = new Piece('Ox_Body');
+  const hide = (p) => C(0x7a5a3e).lerp(C(0xb8a07c), clamp(0.5 - p.y + 0.6) * 0.3).multiplyScalar(0.85 + 0.25 * vnoise(p.x * 5, p.y * 5, p.z * 5));
+  P.add(xf(lump(0.45, 0.5, 1.05, 0.08), [0, 1.2, 0]), 'cloth', { colorFn: hide, noise: 0.08 });
+  P.add(xf(lump(0.2, 0.28, 0.32, 0.06, 1), [0, 1.3, 1.15], [0.5, 0, 0]), 'cloth', { colorFn: hide });
+  P.add(xf(lump(0.1, 0.25, 0.2, 0.05, 1), [0, 0.95, 0.85]), 'cloth', { colorFn: hide }); // dewlap
+  for (const s of [-1, 1]) {
+    const pts = [V(s * 0.12, 1.5, 1.15), V(s * 0.4, 1.58, 1.18), V(s * 0.5, 1.75, 1.25)];
+    P.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 6, 0.04, 6), 'cloth', { color: C(0xd8ccb0) });
+  }
+  pieces.push(P);
+}
+
 // ================================================================== EXPORT
 const scene = new THREE.Scene();
 let total = 0;

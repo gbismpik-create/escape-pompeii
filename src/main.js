@@ -20,6 +20,7 @@ import { createAudio } from './audio.js';
 import { createSurge } from './surge.js';
 import { createFalling } from './falling.js';
 import { createCrowds } from './crowds.js';
+import { createAnimals } from './animals.js';
 import { isSideClip } from './obstacles.js';
 import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked } from './storage.js';
 
@@ -88,6 +89,7 @@ const falling = createFalling(track.world, track, {
 // People fleeing across the Forum. Bumping into someone is a stumble in his
 // lane; it never ends the run or counts towards the surge.
 const crowds = createCrowds(scene, kit);
+const animals = createAnimals(scene, kit); // the finale's fields
 function onBump() {
   if (player.inStumbleGrace) return;
   player.stumble();
@@ -245,6 +247,7 @@ function turn(way) {
   turnTime = 0;
   falling.reset(); // anything still falling was over the old street
   crowds.reset();
+  animals.reset();
 }
 
 // Each frame while running: take a queued turn on the centre line, carry
@@ -405,6 +408,7 @@ function restart() {
   surge.reset();
   falling.reset();
   crowds.reset();
+  animals.reset();
   setAshFade(0);
   shake = 0;
 }
@@ -559,6 +563,7 @@ renderer.setAnimationLoop((timestamp) => {
     updateDistance(currentDistance());
     updateDistrict();
     crowds.update(dt, currentDistance(), currentSpeed(), (d) => track.districtAt(d) === 'forum', player.hitbox, onBump);
+    animals.update(dt, currentDistance(), currentSpeed(), (d) => track.districtAt(d) === 'fields', player.hitbox, onBump);
     // Statues: some topple in the later phases (see statues.js).
     const statueSpeed = currentSpeed();
     track.statues.update(
