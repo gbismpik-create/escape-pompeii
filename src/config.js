@@ -615,29 +615,24 @@ export const PUMICE = {
   colors: [0x5f5f5c, 0xc4c3bc], // dark and light grey-white pumice
 };
 
-// The Stabian Baths (a district): four chunks of rooms under low vaults,
-// changing room, round cold room, warm room, hot room, then out by a door
-// into the street. Its fixed obstacles, in metres from where it starts and
-// lanes from the middle (-1 = left): the cold plunge pool (jump it; running
-// in is a splash), the warm room's brazier and the hot room's basin (dodge).
+// The Stabian Baths (a district; the model: tools/build-stabian-baths.mjs,
+// loaded by villa.js): across Via dell'Abbondanza to the street front, in by
+// the vestibule, across the palaestra past its swimming pool, through the
+// men's baths (changing room, round cold room, warm room, hot room) and out
+// through the furnace room into the street behind.
+// Model space: +z along the way, the street front at z = 0, the back
+// street's far side at z = 105; lanes 0..2 at x = -1.8, 0, 1.8 (-1: across).
 export const BATHS = {
-  chunks: 4,
-  exitAt: 12, // metres into the last chunk where its street door is
-  fixed: [
-    { type: 'plunge pool', from: 37, to: 41, lane: 0, move: 'jump', halfWidth: 0.8, splash: true },
-    { type: 'brazier', from: 53.5, to: 54.5, lane: -1, move: 'block', halfWidth: 0.7 },
-    { type: 'labrum', from: 81, to: 83, lane: 0, move: 'block', halfWidth: 1.05 },
-  ],
-  jumpHeight: 0.35, // a pool's hitbox ('jump' obstacles); 'block' ones are OBSTACLES.blockHeight
-  clearAround: 0.7, // seconds of running kept free of obstacle rows around each fixed obstacle
-  // Rows inside: things dropped in the rush and fallen stucco, one lane at a time.
-  obstacles: { fullRowChance: 0, lane: { Basket: 2, Rubble: 1, AmphoraStack: 1 } },
-  // Steam vents: grates across the floor (metres from the baths' start) that
-  // hiss, then puff a curtain of steam hiding the next obstacle beyond. The
-  // steam is always gone fairClear seconds before he reaches that obstacle,
-  // and before he reaches the grate itself.
+  file: 'assets/stabian-baths.glb',
+  chunks: 4, // 120 m
+  gateAt: 15, // metres into the run where its street front is (so the back street ends with the run)
+  laneHalfWidth: 0.8, // its obstacles' hitboxes, across one lane
+  jumpHeight: 0.35, // 'jump' ones (the bowling track, the firewood); 'slide' ones are OBSTACLES.slideGap
+  stumbleOnly: ['cold plunge pool'], // running into the cold pool is a splash and a stumble, not the end
+  indoors: [[-1, 5], [39, 91]], // model z: the vestibule, the men's baths (nothing falls there)
+  groundDrop: -2, // the plain ground sinks below its pools while he is inside
   steam: {
-    vents: [15, 49, 69, 88],
+    vents: [41, 59, 70, 83], // the changing room, the cold room's far door, the hot room, the furnace room
     hideRange: 16, // metres beyond a grate an obstacle can be hidden
     fairClear: 1.0, // seconds: clear by then, before the obstacle arrives
     clearBeforeGrate: 0.3, // seconds: clear by then, before he reaches the grate

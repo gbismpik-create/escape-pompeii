@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { VILLA, AMPHITHEATRE, GRAPHICS } from './config.js';
+import { VILLA, AMPHITHEATRE, BATHS, GRAPHICS } from './config.js';
 import { loadGLTF } from './assets.js';
 import { isLowEnd } from './device.js';
 
@@ -132,3 +132,7 @@ export const loadVilla = (envMap) => loadSetPiece(VILLA.file, 'Pompeii_Villa', e
 // The amphitheatre (tools/build-amphitheatre.mjs): its ground, plaza and
 // arena sand cast no shadows.
 export const loadAmphitheatre = (envMap) => loadSetPiece(AMPHITHEATRE.file, 'Pompeii_Amphitheatre', envMap, ['grass', 'gravel', 'sand']);
+
+// The Stabian Baths (tools/build-stabian-baths.mjs): its grass and street
+// paving cast no shadows.
+export const loadBaths = (envMap) => loadSetPiece(BATHS.file, 'Pompeii_Stabian_Baths', envMap, ['grass', 'basalt', 'sand', 'signinum']);

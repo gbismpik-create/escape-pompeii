@@ -236,30 +236,6 @@ function planFields(random) {
   return placements;
 }
 
-// The Stabian Baths, chunk by chunk (kit space; a path lane L is at kit
-// x = -L × lane width, the street being turned half round).
-function planBaths(index, random) {
-  const lane = (l) => -l * LANES.width;
-  const fixed = (type) => BATHS.fixed.find((f) => f.type === type);
-  const door = (z) => ({ piece: 'Baths_Door', x: 0, z, angle: 0 });
-  switch (index) {
-    case 0: // in from the street: the changing room
-      return [{ piece: 'Baths_Facade', x: 0, z: 0, angle: Math.PI }, { piece: 'Baths_Apodyterium_30m', x: 0, z: 0, angle: 0 }, door(L - 0.3)];
-    case 1: { // the round cold room, then the warm room with its brazier
-      const brazier = fixed('brazier');
-      return [{ piece: 'Baths_Frigidarium_18m', x: 0, z: 0, angle: 0 }, door(18), { piece: 'Baths_Tepidarium_12m', x: 0, z: 18, angle: 0 },
-        { piece: 'Brazier', x: lane(brazier.lane), z: (brazier.from + brazier.to) / 2 - L, angle: 0 }, door(L - 0.3)];
-    }
-    case 2: { // the hot room with its hot pool, and the basin
-      const labrum = fixed('labrum');
-      return [{ piece: 'Baths_Caldarium_30m', x: 0, z: 0, angle: 0 }, { piece: 'Labrum', x: lane(labrum.lane), z: (labrum.from + labrum.to) / 2 - 2 * L, angle: 0 }, door(L - 0.3)];
-    }
-    default: // a last warm passage, and out by a door into the street
-      return [{ piece: 'Baths_Tepidarium_12m', x: 0, z: 0, angle: 0 }, { piece: 'Baths_Facade', x: 0, z: BATHS.exitAt, angle: 0 },
-        ...planLayout(random, { from: BATHS.exitAt })];
-  }
-}
-
 // Merges a layout's pieces into one geometry per material.
 // sx / sz stretch a piece along its own x / z before it is turned.
 // Placements marked lowDetail use lowPieces (the far kit) even up close.
@@ -535,8 +511,8 @@ function createTheatre(world, kit) {
 }
 
 // villa: the rich house (villa.js), or null for none (tests); amph: the
-// amphitheatre (villa.js), or null for none.
-export function createTrack(scene, kit, villa = null, amph = null) {
+// amphitheatre, bathsModel: the Stabian Baths (villa.js), or null for none.
+export function createTrack(scene, kit, villa = null, amph = null, bathsModel = null) {
   const world = new THREE.Group();
   world.name = 'world';
   world.matrixAutoUpdate = false; // placed from the path's pose each frame
@@ -614,11 +590,10 @@ export function createTrack(scene, kit, villa = null, amph = null) {
   const backLaneLayout = build(planLayout(random, { from: VILLA.length % L }));
   // The finale: Porta Stabia, then (for now) the open road beyond.
   const gateLayout = build(planGate(random));
-  const bathsLayouts = Array.from({ length: BATHS.chunks }, (_, i) => build(planBaths(i, random)));
-  const BATHS_LENGTH = BATHS.chunks * L;
-  const BATHS_INDOORS = (BATHS.chunks - 1) * L + BATHS.exitAt; // metres from its start to its street door
-  // The baths' own obstacles once its way is taken: path-space hitboxes.
-  let bathsFixed = [];
+  // The Stabian Baths: the model (villa.js) as one set piece, its street
+  // front a little way into the run, its back street at the run's end.
+  const baths = bathsModel ? createSetPiece(world, bathsModel, 'baths', { ...BATHS, offset: BATHS.gateAt }) : null;
+  let bathsRun = null; // the baths on offer or being run through, or null
   let steamVents = []; // the baths' steam vents (path distances), once its way is taken
   const countryLayouts = {
     tombs: [build(planTombs(random)), build(planTombs(random)), build(planTombs(random))],
@@ -644,6 +619,12 @@ export function createTrack(scene, kit, villa = null, amph = null) {
   const amphitheatre = amph ? createSetPiece(world, amph, 'amphitheatre', { ...AMPHITHEATRE, offset: AMPHITHEATRE.gateAt, floor: amphFloor, sceneryHides: ['grass', 'gravel'] }) : null;
   let amphRun = null; // the amphitheatre on offer or being run through, or null
   let amphBeyond = null; // the palaestra run it is shown beside, or null
+  // The obstacles of the set pieces on the way (tests, tools and the steam).
+  const setPieceObstacles = () => [
+    ...(villaRun && !villaRun.declined ? house.list() : []),
+    ...(amphRun && !amphRun.declined ? amphitheatre.list() : []),
+    ...(bathsRun && !bathsRun.declined ? baths.list() : []),
+  ];
   let villaRun = null; // the house on offer or being run through, or null
   let villaLast = false; // the last junction had the house (never two running)
   // Theatre chunks have no layout of their own: the theatre is one set piece
@@ -800,7 +781,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
       : district === 'theatre' ? emptyLayout
       : district === 'villa' ? (distance === run.end - L ? backLaneLayout : emptyLayout)
       : district === 'amphitheatre' ? (distance - run.start >= AMPHITHEATRE.exitAt ? layouts[Math.floor(Math.random() * layouts.length)] : emptyLayout)
-      : district === 'baths' ? bathsLayouts[Math.round((distance - run.start) / L)]
+      : district === 'baths' ? emptyLayout
       : kind === 'finale'
         ? district === 'gate' ? gateLayout
           : district === 'beach' ? (distance + L <= finishDistance + FINALE.beach.shore ? beachLayout : distance < finishDistance + FINALE.beach.shore ? shoreLayout : emptyLayout) // sand, then the sea (beach.js)
@@ -847,7 +828,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
         : FINALE.obstacles[district] ? () => FINALE.obstacles[district]
         : district === 'beach' ? () => FINALE.beach.obstacles
         : district === 'theatre' ? (d) => theatreRules(d - run.start)
-        : district === 'baths' ? (d) => bathsRules(d - run.start, d)
+        : district === 'baths' ? () => null // only its own
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
         : district === 'palaestra' ? () => (Math.random() < PALAESTRA.rowShare ? PALAESTRA.obstacles : null) // calmer: fewer rows, none full
         : district === 'amphitheatre' ? (d) => (d - run.start < AMPHITHEATRE.exitAt + 4 ? null : undefined) // only its own, until the street beyond
@@ -934,7 +915,8 @@ export function createTrack(scene, kit, villa = null, amph = null) {
         const [min, max] = DISTRICTS.forumChunks;
         run = { kind: 'forum', start: d, end: d + L * (min + Math.floor(Math.random() * (max - min + 1))) };
       } else if (way === offerWay && offer === 'baths') {
-        run = { kind: 'baths', start: d, end: d + BATHS_LENGTH };
+        run = bathsRun = { kind: 'baths', start: d, end: d + BATHS.chunks * L };
+        baths.place(start, angle, run);
       } else if (way === offerWay && offer === 'palaestra') {
         run = { kind: 'palaestra', start: d, end: d + PALAESTRA.chunks * L };
       } else if (way === offerWay && offer === 'amphitheatre') {
@@ -966,19 +948,8 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     cursor.run = chosen.run; // into the Forum or the theatre, or null
     lastDistrict = chosen.run?.kind ?? null;
     if (chosen.run) districtsSeen.add(chosen.run.kind);
-    if (chosen.run?.kind === 'baths') {
-      // The baths' own obstacles, now that this is the way.
-      const run = chosen.run;
-      bathsFixed = BATHS.fixed.map((f) => {
-        const x = f.lane * LANES.width;
-        const top = f.move === 'jump' ? BATHS.jumpHeight : OBSTACLES.blockHeight;
-        return {
-          type: f.type, move: f.move, stumbleOnly: Boolean(f.splash), used: false, distance: run.start + (f.from + f.to) / 2,
-          hitbox: new THREE.Box3(new THREE.Vector3(x - f.halfWidth, 0, -(run.start + f.to)), new THREE.Vector3(x + f.halfWidth, top, -(run.start + f.from))),
-        };
-      });
-      steamVents = BATHS.steam.vents.map((at) => run.start + at);
-    }
+    if (chosen.run?.kind === 'baths') steamVents = BATHS.steam.vents.map((z) => chosen.run.start + BATHS.gateAt + z);
+    if (bathsRun && chosen.run !== bathsRun) bathsRun.declined = true;
     if (chosen.run?.kind === 'theatre') {
       // The path follows the theatre's route: its curves, and its floors.
       theatreUsed = true;
@@ -1012,16 +983,6 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     planNextJunction(chosen.run ? chosen.run.end : cursor.distance);
   }
 
-  // Rows in the baths: none at the doors, none near its own obstacles,
-  // the usual ones in the street beyond its exit.
-  function bathsRules(rel, d) {
-    if (rel > BATHS_INDOORS + 6) return undefined;
-    if (rel < 8 || rel > BATHS_INDOORS - 4) return null;
-    const metres = BATHS.clearAround * speedAt(d) * MAX_SPEED_MULTIPLIER;
-    if (BATHS.fixed.some((f) => rel > f.from - metres && rel < f.to + metres)) return null;
-    return BATHS.obstacles;
-  }
-
   // Which district (if any) a junction at path distance d offers: picked by
   // weight among those that fit before the finale, never the
   // last one taken, a district already seen this run counting for less.
@@ -1033,7 +994,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     const can = {
       forum: fits(maxForum * L),
       theatre: (!theatreUsed || !THEATRE.oncePerRun) && !theatreRun && fits(ROUTE.length),
-      baths: fits(BATHS_LENGTH),
+      baths: Boolean(baths) && !bathsRun && fits(BATHS.chunks * L),
       amphitheatre: Boolean(amphitheatre) && !amphRun && !amphBeyond && fits(AMPHITHEATRE.chunks * L),
       palaestra: fits(PALAESTRA.chunks * L),
     };
@@ -1093,7 +1054,8 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     cursor.run = null;
     lastDistrict = null;
     districtsSeen = new Set();
-    bathsFixed = [];
+    baths?.hide();
+    bathsRun = null;
     steamVents = [];
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
     statues.reset();
@@ -1139,7 +1101,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     // used as it is, on straights, after turns and round curves alike.
     findCollision(hitbox) {
       return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? gate.findCollision(hitbox) ??
-        bathsFixed.find((o) => !o.used && o.hitbox.intersectsBox(hitbox)) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null) ??
+        (bathsRun && !bathsRun.declined ? baths.findCollision(hitbox) : null) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null) ??
         (amphRun && !amphRun.declined ? amphitheatre.findCollision(hitbox) : null);
     },
 
@@ -1148,7 +1110,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     // within `range` metres, or null.
     obstacleAfter(d, range) {
       let best = null;
-      for (const o of [...obstacles.list(), ...bathsFixed]) {
+      for (const o of [...obstacles.list(), ...setPieceObstacles()]) {
         const near = -o.hitbox.max.z;
         if (near > d && near < d + range && (best === null || near < best)) best = near;
       }
@@ -1160,7 +1122,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
       return steamVents;
     },
 
-    houseObstacles: () => [...(villaRun && !villaRun.declined ? house.list() : []), ...(amphRun && !amphRun.declined ? amphitheatre.list() : []), ...bathsFixed],
+    houseObstacles: () => setPieceObstacles(),
 
     // The floor height at a path distance, x across (0 except on steps).
     floorAt,
@@ -1188,7 +1150,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     setPumice(start, length) {
       if (pumice) return;
       let from = Math.max(start, cursor.distance + 1);
-      for (const run of [cursor.run, theatreRun, villaRun, amphRun]) if (run && !run.declined) from = Math.max(from, run.end);
+      for (const run of [cursor.run, theatreRun, villaRun, amphRun, bathsRun]) if (run && !run.declined) from = Math.max(from, run.end);
       pumice = { start: from, length };
     },
     get pumice() {
@@ -1211,8 +1173,11 @@ export function createTrack(scene, kit, villa = null, amph = null) {
         const rel = distance - theatreRun.start;
         if ((rel > -2 && rel < ROUTE.passageEnd) || (rel > ROUTE.tunnelStart - 2 && rel < ROUTE.tunnelEnd + 2)) return 0;
       }
-      const inside = chunkAt(distance)?.run;
-      if (inside?.kind === 'baths' && distance - inside.start < BATHS_INDOORS + 2) return 0; // under the baths' vaults
+      if (bathsRun && !bathsRun.declined) {
+        // Nothing falls under the baths' roofs.
+        const z = distance - bathsRun.start - BATHS.gateAt;
+        if (BATHS.indoors.some(([a, b]) => z > a && z < b)) return 0;
+      }
       if (amphRun && !amphRun.declined) {
         // Nothing falls in its vaulted passages.
         const z = distance - amphRun.start - AMPHITHEATRE.gateAt;
@@ -1288,14 +1253,19 @@ export function createTrack(scene, kit, villa = null, amph = null) {
       placeWorld(-playerZ);
       const inTheatre = theatreRun && !theatreRun.declined && playerDistance > theatreRun.start && playerDistance < theatreRun.start + ROUTE.ringEnd;
       const inArena = amphRun && !amphRun.declined && playerDistance > amphRun.start && playerDistance < amphRun.start + AMPHITHEATRE.exitAt;
-      ground.update(playerZ, inArena ? AMPHITHEATRE.groundDrop : inTheatre ? THEATRE.groundDrop : -0.1);
+      const inBaths = bathsRun && !bathsRun.declined && playerDistance > bathsRun.start && playerDistance < bathsRun.end;
+      ground.update(playerZ, inArena ? AMPHITHEATRE.groundDrop : inBaths ? BATHS.groundDrop : inTheatre ? THEATRE.groundDrop : -0.1);
       // Recycle chunks that are now too far behind; lay new ones ahead.
       while (path.length && path[0].distance + L < playerDistance - TRACK.chunksBehind * L) release(path.shift());
       if (leftovers.length && playerDistance >= releaseLeftoversAt) {
         leftovers.forEach(release);
         leftovers = [];
       }
-      if (bathsFixed.length && bathsFixed.every((o) => o.distance < playerDistance - 20)) bathsFixed = [];
+      // The baths go once they are behind (or once their way was not taken).
+      if (bathsRun && ((bathsRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > bathsRun.end + TRACK.chunksBehind * L)) {
+        baths.hide();
+        bathsRun = null;
+      }
       // The house goes once it is behind (or once its way was not taken).
       if (villaRun && ((villaRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > villaRun.end + TRACK.chunksBehind * L)) {
         house.hide();

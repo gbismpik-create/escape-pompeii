@@ -6,7 +6,7 @@ import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
-import { loadVilla, loadAmphitheatre, seeThrough } from './villa.js';
+import { loadVilla, loadAmphitheatre, loadBaths, seeThrough } from './villa.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart, journeyPhaseTime } from './phases.js';
 import { speedAt } from './speed.js';
@@ -65,13 +65,14 @@ setupSettings(audio.levels, {
 });
 
 setLoading(true);
-const [kit, character, villa, amphitheatre] = await Promise.all([
+const [kit, character, villa, amphitheatre, baths] = await Promise.all([
   loadKit(environment.envMap),
   loadCharacter(environment.envMap),
   loadVilla(environment.envMap),
   loadAmphitheatre(environment.envMap),
+  loadBaths(environment.envMap),
 ]);
-const track = createTrack(scene, kit, villa, amphitheatre);
+const track = createTrack(scene, kit, villa, amphitheatre, baths);
 
 environment.addVolcano(kit);
 setLoading(false);
@@ -551,8 +552,17 @@ const CRASH_REASONS = {
   fountain: 'You ran into the garden fountain',
   'hypocaust hole': 'You fell through the bath floor',
   'hot pool': 'You fell into the hot pool',
-  labrum: 'You ran into the bath basin',
-  brazier: 'You ran into a bronze brazier',
+  sundial: 'You ran into the sundial',
+  "athletes' bench": "You ran into the athletes' bench",
+  'bowling track': 'You tripped on the bowling track',
+  'stone roller': 'You ran into the stone roller',
+  scaffolding: 'You ran into the scaffolding',
+  'overturned bench and clothes': 'You tripped over an overturned bench',
+  'bronze brazier': 'You ran into a bronze brazier',
+  'bronze bench': 'You ran into a bronze bench',
+  'hot pool (alveus)': 'You fell into the hot pool',
+  'wooden tub': 'You ran into a bathing tub',
+  firewood: 'You tripped over the firewood',
   'lion cage': 'You ran into a beast cage',
   'fallen awning mast': 'You tripped over a fallen awning mast',
   'weapons rack': 'You ran into a rack of arms',
