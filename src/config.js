@@ -542,11 +542,21 @@ export const FINALE = {
     halfDepth: 0.55,
     wobble: 0.04, // radians while it shakes
   },
-  // Outside the walls the pumice thins out (it fell thickest on the town).
-  pumiceOutside: 0.25,
-  pumiceBeach: 0.08,
-  pumiceTaper: 40, // metres over which it thins
-  countryWidth: 45, // metres either side the pumice covers outside the walls
+  // Outside the walls the pumice thins out (it fell thickest on the town);
+  // grey ash settles on the grass instead (the ash cover on every material).
+  pumiceOutside: 0,
+  pumiceBeach: 0,
+  pumiceTaper: 30, // metres over which it thins
+  // Obstacles outside the walls, as in OBSTACLES (weights only): along the
+  // tombs a toppled column now and then; in the fields, abandoned farm carts.
+  obstacles: {
+    tombs: { fullRowChance: 0.2, fullRow: { FallenColumn: 1 }, lane: { Rubble: 1, AmphoraStack: 1, Cart: 1 } },
+    fields: { fullRowChance: 0, lane: { Cart: 2, Rubble: 1, Basket: 1 } },
+  },
+  // Beside the road outside the walls (metres from its middle).
+  tombsX: 4.3, // the tombs' fronts
+  tombSpacing: [6.5, 9], // metres between tombs along the road
+  vineRows: { from: 8, to: 32, every: 2.6 },
 };
 
 // The pumice fall (phase 2): grey pumice stones fill the streets, deeper and

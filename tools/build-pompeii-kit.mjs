@@ -1154,6 +1154,139 @@ function rubble(P, cx, cz, w, h, n) {
   pieces.push(P);
 }
 
+// ================================================================== OUTSIDE THE WALLS (the finale): tombs, cypresses, vineyards, fields
+// Family tombs lined the roads out of Roman towns, as they still do outside
+// Porta Stabia: semicircular stone benches (scholae) where travellers could
+// rest, altar tombs on stepped bases, and small temple-fronted tombs. Beyond
+// them, vineyards on trellises, fields and cypresses. Kit space as for the
+// street: +z along the road, built to stand beside it facing -x (towards the
+// road when placed on the +x side; the layout turns them for the other side).
+{
+  // Country ground beside the road: grass, earth and stubble, 30 m long,
+  // from the road's edge (x = 2.75) out to 40 m. One side; the layout mirrors it.
+  const P = new Piece('Country_Ground_30m');
+  P.add(grid(20, 15, (u, v) => {
+    const x = lerp(2.75, 40, u ** 1.5), z = v * 30;
+    return V(x, -0.03 + 0.25 * fbm(x * 0.08, 0, z * 0.08) * clamp((x - 5) / 6), z);
+  }), 'plaster', {
+    colorFn: (p) => {
+      const n = fbm(p.x * 0.15, 1, p.z * 0.15), m = vnoise(p.x * 0.6, 2, p.z * 0.6);
+      let c = n > 0.55 ? COL.grass.clone() : n > 0.4 ? COL.forest.clone().lerp(COL.grass, 0.5) : C(0x6e6142);
+      if (p.x < 4) c = C(0x7d7360); // the road's dusty edge
+      return c.multiplyScalar(0.85 + 0.3 * m);
+    },
+    noise: 0.12, freq: 1,
+  });
+  pieces.push(P);
+}
+{
+  // Italian cypress: a dark green spindle, about 9 m.
+  const P = new Piece('Cypress');
+  P.add(lathe([[0.18, 0], [0.18, 0.6]], 8), 'wood', { color: COL.woodDk });
+  P.add(grid(12, 16, (u, v) => {
+    const a = u * TAU, y = lerp(0.5, 9, v);
+    const r = 0.95 * Math.sin(Math.PI * Math.pow(v, 0.75)) * (1 - 0.15 * v) * (0.85 + 0.25 * vnoise(Math.cos(a) * 3, y * 1.5, Math.sin(a) * 3));
+    return V(Math.cos(a) * r, y, Math.sin(a) * r);
+  }, true), 'plaster', { colorFn: (p) => C(0x2c3a22).multiplyScalar(0.75 + 0.45 * vnoise(p.x * 4, p.y * 3, p.z * 4)), noise: 0.1 });
+  pieces.push(P);
+}
+// Tufa and plaster colours for the tombs.
+const tombTuff = (p) => COL.tuff.clone().multiplyScalar(0.82 + 0.22 * fbm(p.x * 3, p.y * 3, p.z * 3));
+const tombPlaster = (p) => dustUp(COL.whiteWash.clone().lerp(COL.lime, 0.3 * fbm(p.x * 2, p.y * 2, p.z * 2)), p.y, 1.2, 0.4);
+function inscription(P, x, y, z, w, rows = 3) {
+  P.add(xf(new THREE.BoxGeometry(0.03, 0.12 * rows + 0.1, w), [x, y, z]), 'stone', { color: COL.lime.clone().multiplyScalar(1.1) });
+  for (let r = 0; r < rows; r++) for (let i = 0; i < Math.floor(w / 0.09) - 1; i++) {
+    if (vnoise(i * 3.1, r * 7.3, w) < 0.25) continue;
+    P.add(xf(new THREE.BoxGeometry(0.01, 0.06, 0.05), [x - 0.02, y + 0.12 * (rows / 2 - r - 0.5), z - w / 2 + 0.09 * (i + 1)]), 'stone', { color: COL.limeDk.clone().multiplyScalar(0.6) });
+  }
+}
+{
+  // Schola tomb: a semicircular tufa bench open to the road, ending in
+  // lion's paws, on a low podium; an inscribed stele behind.
+  const P = new Piece('Tomb_Schola');
+  P.add(xf(block(3.6, 0.35, 4.6, 0.03), [1.8, 0, 0]), 'stone', { colorFn: tombTuff });
+  const R = 2.0, cx = 2.4;
+  P.add(grid(24, 4, (u, v) => {
+    const a = lerp(-Math.PI / 2, Math.PI / 2, u), r = lerp(R - 0.55, R, v);
+    return V(cx + Math.cos(a) * r * 0.55, 0.35 + 0.48, Math.sin(a) * r);
+  }), 'stone', { colorFn: tombTuff });
+  P.add(grid(24, 3, (u, v) => {
+    const a = lerp(-Math.PI / 2, Math.PI / 2, u);
+    return V(cx + Math.cos(a) * R * 0.55, lerp(0.35, 1.45, v), Math.sin(a) * R);
+  }), 'stone', { colorFn: tombTuff });
+  P.add(grid(24, 1, (u, v) => {
+    const a = lerp(-Math.PI / 2, Math.PI / 2, u), r = R - 0.55;
+    return V(cx + Math.cos(a) * r * 0.55, lerp(0.35, 0.83, v), Math.sin(a) * r);
+  }), 'stone', { colorFn: tombTuff });
+  for (const s of [-1, 1]) {
+    P.add(xf(block(0.5, 0.55, 0.5, 0.04), [0.6, 0.35, s * (R - 0.3)]), 'stone', { colorFn: tombTuff });
+    P.add(xf(new THREE.SphereGeometry(0.16, 10, 6, 0, TAU, 0, Math.PI / 2), [0.42, 0.35, s * (R - 0.3)], [0, 0, 0], [1.2, 0.6, 1]), 'stone', { colorFn: tombTuff });
+  }
+  P.add(xf(block(0.35, 2.2, 0.7, 0.03), [cx + 1.25, 0.35, 0]), 'stone', { colorFn: tombPlaster });
+  inscription(P, cx + 1.06, 1.9, 0, 0.6, 4);
+  pieces.push(P);
+}
+{
+  // Altar tomb: a stepped base with an altar-shaped monument, plastered
+  // white, with bolster rolls on top and an inscription facing the road.
+  const P = new Piece('Tomb_Altar');
+  const W = 2.6;
+  P.add(xf(block(W + 0.8, 0.3, W + 0.8, 0.03), [W / 2 + 0.4, 0, 0]), 'stone', { colorFn: tombTuff });
+  P.add(xf(block(W + 0.4, 0.3, W + 0.4, 0.03), [W / 2 + 0.4, 0.3, 0]), 'stone', { colorFn: tombTuff });
+  P.add(xf(block(W, 2.2, W, 0.04), [W / 2 + 0.4, 0.6, 0]), 'plaster', { colorFn: tombPlaster });
+  P.add(xf(block(W + 0.25, 0.25, W + 0.25, 0.03), [W / 2 + 0.4, 2.8, 0]), 'plaster', { colorFn: tombPlaster });
+  for (const s of [-1, 1]) P.add(xf(new THREE.CylinderGeometry(0.22, 0.22, W, 12), [W / 2 + 0.4, 3.27, s * (W / 2 - 0.2)], [0, 0, Math.PI / 2]), 'plaster', { colorFn: tombPlaster });
+  P.add(xf(block(0.9, 0.25, 0.9, 0.03), [W / 2 + 0.4, 3.05, 0]), 'stone', { colorFn: tombTuff });
+  inscription(P, 0.38, 1.7, 0, 1.4, 4);
+  pieces.push(P);
+}
+{
+  // Aedicula tomb: a podium carrying a small temple front, two columns and
+  // a pediment framing an empty niche.
+  const P = new Piece('Tomb_Aedicula');
+  P.add(xf(block(3, 1.6, 3, 0.04), [1.9, 0, 0]), 'plaster', { colorFn: tombPlaster });
+  inscription(P, 0.38, 0.85, 0, 1.6, 3);
+  P.add(xf(block(2.4, 2.6, 2.6, 0.03), [2.2, 1.6, 0]), 'plaster', { colorFn: tombPlaster });
+  P.add(xf(block(0.4, 1.9, 1.3, 0.02), [1.08, 1.85, 0]), 'stone', { color: COL.pompRedDk.clone().multiplyScalar(0.9) }); // the niche
+  for (const s of [-1, 1]) P.add(xf(lathe([[0.17, 0], [0.13, 2.5], [0.2, 2.6], [0, 2.6]], 12), [0.75, 1.6, s * 1.0]), 'plaster', { colorFn: tombPlaster });
+  P.add(xf(block(0.8, 0.3, 2.8, 0.02), [0.85, 4.2, 0]), 'plaster', { colorFn: tombPlaster });
+  const ped = new THREE.Shape(); ped.moveTo(-1.45, 0); ped.lineTo(1.45, 0); ped.lineTo(0, 0.7); ped.lineTo(-1.45, 0);
+  P.add(xf(new THREE.ExtrudeGeometry(ped, { depth: 0.8, bevelEnabled: false }), [0.45, 4.5, 0], [0, Math.PI / 2, 0]), 'plaster', { colorFn: tombPlaster });
+  pieces.push(P);
+}
+{
+  // A row of vines on a trellis: chestnut stakes, a cross wire, leafy masses
+  // and dark grape clusters, 30 m along z.
+  const P = new Piece('Vine_Row_30m');
+  for (let z = 0.75; z < 30; z += 1.5) {
+    P.add(xf(new THREE.CylinderGeometry(0.04, 0.05, 1.9, 5), [0, 0.95, z]), 'wood', { color: COL.woodDk });
+    P.add(xf(new THREE.IcosahedronGeometry(0.55, 0), [rr(-0.1, 0.1), 1.55, z + 0.75], [0, 0, 0], [0.8, 0.6, 1.4]), 'plaster', { color: COL.forest.clone().lerp(COL.grass, rr(0, 0.8)), noise: 0.15 });
+    if (rnd() < 0.5) P.add(xf(new THREE.IcosahedronGeometry(0.1, 0), [0.35 * (rnd() < 0.5 ? 1 : -1), 1.2, z + rr(0.3, 1.2)], [0, 0, 0], [1, 1.5, 1]), 'cloth', { color: C(0x3b2340) });
+  }
+  P.add(xf(new THREE.BoxGeometry(0.02, 0.02, 30), [0, 1.75, 15]), 'wood', { color: COL.woodDk });
+  pieces.push(P);
+}
+{
+  // A low dry-stone wall along a field, 30 m.
+  const P = new Piece('Field_Wall_30m');
+  P.add(xf(block(0.6, 0.9, 30, 0.12, 2), [0, 0, 15]), 'stone', {
+    colorFn: (p) => (vnoise(p.x * 5, p.y * 5, p.z * 2) > 0.55 ? COL.rock : COL.lime).clone().multiplyScalar(0.8 + 0.25 * vnoise(p.z * 3, p.y * 9, 1)), noise: 0.15,
+  });
+  pieces.push(P);
+}
+{
+  // A farmhouse (villa rustica) seen across the fields: plastered walls, a
+  // tiled roof, a yard wall.
+  const P = new Piece('Farmhouse');
+  P.add(xf(block(10, 4.2, 7, 0.05), [5, 0, 0]), 'plaster', { colorFn: (p) => dustUp(COL.cream.clone().lerp(COL.ochre, 0.25), p.y, 1, 0.4) });
+  const roof = new THREE.Shape(); roof.moveTo(-3.9, 0); roof.lineTo(3.9, 0); roof.lineTo(0, 1.8); roof.lineTo(-3.9, 0);
+  P.add(xf(new THREE.ExtrudeGeometry(roof, { depth: 10.6, bevelEnabled: false }), [-0.3, 4.2, 0], [0, Math.PI / 2, 0]), 'terracotta', { color: COL.terra, noise: 0.1 });
+  for (const z of [-2, 2]) P.add(xf(new THREE.BoxGeometry(0.05, 0.7, 0.6), [-0.02, 2.8, z]), 'wood', { color: COL.woodDk });
+  P.add(xf(new THREE.BoxGeometry(0.05, 2.1, 1.3), [-0.02, 1.05, 0]), 'wood', { color: COL.woodDk });
+  P.add(xf(block(0.4, 1.8, 9, 0.04), [-1, 0, 8]), 'plaster', { color: COL.cream.clone().multiplyScalar(0.85) });
+  pieces.push(P);
+}
+
 // ================================================================== EXPORT
 const scene = new THREE.Scene();
 let total = 0;

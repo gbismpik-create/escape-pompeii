@@ -180,6 +180,43 @@ function planGate(random) {
   return placements;
 }
 
+// Outside the walls. Country pieces are built beside the road on its +x
+// side, facing the road; on the -x side they are turned half round (and,
+// for those running the chunk's length, start at its far end).
+function country(placements, piece, side, x, z, { length = false, y = 0 } = {}) {
+  placements.push(side > 0 ? { piece, x, y, z, angle: 0 } : { piece, x: -x, y, z: length ? z + L : z, angle: Math.PI });
+}
+// The road lined with family tombs and cypresses, fields behind a wall.
+function planTombs(random) {
+  const placements = [{ piece: 'Road_30m', x: 0, z: 0, angle: 0 }];
+  for (const side of [-1, 1]) {
+    country(placements, 'Country_Ground_30m', side, 0, 0, { length: true });
+    country(placements, 'Field_Wall_30m', side, 13, 0, { length: true });
+    const [min, max] = FINALE.tombSpacing;
+    for (let z = 2 + random() * 3; z < L - 2; z += min + random() * (max - min)) {
+      const tomb = ['Tomb_Schola', 'Tomb_Altar', 'Tomb_Aedicula'][Math.floor(random() * 3)];
+      country(placements, tomb, side, FINALE.tombsX, z);
+      if (random() < 0.6) country(placements, 'Cypress', side, FINALE.tombsX + 5.5 + random() * 2, z + 3);
+    }
+  }
+  return placements;
+}
+// Vineyards and fields: vine rows, a line of cypresses by the road, now and
+// then a farmhouse across the fields.
+function planFields(random) {
+  const placements = [{ piece: 'Road_30m', x: 0, z: 0, angle: 0 }];
+  for (const side of [-1, 1]) {
+    country(placements, 'Country_Ground_30m', side, 0, 0, { length: true });
+    country(placements, 'Field_Wall_30m', side, 6, 0, { length: true });
+    const farm = random() < 0.35;
+    const { from, to, every } = FINALE.vineRows;
+    for (let x = from; x <= to; x += every) if (!(farm && x > 16)) country(placements, 'Vine_Row_30m', side, x, 0, { length: true });
+    if (farm) country(placements, 'Farmhouse', side, 22, 10 + random() * 10);
+    for (let z = random() * 6; z < L; z += 8 + random() * 6) if (random() < 0.7) country(placements, 'Cypress', side, 4.4, z);
+  }
+  return placements;
+}
+
 // Merges a layout's pieces into one geometry per material.
 // sx / sz stretch a piece along its own x / z before it is turned.
 // Placements marked lowDetail use lowPieces (the far kit) even up close.
@@ -317,21 +354,18 @@ function createPumiceMesh(material) {
   const noise = (x, z) => { const h = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return h - Math.floor(h); };
   return {
     mesh,
-    // distance: where the chunk starts along the path; halfWidth: how far
-    // it reaches either side (the street, or the open country outside the walls).
-    update(distance, depthAt, halfWidth = PUMICE.halfWidth) {
+    // distance: where the chunk starts along the path.
+    update(distance, depthAt) {
       let deepest = 0;
       const position = geometry.attributes.position, color = geometry.attributes.color;
       for (let j = 0; j < PUMICE_ALONG; j++) {
         const depth = depthAt(j * PUMICE_STEP);
         deepest = Math.max(deepest, depth);
         for (let i = 0; i < PUMICE_ACROSS; i++) {
-          // (points crowd towards the middle, where the runner sees them close up)
-          const u = (i / (PUMICE_ACROSS - 1)) * 2 - 1;
-          const x = halfWidth * Math.sign(u) * Math.abs(u) ** (halfWidth > PUMICE.halfWidth ? 2.5 : 1);
+          const x = THREE.MathUtils.lerp(-PUMICE.halfWidth, PUMICE.halfWidth, i / (PUMICE_ACROSS - 1));
           const n = noise(x, Math.round(distance / PUMICE_STEP) + j);
           // Drifts piled against the house fronts (barely under the lanes).
-          const drift = halfWidth > PUMICE.halfWidth ? 0 : PUMICE.drift * (Math.abs(x) / PUMICE.halfWidth) ** 4;
+          const drift = PUMICE.drift * (Math.abs(x) / PUMICE.halfWidth) ** 4;
           // Just under the road where there is none yet; lumpy where there is.
           const lumps = depth > 0.1 ? (n - 0.5) * 2 * PUMICE.lumps : 0;
           position.setXYZ(j * PUMICE_ACROSS + i, x, depth - 0.05 + lumps + (depth / PUMICE.depth) * drift, j * PUMICE_STEP);
@@ -501,6 +535,10 @@ export function createTrack(scene, kit, villa = null) {
   const backLaneLayout = build(planLayout(random, { from: VILLA.length % L }));
   // The finale: Porta Stabia, then (for now) the open road beyond.
   const gateLayout = build(planGate(random));
+  const countryLayouts = {
+    tombs: [build(planTombs(random)), build(planTombs(random)), build(planTombs(random))],
+    fields: [build(planFields(random)), build(planFields(random)), build(planFields(random))],
+  };
   const gate = createGateCollapse(world, kit, frameAt, (d, x) => floorAt(d, x));
   const house = villa ? createVillaPiece(world, villa) : null;
   let villaRun = null; // the house on offer or being run through, or null
@@ -647,7 +685,7 @@ export function createTrack(scene, kit, villa = null) {
       : kind === 'open' ? openLayout
       : district === 'theatre' ? emptyLayout
       : district === 'villa' ? (distance === run.end - L ? backLaneLayout : emptyLayout)
-      : kind === 'finale' ? (district === 'gate' ? gateLayout : openLayout)
+      : kind === 'finale' ? (district === 'gate' ? gateLayout : countryLayouts[district] ? countryLayouts[district][Math.floor(Math.random() * 3)] : openLayout)
       : district === 'forum' ? forumLayout(distance, run)
       : chunk.gap ? gapLayouts[chunk.gap]
       : layouts[Math.floor(Math.random() * layouts.length)];
@@ -659,7 +697,7 @@ export function createTrack(scene, kit, villa = null) {
       }
     }
     chunk.lods.shadow.userData.mesh.geometry = layout.shadow;
-    chunk.pumice.update(distance, (z) => pumiceAt(distance + z), kind === 'finale' && district !== 'gate' ? FINALE.countryWidth : PUMICE.halfWidth);
+    chunk.pumice.update(distance, (z) => pumiceAt(distance + z));
     if (district === 'gate') gate.place(distance + FINALE.collapse.at);
     // A statue, if one is due here. One that may topple keeps the road
     // around where it would land clear of obstacle rows.
@@ -685,6 +723,7 @@ export function createTrack(scene, kit, villa = null) {
       stepped: steppedAt(distance, distance + L),
       floorAt,
       rulesAt: district === 'gate' ? () => null // only the arch coming down
+        : FINALE.obstacles[district] ? () => FINALE.obstacles[district]
         : district === 'theatre' ? (d) => theatreRules(d - run.start)
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
         : undefined,
