@@ -43,7 +43,7 @@ const fragmentShader = /* glsl */ `
 
   void main() {
     float d = length(vCorner) * 2.0; // 0 at the centre, 1 at the edge
-    float a = vAlpha * (1.0 - smoothstep(0.2, 1.0, d));
+    float a = vAlpha * (1.0 - smoothstep(0.45, 1.0, d));
     if (a < 0.01) discard;
     gl_FragColor = vec4(color, a);
     #include <colorspace_fragment>
@@ -168,7 +168,7 @@ export function createSteam(world, track, onHiss) {
           track.toWorld(p, w);
           offset.setXYZ(n, w.x, w.y, w.z);
           size.setX(n, between(S.size, puff.size) * swell * (1 + 0.3 * rise));
-          alpha.setX(n, S.opacity * density * (1 - 0.5 * rise));
+          alpha.setX(n, S.opacity * density * (1 - 0.3 * rise));
           n++;
         }
       }

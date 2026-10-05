@@ -643,11 +643,11 @@ export const BATHS = {
     rise: 0.45, // seconds to billow up
     hold: 0.8, // seconds at its thickest
     fade: 0.8, // seconds to thin away
-    puffs: 18, // per vent
+    puffs: 26, // per vent
     width: 6.2, // metres across the hall
-    height: [0.3, 2.3], // puff centres, metres above the floor
-    size: [1.4, 2.6], // puff diameters, metres
-    opacity: 0.8,
+    height: [0.2, 2.6], // puff centres, metres above the floor
+    size: [2.0, 3.4], // puff diameters, metres
+    opacity: 0.95,
     color: 0xdedad2,
     hissVolume: 0.5,
   },
