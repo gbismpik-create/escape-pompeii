@@ -6,7 +6,7 @@ import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
-import { loadVilla } from './villa.js';
+import { loadVilla, seeThrough } from './villa.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart, journeyPhaseTime } from './phases.js';
 import { speedAt } from './speed.js';
@@ -139,6 +139,10 @@ function updateFollowers() {
     camTarget.sub(camPivot).applyAxisAngle(UP, turnYaw).add(camPivot);
   }
   camera.lookAt(camTarget);
+  // The villa cuts a hole along the line from the camera to the runner's chest.
+  seeThrough.seeCamera.value.copy(camera.position);
+  seeThrough.seeRunner.value.set(p.x, cameraFloor + VILLA.seeThrough.chest, p.z);
+  seeThrough.seeFloor.value = cameraFloor;
   if (shake > 0) {
     camera.position.x += (Math.random() - 0.5) * shake;
     camera.position.y += (Math.random() - 0.5) * shake;

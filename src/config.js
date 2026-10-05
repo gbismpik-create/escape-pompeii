@@ -671,6 +671,10 @@ export const VILLA = {
   jumpHeight: 0.35,
   stumbleOnly: ['impluvium'], // running into the rain pool is a splash and a stumble, not the end
   openSky: [[28, 49]], // metres in where it is open to the sky (the garden): things can fall there
+  // Inside, what stands between the camera and the runner is cut away
+  // (villa.js): a cone from the camera to his chest (radii in metres), and
+  // anything overhead (above headroom) for `ahead` metres in front of him.
+  seeThrough: { nearRadius: 0.9, farRadius: 1.7, chest: 1.1, ahead: 9, aheadHalfWidth: 2.4, headroom: 2.2 },
 };
 
 // The Large Theatre (theatre route in path.js, the model in the kit): a way
