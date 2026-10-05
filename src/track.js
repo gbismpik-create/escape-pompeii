@@ -564,6 +564,7 @@ export function createTrack(scene, kit, villa = null) {
   const BATHS_INDOORS = (BATHS.chunks - 1) * L + BATHS.exitAt; // metres from its start to its street door
   // The baths' own obstacles once its way is taken: path-space hitboxes.
   let bathsFixed = [];
+  let steamVents = []; // the baths' steam vents (path distances), once its way is taken
   const countryLayouts = {
     tombs: [build(planTombs(random)), build(planTombs(random)), build(planTombs(random))],
     fields: [build(planFields(random)), build(planFields(random)), build(planFields(random))],
@@ -894,6 +895,7 @@ export function createTrack(scene, kit, villa = null) {
           hitbox: new THREE.Box3(new THREE.Vector3(x - f.halfWidth, 0, -(run.start + f.to)), new THREE.Vector3(x + f.halfWidth, top, -(run.start + f.from))),
         };
       });
+      steamVents = BATHS.steam.vents.map((at) => run.start + at);
     }
     if (chosen.run?.kind === 'theatre') {
       // The path follows the theatre's route: its curves, and its floors.
@@ -997,6 +999,7 @@ export function createTrack(scene, kit, villa = null) {
     lastDistrict = null;
     districtsSeen = new Set();
     bathsFixed = [];
+    steamVents = [];
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
     statues.reset();
     planNextJunction(0);
@@ -1045,6 +1048,22 @@ export function createTrack(scene, kit, villa = null) {
     },
 
     // The rich house's own obstacles while it is on the path (tests and tools).
+    // The near edge (path distance) of the first obstacle starting beyond d,
+    // within `range` metres, or null.
+    obstacleAfter(d, range) {
+      let best = null;
+      for (const o of [...obstacles.list(), ...bathsFixed]) {
+        const near = -o.hitbox.max.z;
+        if (near > d && near < d + range && (best === null || near < best)) best = near;
+      }
+      return best;
+    },
+
+    // The baths' steam vents (path distances); a new array when a baths run is taken.
+    get steamVents() {
+      return steamVents;
+    },
+
     houseObstacles: () => [...(villaRun && !villaRun.declined ? house.list() : []), ...bathsFixed],
 
     // The floor height at a path distance, x across (0 except on steps).

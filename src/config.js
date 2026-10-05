@@ -630,6 +630,27 @@ export const BATHS = {
   clearAround: 0.7, // seconds of running kept free of obstacle rows around each fixed obstacle
   // Rows inside: things dropped in the rush and fallen stucco, one lane at a time.
   obstacles: { fullRowChance: 0, lane: { Basket: 2, Rubble: 1, AmphoraStack: 1 } },
+  // Steam vents: grates across the floor (metres from the baths' start) that
+  // hiss, then puff a curtain of steam hiding the next obstacle beyond. The
+  // steam is always gone fairClear seconds before he reaches that obstacle,
+  // and before he reaches the grate itself.
+  steam: {
+    vents: [15, 49, 69, 88],
+    hideRange: 16, // metres beyond a grate an obstacle can be hidden
+    fairClear: 1.0, // seconds: clear by then, before the obstacle arrives
+    clearBeforeGrate: 0.3, // seconds: clear by then, before he reaches the grate
+    hissLead: 0.35, // seconds of hiss before the steam shows
+    rise: 0.45, // seconds to billow up
+    hold: 0.8, // seconds at its thickest
+    fade: 0.8, // seconds to thin away
+    puffs: 18, // per vent
+    width: 6.2, // metres across the hall
+    height: [0.3, 2.3], // puff centres, metres above the floor
+    size: [1.4, 2.6], // puff diameters, metres
+    opacity: 0.8,
+    color: 0xdedad2,
+    hissVolume: 0.5,
+  },
 };
 
 // The rich house (domus) shortcut: the far side of some T-junctions is a

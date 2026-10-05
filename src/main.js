@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -21,6 +21,7 @@ import { createSurge } from './surge.js';
 import { createFalling } from './falling.js';
 import { createCrowds } from './crowds.js';
 import { createAnimals } from './animals.js';
+import { createSteam } from './steam.js';
 import { isSideClip } from './obstacles.js';
 import { loadBest, saveBest, loadBestTime, saveBestTime, loadEndlessUnlocked, saveEndlessUnlocked } from './storage.js';
 
@@ -90,6 +91,8 @@ const falling = createFalling(track.world, track, {
 // lane; it never ends the run or counts towards the surge.
 const crowds = createCrowds(scene, kit);
 const animals = createAnimals(scene, kit); // the finale's fields
+const steam = createSteam(track.world, track, (ahead) => audio.hiss(ahead, BATHS.steam.hissVolume)); // the baths' vents
+let steamVents = null; // which vents steam was last given
 function onBump() {
   if (player.inStumbleGrace) return;
   player.stumble();
@@ -269,6 +272,7 @@ function turn(way) {
   falling.reset(); // anything still falling was over the old street
   crowds.reset();
   animals.reset();
+  steam.reset();
 }
 
 // Each frame while running: take a queued turn on the centre line, carry
@@ -457,6 +461,7 @@ function restart() {
   falling.reset();
   crowds.reset();
   animals.reset();
+  steam.reset();
   setAshFade(0);
   shake = 0;
 }
@@ -633,6 +638,8 @@ renderer.setAnimationLoop((timestamp) => {
     updateDistrict();
     crowds.update(dt, currentDistance(), currentSpeed(), (d) => track.districtAt(d) === 'forum', player.hitbox, onBump);
     animals.update(dt, currentDistance(), currentSpeed(), (d) => track.districtAt(d) === 'fields', player.hitbox, onBump);
+    if (track.steamVents !== steamVents) steam.setVents((steamVents = track.steamVents));
+    steam.update(dt, currentDistance(), currentSpeed());
     // Statues: some topple in the later phases (see statues.js).
     const statueSpeed = currentSpeed();
     track.statues.update(

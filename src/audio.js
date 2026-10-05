@@ -174,6 +174,7 @@ export function createAudio() {
   let distanceSinceStep = 0;
   let wasGrounded = true;
   let wasSliding = false;
+  let noise = null; // white noise for the steam's hiss, made on first use
 
   return {
     // Called every frame, whatever the game is doing. tension: the phase's
@@ -206,6 +207,32 @@ export function createAudio() {
         }
       }
       wasGrounded = grounded;
+    },
+
+    // A steam vent about to puff, `ahead` metres away: a hiss of filtered
+    // noise made on the spot (no sound file), softer the further it is.
+    hiss(ahead, volume = 1) {
+      if (!ctx || ctx.state !== 'running') return;
+      if (!noise) {
+        noise = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
+        const data = noise.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = noise;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 2500 + Math.random() * 800;
+      const level = ctx.createGain();
+      const now = ctx.currentTime;
+      const peak = volume / (1 + Math.max(0, ahead) / 25);
+      level.gain.setValueAtTime(0, now);
+      level.gain.linearRampToValueAtTime(peak, now + 0.06);
+      level.gain.setTargetAtTime(peak * 0.5, now + 0.1, 0.3);
+      level.gain.setTargetAtTime(0, now + 0.9, 0.15);
+      source.connect(filter).connect(level).connect(groups.effects);
+      source.start(now);
+      source.stop(now + 1.5);
     },
 
     impact() {
