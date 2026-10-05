@@ -290,6 +290,8 @@ function updateJunction() {
   const j = track.junction;
   if (!j) return;
   const d = -player.object.position.z;
+  // Tests: he turns down the way to the district on offer by himself.
+  if (DISTRICTS.autoTake && !queuedTurn && j.districtWay && j.districtWay !== 'straight' && inTurnWindow()) queuedTurn = j.districtWay;
   if (queuedTurn && d >= j.centre) {
     turn(queuedTurn);
     queuedTurn = null;

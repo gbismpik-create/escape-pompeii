@@ -895,6 +895,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     // At most one district, down one of the ways (the house is its own offer).
     const offer = chunk.villa ? null : pickDistrict(cursor.distance);
     const offerWay = offer ? Object.keys(ways)[Math.floor(Math.random() * Object.keys(ways).length)] : null;
+    chunk.districtWay = offerWay; // (tests: DISTRICTS.autoTake)
     for (const [way, turn] of Object.entries(ways)) {
       const side = free.pop();
       if (!side) continue;
@@ -1215,6 +1216,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
       return {
         type: junction.kind,
         villa: Boolean(junction.villa), // the rich house across it, door open (straight on)
+        districtWay: junction.districtWay ?? null, // the way to the district on offer, or null
         centre: junction.distance + CENTRE,
         wall: junction.distance + L,
         ways: Object.keys(exits),
