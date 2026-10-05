@@ -18,8 +18,11 @@ const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const WHITE = new THREE.Color(1, 1, 1);
 const DARK = new THREE.Color().setScalar(FALLING.shadowDarkness);
 
-// A Roman flat roof tile (tegula) with raised edges.
-function tileGeometry() {
+// A Roman flat roof tile (tegula) with raised edges: the HD street's, else a
+// simple one made here.
+function tileGeometry(kit) {
+  const parts = kit?.near.Roof_Tile;
+  if (parts?.length === 1) return parts[0].geometry;
   const [x, y, z] = FALLING.tileSize;
   return merge([
     box([x, y * 0.5, z], [0, 0, 0], FALLING.tileColor),
@@ -160,11 +163,12 @@ function createDust(scene) {
 // curve); positions are kept in path space (x across, z = -metres along).
 // track: to keep landing spots clear of obstacles, and to place things.
 // on: { block(x, y, z), hit(), smash(x, z) } callbacks for sounds and the stumble.
-export function createFalling(scene, track, on) {
+// kit: the street kit (for the roof tile model).
+export function createFalling(scene, track, kit, on) {
   const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const max = FALLING.maxFalling;
   const meshes = {
-    tile: instanced(scene, 'falling:tile', tileGeometry(), material, max),
+    tile: instanced(scene, 'falling:tile', tileGeometry(kit), material, max),
     pumice: instanced(scene, 'falling:pumice', pumiceGeometry(), material, max),
   };
   const shadows = instanced(scene, 'falling:shadow', new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), shadowMaterial(), max);

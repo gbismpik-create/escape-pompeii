@@ -420,8 +420,8 @@ for (const side of [1, -1]) { const P = part(side > 0 ? 'Pavement_L' : 'Pavement
   P.add(xf(new THREE.BoxGeometry(W, KERB_H, LEN), [side * (x0 + W / 2), KERB_H / 2 - 0.02, LEN / 2]), 'plaster', { color: C(0x6a5a48) });
 }
 { const P = part('Stepping_Stones'); seed = 31;
-  // three lava stepping stones at kerb height; their sides polished by the passing wheels
-  for (const x of [-2.05, 0, 2.05]) {
+  // three lava stepping stones at kerb height, one in each lane; their sides polished by the passing wheels
+  for (const x of [-1.8, 0, 1.8]) {
     const Hs = KERB_H + 0.04, g = lathe([[0, Hs], [0.36, Hs], [0.44, Hs - 0.02], [0.48, Hs - 0.07], [0.5, Hs - 0.2], [0.52, 0.0], [0.5, -0.06]], 64);
     g.scale(1, 1, 0.62);
     const pa = g.attributes.position; for (let i = 0; i < pa.count; i++) { const a = Math.atan2(pa.getZ(i), pa.getX(i)), k = 1 + 0.06 * Math.sin(a * 3 + x) + 0.03 * Math.sin(a * 7 + x * 3); pa.setX(i, pa.getX(i) * k); pa.setZ(i, pa.getZ(i) * k); if (pa.getY(i) > Hs - 0.01) pa.setY(i, pa.getY(i) - 0.012 * (1 - Math.hypot(pa.getX(i), pa.getZ(i) / 0.62) / 0.4)); }
@@ -668,6 +668,17 @@ function wheel(P, x, r = 0.62) {
   for (let i = 0; i < 9; i++) { const x = rr(-1.2, 1.2), L = rr(0.15, 0.5); P.add(grid(4, 6, (u, v) => V(x + u * 0.12, 0.55 - v * L, 0.16 + 0.04 * Math.sin(v * 6))), 'cloth', { colorFn: stripe }); }      // torn strips
   rod(P, V(-1.15, 1.2, 0.05), V(-0.6, 0.0, 0.5), 0.012, 'cloth', { color: C(0x8a7a60) }, 5);
 }
+{ const P = part('Awning_Street'); seed = 57;                       // slide obstacle: a shop awning torn down right across the street, its beam at head height
+  const W = 2.35, top = 1.85;                                       // posts at the road's edges, clear of the lanes
+  P.add(xf(block(2 * W + 0.3, 0.24, 0.22, 0.012, 2), [0, top - 0.24, 0], [0, 0, 0.015]), 'planks', { color: C(0xa8947e) });
+  for (const x of [-W, W]) P.add(xf(block(0.13, top - 0.2, 0.13, 0.01), [x, 0, 0], [0, 0, x * 0.008]), 'planks', { color: C(0x9a8670) });
+  const stripe = p => (Math.floor((p.x + 4) / 0.32) % 2 ? C(0x9b2a22) : C(0xe0d4b8));
+  // the cloth, one strip of grid per painted stripe so the colours meet in sharp edges
+  const clothAt = (x, v) => V(x, top - 0.05 - v * 0.55 - 0.08 * Math.sin((x + W) / (2 * W) * Math.PI) * v, 0.06 + 0.06 * Math.sin(x * 3.4 + v * 4) * v + v * 0.08);
+  for (let x0 = -W - 0.1, k = 0; x0 < W + 0.1 - 1e-6; x0 += 0.32, k++) { const x1 = Math.min(W + 0.1, x0 + 0.32), col = k % 2 ? C(0x9b2a22) : C(0xe0d4b8);
+    P.add(grid(HD ? 4 : 1, HD ? 12 : 4, (u, v) => clothAt(lerp(x0, x1, u), v)), 'cloth', { colorFn: () => col, noise: 0.14 }); }
+  for (let i = 0; i < 14; i++) { const x = rr(-W, W), L = rr(0.12, 0.35); P.add(grid(2, 4, (u, v) => V(x + u * 0.12, top - 0.62 - v * L, 0.15 + 0.04 * Math.sin(v * 6))), 'cloth', { colorFn: stripe }); }   // torn strips, all above a sliding runner
+}
 { const P = part('Column_Fallen'); seed = 52;                       // jump obstacle: a portico column broken into drums lying across the lane
   const r = 0.21, flutes = 20;
   for (let i = 0; i < 3; i++) {
@@ -700,8 +711,8 @@ function wheel(P, x, r = 0.62) {
 }
 
 // ---------------- BACKDROP: Vesuvius as it stood in 79 (one tall cone, vineyards and woods on the slopes) and the Plinian column
-if (HD) { const P = part('Vesuvius'); seed = 55;
-  P.add(grid(360, 110, (u, v) => {
+{ const P = part('Vesuvius'); seed = 55;
+  P.add(grid(HD ? 360 : 120, HD ? 110 : 40, (u, v) => {
     const a = u * TAU, r = lerp(40, 3200, Math.pow(v, 1.12));
     let h = 1250 * Math.pow(1 - v, 1.7) * (1 + 0.04 * Math.sin(a * 2 + 1));
     h += (fbm(Math.cos(a) * 3 + 5, Math.sin(a) * 3, v * 6) - 0.5) * 160 * (1 - v);                 // big buttresses
@@ -714,15 +725,15 @@ if (HD) { const P = part('Vesuvius'); seed = 55;
     c.lerp(C(0x5a5048), steep * 0.5).lerp(C(0x3a3430), smooth((y - 1050) / 200));
     return k3(c, 0.8 + 0.3 * fbm(p.x * 0.004, p.y * 0.004, p.z * 0.004)); }, noise: 0 });
 }
-if (HD) { const P = part('Eruption_Column'); seed = 56;                     // ~25 km tall in reality; here ~4 km, to be placed on the summit and scaled
+{ const P = part('Eruption_Column'); seed = 56;                     // ~25 km tall in reality; here ~4 km, to be placed on the summit and scaled
   const puff = (c, r, sy = 0.85, light = 0, glow = 0) => {
-    const g0 = new THREE.IcosahedronGeometry(1, 7); const g = mergeVertices(g0.deleteAttribute('normal').deleteAttribute('uv')), pa = g.attributes.position, o = rr(0, 99);
+    const g0 = new THREE.IcosahedronGeometry(1, HD ? 7 : 2); const g = mergeVertices(g0.deleteAttribute('normal').deleteAttribute('uv')), pa = g.attributes.position, o = rr(0, 99);
     for (let i = 0; i < pa.count; i++) { const x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i);
       const k = 1 + (vnoise(x * 1.8 + o, y * 1.8, z * 1.8) - 0.5) * 0.5 + (vnoise(x * 4.5 + o, y * 4.5, z * 4.5) - 0.5) * 0.22 + Math.pow(vnoise(x * 9 + o, y * 9, z * 9), 3) * 0.12;
       pa.setXYZ(i, x * r * k + c.x, Math.max(-0.35, y) * r * k * sy + c.y, z * r * k + c.z); }
     g.computeVertexNormals();
     P.add(g, 'smoke', { colorFn: (p, n) => { const lit = clamp(0.55 + 0.45 * (n.y * 0.7 - n.x * 0.5)), base = C(0x5e5650).lerp(C(0xb8afa4), light); let c = base.clone().lerp(C(0x2a2522), (1 - lit) * 0.65).lerp(C(0xd8d0c6), Math.pow(lit, 3) * 0.35); if (glow) c.lerp(C(0xc8542a), glow * smooth((c.y ?? 0)) * 0); return c; }, noise: 0 });
-    if (glow) P.add(xf(new THREE.IcosahedronGeometry(r * 0.9, 3), [c.x, c.y - r * 0.3, c.z]), 'smoke', { colorFn: (p, n) => C(0xff7a30).lerp(C(0x5a2010), clamp(n.y + 0.4)), noise: 0 });
+    if (glow) P.add(xf(new THREE.IcosahedronGeometry(r * 0.9, HD ? 3 : 1), [c.x, c.y - r * 0.3, c.z]), 'smoke', { colorFn: (p, n) => C(0xff7a30).lerp(C(0x5a2010), clamp(n.y + 0.4)), noise: 0 });
   };
   for (let i = 0; i < 52; i++) { const t = i / 51, y = 150 + t * 3000, drift = t * t * 520, wob = Math.sin(t * 9) * 70;
     puff(V(drift + wob + rr(-90, 90) * (1 + t * 2), y + rr(-60, 60), rr(-90, 90) * (1 + t * 2)), lerp(210, 500, t) * rr(0.85, 1.2), 0.9, t * 0.35, i < 3 ? 0.8 : 0); }
@@ -742,19 +753,25 @@ const GAME = {
   Road_30m: ['Road_Segment'], Kerbs_30m: ['Pavement_L'],   // + Pavement_R
   House_A: ['House_A', -3, KERB_H], House_B: ['House_B', -3, KERB_H], Tavern: ['Thermopolium', -3, KERB_H],
   Bakery: ['Bakery', -3, KERB_H], Fullery: ['Fullonica', -3, KERB_H], Colonnade: ['Colonnade', -6, KERB_H, -1.35],
-  Amphora: ['Amphora'], Fountain: ['Fountain'], AmphoraStack: ['Amphora_Stack'], Cart: ['Cart'],
+  Amphora: ['Amphora'], Fountain: ['Fountain'], AmphoraStack: ['Amphora_Stack'], Cart: ['Cart', 0, 0, 0, 1, 0.8],   // cart at 0.8: about 1.25 m high, jumpable like the old one
   Rubble: ['Rubble', 0, 0, 0, 0.65],   // narrowed to fit one lane
+  FallenColumn: ['Column_Fallen', -0.86, 0, 0, 2],   // its drums centred and stretched right across the road
+  FallenAwning: ['Awning_Street'], SteppingStones: ['Stepping_Stones'], Roof_Tile: ['Roof_Tile'],
+  // Backdrop, seen from 2 km: Vesuvius at 0.3 of its real size (it would reach past the town), the column at 0.7.
+  Vesuvius: ['Vesuvius', 0, 0, 0, 1, 0.3], EruptionColumn: ['Eruption_Column', 0, 0, 0, 1, 0.7],
 };
+const BACKDROP = ['Vesuvius', 'EruptionColumn'];   // not in the far version (the backdrop uses the near one)
 const scene = new THREE.Scene();
-for (const [name, [src, x = 0, y = 0, z = 0, sx = 1]] of Object.entries(GAME)) {
+for (const [name, [src, x = 0, y = 0, z = 0, sx = 1, k = 1]] of Object.entries(GAME)) {
   const node = new THREE.Group(); node.name = name;
-  for (const s of [src, ...(name === 'Kerbs_30m' ? ['Pavement_R'] : [])]) { const g = built[s].clone(); g.position.set(x, y, z); g.scale.x = sx; node.add(g); }
+  for (const s of [src, ...(name === 'Kerbs_30m' ? ['Pavement_R'] : [])]) { const g = built[s].clone(); g.position.set(x, y, z); g.scale.set(sx * k, k, k); node.add(g); }
   scene.add(node);
 }
 const glb = await new GLTFExporter().parseAsync(scene, { binary: true });
 writeFileSync('street-hd.glb', Buffer.from(glb)); console.log(`street-hd.glb: ${(glb.byteLength / 1048576).toFixed(2)} MB`);
 // the same without textures, to simplify into the far version (the game gives it the near version's materials)
 for (const m of Object.values(MATS)) { m.map = null; m.normalMap = null; }
+for (const n of BACKDROP) scene.remove(scene.getObjectByName(n));
 const lite = await new GLTFExporter().parseAsync(scene, { binary: true });
 writeFileSync('street-hd-lite.glb', Buffer.from(lite)); console.log(`street-hd-lite.glb: ${(lite.byteLength / 1048576).toFixed(2)} MB`);
 lap('done');

@@ -107,7 +107,7 @@ player.setFloor((x, z) => track.floorAt(-z, x));
 player.setLanes((z) => track.lanesAt(-z));
 const surge = createSurge(scene);
 // Falling tiles and pumice: bounce off the raised shield, or make him stumble.
-const falling = createFalling(track.world, track, {
+const falling = createFalling(track.world, track, kit, {
   block: () => audio.shieldBlock(),
   hit: () => {
     if (player.inStumbleGrace) return;
@@ -568,6 +568,8 @@ const CRASH_REASONS = {
   FallenColumn: 'You tripped over a fallen column',
   Rubble: 'You tripped over rubble',
   FallenBeam: 'You ran into a fallen roof beam',
+  FallenAwning: 'You ran into a fallen shop awning',
+  SteppingStones: 'You tripped over the stepping stones',
   Cart: 'You ran into an abandoned cart',
   AmphoraStack: 'You ran into a stack of amphorae',
   FallenStatue: 'You tripped over a fallen statue',

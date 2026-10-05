@@ -477,7 +477,7 @@ export const BACKDROP = {
   angle: 9, // degrees right of straight ahead
   distance: 2000,
   baseY: -15, // sinks the mountain's foot just below the horizon
-  columnBase: 395, // the eruption column starts at the crater
+  columnBase: 330, // the eruption column starts in the crater
   firePatches: 10, // glowing streaks on the slopes (Pliny's "sheets of fire")
   fireColor: 0xff7a2a,
   fireSize: 60, // metres (each glow, seen from 2 km)
@@ -808,6 +808,12 @@ export const OBSTACLES = {
     // drums in the lanes count, not the capital lying on the pavement.
     FallenColumn: { move: 'jump', weight: 1, hitboxHeight: 0.6 },
     FallenBeam: { move: 'slide', weight: 1 }, // a roof beam down across the street
+    // A shop awning torn down right across the street, its beam at head
+    // height and the striped cloth hanging from it: slide under.
+    FallenAwning: { move: 'slide', weight: 1 },
+    // The lava stepping stones Pompeians crossed the street on, one in each
+    // lane at kerb height (about 0.4 m): jump them.
+    SteppingStones: { move: 'jump', weight: 1 },
   },
   emptyLaneChance: 0.4, // chance that a lane in a row is left empty
   lane: {
