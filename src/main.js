@@ -175,7 +175,6 @@ function updateBoarding() {
   const stern = track.finishDistance + BEACH.boatAt - BEACH.boatLength / 2;
   if (currentDistance() >= stern - currentSpeed() * BEACH.jumpTime && track.districtAt(currentDistance()) === 'beach') {
     boardJumped = true;
-    shield.lower(); // (a raised shield would stop the leap)
     player.handleAction('jump');
   }
 }

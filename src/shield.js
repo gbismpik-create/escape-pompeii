@@ -4,7 +4,7 @@ import { SHIELD } from './config.js';
 //   ready    → a tap (or E) raises it
 //   raised   → lowers itself after SHIELD.duration, or on another tap
 //   cooldown → SHIELD.cooldown seconds, then ready again
-// While raised he runs slower and can't jump (player.js asks isRaised).
+// While raised he runs slower; a jump or a slide lowers it (player.js).
 export function createShield() {
   let state, timeLeft, speedFactor;
 

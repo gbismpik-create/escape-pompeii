@@ -5,7 +5,7 @@ import { createShield } from './shield.js';
 
 // model: the loaded character (character.js) or the built-in legionary;
 // both have root, update(), stumble() and reset().
-// shield: shield.js; while it is raised he can't jump and runs slower, and
+// shield: shield.js; while it is raised he runs slower, and jumping or
 // sliding lowers it.
 export function createPlayer(scene, model, shield = createShield()) {
   const size = PLAYER.size;
@@ -119,7 +119,8 @@ export function createPlayer(scene, model, shield = createShield()) {
       if (action === 'shield') shield.toggle(slideTimeLeft <= 0 && !slideOnLanding);
 
       // Dropping off a step still counts as on the ground for a jump.
-      if (action === 'jump' && (isGrounded() || !jumped) && !shield.isRaised) {
+      if (action === 'jump' && (isGrounded() || !jumped)) {
+        shield.lower(); // the leap needs both arms: the shield comes down
         jumped = true;
         // Starting speed needed to reach jumpHeight under gravity: v = √(2·g·h)
         velocityY = Math.sqrt(2 * PLAYER.gravity * PLAYER.jumpHeight);
