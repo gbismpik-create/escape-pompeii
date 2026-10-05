@@ -1,6 +1,8 @@
 // On-screen HTML on top of the canvas: the distance display and the
 // game-over overlay.
 
+import { ROUTE_MAP } from './config.js';
+
 const hud = document.createElement('div');
 hud.id = 'hud';
 // The shield icon: a ring around it drains while the shield is up and
@@ -348,28 +350,91 @@ const finish = document.createElement('div');
 finish.id = 'finish';
 finish.hidden = true;
 finish.innerHTML = `
-  <h1>You reached the sea</h1>
+  <h1>You escaped by sea</h1>
+  <p class="where">Stabiae, 79 AD</p>
+  <canvas class="route" aria-label="Map of your route from Pompeii to the sea"></canvas>
   <dl class="stats">
     <dt>Distance</dt><dd class="distance"></dd>
     <dt>Time</dt><dd class="time"></dd>
-    <dt>Artifacts</dt><dd class="artifacts"></dd>
     <dt>People saved</dt><dd class="saved"></dd>
     <dt>Best time</dt><dd class="best"></dd>
   </dl>
   <p class="unlocked" hidden>Endless mode unlocked</p>
-  <p class="fact"></p>
+  <div class="epilogue"></div>
   <p class="hint">Tap or press R to run again</p>
   <button type="button" class="menu" data-control>Menu</button>
 `;
 document.body.appendChild(finish);
 
-export function showFinish({ distance, time, artifacts, saved, bestTime, isNewBest, unlocked, fact }) {
+// The map of the run: the route as a gold line from Pompeii to the shore,
+// the places passed on the way, a boat where it ends. route: { points:
+// [[x, z], ...], places: [{ name, x, z }] } in the town's coordinates; the
+// first street runs up the map.
+function drawRoute(canvas, route) {
+  const [w, h] = ROUTE_MAP.size;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  const g = canvas.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const points = route.points;
+  if (points.length < 2) return;
+  // Fit the route in the canvas, the same scale both ways.
+  const xs = points.map((p) => p[0]), zs = points.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const pad = 26;
+  const scale = Math.min((w - 2 * pad) / Math.max(1, maxX - minX), (h - 2 * pad) / Math.max(1, maxZ - minZ));
+  const ox = w / 2 - ((minX + maxX) / 2) * scale, oy = h / 2 - ((minZ + maxZ) / 2) * scale;
+  const at = (x, z) => [ox + x * scale, oy + z * scale];
+  // the route
+  g.lineJoin = g.lineCap = 'round';
+  g.strokeStyle = 'rgba(216, 178, 90, 0.35)';
+  g.lineWidth = 7;
+  g.beginPath();
+  points.forEach(([x, z], i) => (i ? g.lineTo(...at(x, z)) : g.moveTo(...at(x, z))));
+  g.stroke();
+  g.strokeStyle = '#d8b25a';
+  g.lineWidth = 2.5;
+  g.stroke();
+  // the places on the way
+  g.font = '11px system-ui, sans-serif';
+  g.textBaseline = 'middle';
+  const label = (text, x, y, color) => {
+    const right = x < w - 80;
+    g.fillStyle = color;
+    g.textAlign = right ? 'left' : 'right';
+    g.fillText(text, x + (right ? 8 : -8), y);
+  };
+  const [sx, sy] = at(...points[0]);
+  g.fillStyle = '#9a2026';
+  g.beginPath(); g.arc(sx, sy, 5, 0, Math.PI * 2); g.fill();
+  label('Pompeii', sx, sy, '#f1ead8');
+  for (const p of route.places) {
+    if (p.name === 'Stabiae') continue; // the end has its own mark
+    const [x, y] = at(p.x, p.z);
+    g.fillStyle = '#f1ead8';
+    g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill();
+    label(p.name, x, y, 'rgba(241, 234, 216, 0.85)');
+  }
+  // the shore: a boat
+  const [ex, ey] = at(...points[points.length - 1]);
+  g.fillStyle = '#6fa3b8';
+  g.beginPath(); g.moveTo(ex - 7, ey - 2); g.lineTo(ex + 7, ey - 2); g.lineTo(ex + 4, ey + 3); g.lineTo(ex - 4, ey + 3); g.closePath(); g.fill();
+  g.fillRect(ex - 0.6, ey - 10, 1.2, 8);
+  label('Stabiae', ex, ey, '#cfe6ee');
+}
+
+export function showFinish({ distance, time, saved, bestTime, isNewBest, unlocked, route, epilogue }) {
   finish.querySelector('.distance').textContent = `${distance.toLocaleString('en-US')} m`;
   finish.querySelector('.time').textContent = formatTime(time);
-  finish.querySelector('.artifacts').textContent = String(artifacts);
   finish.querySelector('.saved').textContent = String(saved);
   finish.querySelector('.best').textContent = isNewBest ? `${formatTime(bestTime)}, new best!` : formatTime(bestTime);
   finish.querySelector('.unlocked').hidden = !unlocked;
-  finish.querySelector('.fact').textContent = fact;
+  const text = finish.querySelector('.epilogue');
+  text.replaceChildren(...epilogue.map((paragraph) => Object.assign(document.createElement('p'), { textContent: paragraph })));
   finish.hidden = false;
+  drawRoute(finish.querySelector('.route'), route);
 }

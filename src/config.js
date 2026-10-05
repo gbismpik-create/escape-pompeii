@@ -200,10 +200,22 @@ export const JOURNEY = {
   // the road and a signpost points to the sea.
   sign: { lines: ['AD MARE', 'To the sea'], x: 3.4, distancePast: 6 },
   finishLineColor: 0xe9e0c8,
-  // Shown on the end screen.
-  finishFact:
-    'Pliny the Elder, commander of the Roman fleet at Misenum, sailed across the bay to rescue people near Vesuvius. ' +
-    'He landed at Stabiae, just south of Pompeii, and died there; his nephew Pliny the Younger wrote down what happened.',
+  // The end screen's epilogue: a paragraph each.
+  epilogue: [
+    'Pliny the Elder, commander of the Roman fleet at Misenum, crossed the bay with his galleys to bring people away ' +
+      'from the coast below Vesuvius. Unable to land there, he put in at Stabiae. He died on the shore there.',
+    'His nephew, Pliny the Younger, watched the eruption from Misenum. Years later he described it in two letters ' +
+      'to the historian Tacitus — the only eyewitness account that survives.',
+    "Many of Pompeii's people escaped, as you did. More than a thousand did not; they are remembered there still.",
+  ],
+};
+
+// The map of the run on the end screen (ui.js).
+export const ROUTE_MAP = {
+  every: 8, // metres between the route's recorded points
+  // The places marked on it, by district (DISTRICTS): their names on the map.
+  places: { forum: 'Forum', theatre: 'Theatre', villa: 'Domus', gate: 'Porta Stabia', beach: 'Stabiae' },
+  size: [300, 190], // CSS pixels
 };
 
 export const GAME = {

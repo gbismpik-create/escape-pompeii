@@ -125,6 +125,41 @@ body {
   text-align: center;
 }
 
+#finish {
+  overflow-y: auto; /* the epilogue may not fit a small phone */
+  justify-content: safe center;
+  padding: calc(max(12px, env(safe-area-inset-top)) + 56px) 16px max(16px, env(safe-area-inset-bottom)); /* clear of the settings and sound buttons */
+}
+
+#finish h1 {
+  margin: 0;
+}
+
+#finish .where {
+  margin: -0.3rem 0 0;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+#finish .route {
+  max-width: 100%;
+  border: 1px solid rgba(216, 178, 90, 0.35);
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(70, 58, 44, 0.65), rgba(20, 24, 26, 0.75));
+}
+
+#finish .epilogue {
+  max-width: 34rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+#finish .epilogue p {
+  margin: 0.45rem 0;
+}
+
 #finish[hidden],
 #finish .unlocked[hidden] {
   display: none;

@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -386,15 +386,16 @@ function showEndScreen() {
     saveEndlessUnlocked();
     showMenuButtons(true);
   }
+  route.points.push(routeHere()); // the shore, where the boat put out
   showFinish({
     distance: journeyLength,
     time,
-    artifacts: 0, // not collected yet (see CLAUDE.md "Later")
-    saved: 0, // no followers yet
+    saved: 0, // no followers yet (see CLAUDE.md "Later")
     bestTime,
     isNewBest,
     unlocked,
-    fact: JOURNEY.finishFact,
+    route,
+    epilogue: JOURNEY.epilogue,
   });
 }
 
@@ -405,11 +406,35 @@ function updateDistrict() {
   if (now !== district) {
     district = now;
     showDistrict(DISTRICTS.names[now], DISTRICTS.titleTime);
+    if (ROUTE_MAP.places[now]) recordPlace(ROUTE_MAP.places[now]);
   }
+}
+
+// ---- The route, for the map on the end screen ----
+// Where he has run: points along the path in the town's own coordinates
+// (the world group's space, which turns never change), and the places he
+// passed on the way.
+let route = { points: [], places: [] };
+let routeSampledAt = -Infinity;
+const routePoint = new THREE.Vector3();
+function routeHere() {
+  routePoint.setFromMatrixPosition(track.frameAt(Math.max(0, currentDistance())));
+  return [routePoint.x, routePoint.z];
+}
+function recordRoute() {
+  if (currentDistance() - routeSampledAt < ROUTE_MAP.every) return;
+  routeSampledAt = currentDistance();
+  route.points.push(routeHere());
+}
+function recordPlace(name) {
+  const [x, z] = routeHere();
+  route.places.push({ name, x, z });
 }
 
 function restart() {
   district = null;
+  route = { points: [], places: [] };
+  routeSampledAt = -Infinity;
   cameraFloor = 0;
   isGameOver = false;
   isFinishing = false;
@@ -601,6 +626,7 @@ renderer.setAnimationLoop((timestamp) => {
     updatePumice();
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     followFinish();
+    recordRoute();
     track.gate.update(dt, currentDistance(), currentSpeed(), gateEffects);
     updateDistance(currentDistance());
     updateDistrict();
