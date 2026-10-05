@@ -17,12 +17,12 @@ export const DISTRICTS = {
   // district twice running, none once the pumice has begun). Which one is
   // picked by weight; one already seen this run counts for less.
   offerChance: 0.6,
-  weights: { forum: 3, theatre: 2, baths: 3 },
+  weights: { forum: 3, theatre: 2, baths: 3, amphitheatre: 3 },
   seenWeight: 0.25, // a district already seen this run: its weight times this
   only: null, // tests only: always offer this district
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
   names: {
-    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)', baths: 'The Stabian Baths',
+    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)', baths: 'The Stabian Baths', amphitheatre: 'The Amphitheatre',
     // the finale (FINALE)
     gate: 'Porta Stabia', tombs: 'The Tombs outside Porta Stabia', fields: 'The Road to Stabiae', beach: 'The Shore at Stabiae',
   },
@@ -220,7 +220,7 @@ export const JOURNEY = {
 export const ROUTE_MAP = {
   every: 8, // metres between the route's recorded points
   // The places marked on it, by district (DISTRICTS): their names on the map.
-  places: { forum: 'Forum', theatre: 'Theatre', villa: 'Domus', gate: 'Porta Stabia', beach: 'Stabiae' },
+  places: { forum: 'Forum', theatre: 'Theatre', villa: 'Domus', baths: 'Baths', amphitheatre: 'Amphitheatre', gate: 'Porta Stabia', beach: 'Stabiae' },
   size: [300, 190], // CSS pixels
 };
 
@@ -610,7 +610,7 @@ export const PUMICE = {
   halfWidth: 4.55, // across the street, just short of the house fronts
   lumps: 0.1, // metres of unevenness on its surface
   drift: 0.35, // metres it piles higher against the house fronts
-  clearIn: ['forum', 'theatre', 'villa', 'baths'], // districts kept clear of it (roofed halls, swept squares)
+  clearIn: ['forum', 'theatre', 'villa', 'baths', 'amphitheatre'], // districts kept clear of it (roofed halls, swept squares)
   districtRamp: 10, // metres over which it slopes away just inside them
   colors: [0x5f5f5c, 0xc4c3bc], // dark and light grey-white pumice
 };
@@ -653,6 +653,23 @@ export const BATHS = {
     color: 0xdedad2,
     hissVolume: 0.5,
   },
+};
+
+// The Amphitheatre (a district; the model: tools/build-amphitheatre.mjs,
+// loaded by villa.js): the plaza with its market stalls, in by the north
+// gate, down the vaulted passage 6 m to the arena, across the sand past what
+// was left from the games, up the south passage and out onto a street.
+// Model space: +z along the way, the north gate at z = 0, the south gate at
+// z = 136, lanes 0..2 at x = -1.8, 0, 1.8 (lane -1: right across).
+export const AMPHITHEATRE = {
+  file: 'assets/amphitheatre.glb',
+  chunks: 7, // 210 m: the plaza, the monument, then the street beyond its south gate
+  gateAt: 44, // metres into the run where the north gate is (so the south gate is at 180, a chunk's end)
+  exitAt: 180, // metres into the run where the south gate is
+  laneHalfWidth: 0.8, // its obstacles' hitboxes, across one lane
+  jumpHeight: 0.35, // 'jump' ones (the fallen mast); 'slide' ones are OBSTACLES.slideGap; 'dodge' ones OBSTACLES.blockHeight
+  tunnels: [[-2, 26], [109, 138]], // model z: the vaulted passages (nothing falls there)
+  groundDrop: -6.4, // the plain ground beyond sinks below the arena while he is in it
 };
 
 // The rich house (domus) shortcut: the far side of some T-junctions is a

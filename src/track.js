@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE, BATHS } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE, BATHS, AMPHITHEATRE } from './config.js';
 import { createGateCollapse } from './gate.js';
 import { createBeach } from './beach.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
@@ -323,10 +323,11 @@ function createGround(scene) {
   ground.receiveShadow = true;
   scene.add(ground);
   return {
-    // sunk: in the theatre, whose orchestra lies below the street.
-    update(playerZ, sunk = false) {
+    // y: its height (sunk in the theatre and the amphitheatre, whose
+    // orchestra and arena lie below the street).
+    update(playerZ, y = -0.1) {
       ground.position.z = playerZ - length / 2 + (TRACK.chunksBehind + 1) * L;
-      ground.position.y = sunk ? THEATRE.groundDrop : -0.1;
+      ground.position.y = y;
     },
   };
 }
@@ -407,19 +408,24 @@ function createPumiceMesh(material) {
   };
 }
 
-// The rich house: the model (villa.js) as one set piece, and its obstacles'
-// hitboxes in path space once it is placed. Built along +z; the path runs
-// along -z, so it is turned half round (its x = -1.8 lane is the path's right).
-function createVillaPiece(world, villa) {
+// A set piece run through (the rich house, the amphitheatre; villa.js loads
+// them): the model, and its obstacles' hitboxes in path space once it is
+// placed. Built along +z; the path runs along -z, so it is turned half round
+// (its x = -1.8 lane is the path's right). Its obstacles: { type, lane 0..2
+// (-1: right across), z0, z1, act: 'jump' | 'slide' | 'dodge' | 'none' }.
+// rules: laneHalfWidth, jumpHeight, stumbleOnly (types that are a stumble),
+// offset (metres into the run where its z = 0 is), floor(metres into the run).
+function createSetPiece(world, model, name, { laneHalfWidth, jumpHeight, stumbleOnly = [], offset = 0, floor = () => 0 }) {
   const group = new THREE.Group();
-  group.name = 'villa';
+  group.name = name;
   const inner = new THREE.Group();
   inner.rotation.y = Math.PI;
-  for (const mesh of villa.meshes) {
+  inner.position.z = -offset;
+  for (const mesh of model.meshes) {
     mesh.receiveShadow = true;
     inner.add(mesh);
   }
-  const shadow = new THREE.Mesh(villa.shadowGeometry, villa.meshes[0].material);
+  const shadow = new THREE.Mesh(model.shadowGeometry, model.meshes[0].material);
   shadow.castShadow = true;
   shadow.layers.set(SHADOW_LAYER);
   inner.add(shadow);
@@ -429,25 +435,28 @@ function createVillaPiece(world, villa) {
   let hitboxes = [];
   return {
     group,
-    // start: where its street door is (world-group space); angle: the path's
+    // start: where its run starts (world-group space); angle: the path's
     // angle there; run: its path distances.
     place(start, angle, run) {
       group.position.copy(start);
       group.rotation.y = angle;
       group.visible = true;
-      const h = VILLA.laneHalfWidth;
-      hitboxes = villa.obstacles
+      const across = (LANES.count * LANES.width) / 2;
+      hitboxes = model.obstacles
         .filter((o) => o.act !== 'none')
         .map((o) => {
-          const x = -(o.lane - 1) * LANES.width; // turned half round
-          const top = o.act === 'jump' ? VILLA.jumpHeight : OBSTACLES.blockHeight;
+          const x = o.lane < 0 ? 0 : -(o.lane - 1) * LANES.width; // turned half round
+          const h = o.lane < 0 ? across : laneHalfWidth;
+          const base = floor(offset + (o.z0 + o.z1) / 2);
+          const [bottom, top] = o.act === 'jump' ? [0, jumpHeight] : o.act === 'slide' ? [OBSTACLES.slideGap.bottom, OBSTACLES.slideGap.top] : [0, OBSTACLES.blockHeight];
+          const from = run.start + offset + o.z0, to = run.start + offset + o.z1;
           return {
             type: o.type,
-            move: o.act === 'jump' ? 'jump' : 'block',
-            stumbleOnly: VILLA.stumbleOnly.includes(o.type),
+            move: o.act === 'jump' || o.act === 'slide' ? o.act : 'block',
+            stumbleOnly: stumbleOnly.includes(o.type),
             used: false,
-            distance: run.start + (o.z0 + o.z1) / 2,
-            hitbox: new THREE.Box3(new THREE.Vector3(x - h, 0, -(run.start + o.z1)), new THREE.Vector3(x + h, top, -(run.start + o.z0))),
+            distance: (from + to) / 2,
+            hitbox: new THREE.Box3(new THREE.Vector3(x - h, base + bottom, -to), new THREE.Vector3(x + h, base + top, -from)),
           };
         });
     },
@@ -492,8 +501,9 @@ function createTheatre(world, kit) {
   };
 }
 
-// villa: the rich house (villa.js), or null for none (tests).
-export function createTrack(scene, kit, villa = null) {
+// villa: the rich house (villa.js), or null for none (tests); amph: the
+// amphitheatre (villa.js), or null for none.
+export function createTrack(scene, kit, villa = null, amph = null) {
   const world = new THREE.Group();
   world.name = 'world';
   world.matrixAutoUpdate = false; // placed from the path's pose each frame
@@ -576,7 +586,18 @@ export function createTrack(scene, kit, villa = null) {
   const shoreAt = (FINALE.boardAt + FINALE.beach.shore) % L;
   const shoreLayout = build([{ piece: 'Beach_Sand_30m', x: 0, z: 0, angle: 0, sz: shoreAt / L }]);
   const beach = createBeach(world, kit, frameAt);
-  const house = villa ? createVillaPiece(world, villa) : null;
+  const house = villa ? createSetPiece(world, villa, 'villa', VILLA) : null;
+  // The amphitheatre: its floor follows its route down to the arena and up again.
+  const amphRoute = amph?.route ?? [[0, 0]];
+  const amphFloor = (rel) => {
+    const z = rel - AMPHITHEATRE.gateAt;
+    const i = amphRoute.findIndex(([at]) => at > z);
+    if (i <= 0) return i === 0 ? amphRoute[0][1] : amphRoute[amphRoute.length - 1][1];
+    const [z0, y0] = amphRoute[i - 1], [z1, y1] = amphRoute[i];
+    return THREE.MathUtils.lerp(y0, y1, (z - z0) / (z1 - z0));
+  };
+  const amphitheatre = amph ? createSetPiece(world, amph, 'amphitheatre', { ...AMPHITHEATRE, offset: AMPHITHEATRE.gateAt, floor: amphFloor }) : null;
+  let amphRun = null; // the amphitheatre on offer or being run through, or null
   let villaRun = null; // the house on offer or being run through, or null
   let villaLast = false; // the last junction had the house (never two running)
   // Theatre chunks have no layout of their own: the theatre is one set piece
@@ -731,6 +752,7 @@ export function createTrack(scene, kit, villa = null) {
       : kind === 'open' ? openLayout
       : district === 'theatre' ? emptyLayout
       : district === 'villa' ? (distance === run.end - L ? backLaneLayout : emptyLayout)
+      : district === 'amphitheatre' ? (distance - run.start >= AMPHITHEATRE.exitAt ? layouts[Math.floor(Math.random() * layouts.length)] : emptyLayout)
       : district === 'baths' ? bathsLayouts[Math.round((distance - run.start) / L)]
       : kind === 'finale'
         ? district === 'gate' ? gateLayout
@@ -779,6 +801,7 @@ export function createTrack(scene, kit, villa = null) {
         : district === 'theatre' ? (d) => theatreRules(d - run.start)
         : district === 'baths' ? (d) => bathsRules(d - run.start, d)
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
+        : district === 'amphitheatre' ? (d) => (d - run.start < AMPHITHEATRE.exitAt + 4 ? null : undefined) // only its own, until the street beyond
         : undefined,
       lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
     });
@@ -863,6 +886,9 @@ export function createTrack(scene, kit, villa = null) {
         run = { kind: 'forum', start: d, end: d + L * (min + Math.floor(Math.random() * (max - min + 1))) };
       } else if (way === offerWay && offer === 'baths') {
         run = { kind: 'baths', start: d, end: d + BATHS_LENGTH };
+      } else if (way === offerWay && offer === 'amphitheatre') {
+        run = amphRun = { kind: 'amphitheatre', start: d, end: d + AMPHITHEATRE.chunks * L };
+        amphitheatre.place(start, angle, run);
       }
       // Beside the house, the side streets leave a gap for it on its side.
       side.gap = chunk.villa && way !== 'straight' ? way : null;
@@ -921,6 +947,8 @@ export function createTrack(scene, kit, villa = null) {
       theatreRun.declined = true;
     }
     if (villaRun && chosen.run !== villaRun) villaRun.declined = true;
+    if (amphRun && chosen.run !== amphRun) amphRun.declined = true;
+    if (chosen.run?.kind === 'amphitheatre') steps.push({ from: chosen.run.start, to: chosen.run.end, floor: (rel) => amphFloor(rel) });
     junction = null;
     exits = null;
     // The next junction comes after the Forum, out in the streets again.
@@ -949,6 +977,7 @@ export function createTrack(scene, kit, villa = null) {
       forum: fits(maxForum * L),
       theatre: (!theatreUsed || !THEATRE.oncePerRun) && !theatreRun && fits(ROUTE.length),
       baths: fits(BATHS_LENGTH),
+      amphitheatre: Boolean(amphitheatre) && !amphRun && fits(AMPHITHEATRE.chunks * L),
     };
     if (DISTRICTS.only) return can[DISTRICTS.only] ? DISTRICTS.only : null;
     if (Math.random() >= DISTRICTS.offerChance) return null;
@@ -994,6 +1023,8 @@ export function createTrack(scene, kit, villa = null) {
     theatreUsed = false;
     house?.hide();
     villaRun = null;
+    amphitheatre?.hide();
+    amphRun = null;
     pumice = null;
     finale = null;
     gate.hide();
@@ -1049,7 +1080,8 @@ export function createTrack(scene, kit, villa = null) {
     // used as it is, on straights, after turns and round curves alike.
     findCollision(hitbox) {
       return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? gate.findCollision(hitbox) ??
-        bathsFixed.find((o) => !o.used && o.hitbox.intersectsBox(hitbox)) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null);
+        bathsFixed.find((o) => !o.used && o.hitbox.intersectsBox(hitbox)) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null) ??
+        (amphRun && !amphRun.declined ? amphitheatre.findCollision(hitbox) : null);
     },
 
     // The rich house's own obstacles while it is on the path (tests and tools).
@@ -1069,7 +1101,7 @@ export function createTrack(scene, kit, villa = null) {
       return steamVents;
     },
 
-    houseObstacles: () => [...(villaRun && !villaRun.declined ? house.list() : []), ...bathsFixed],
+    houseObstacles: () => [...(villaRun && !villaRun.declined ? house.list() : []), ...(amphRun && !amphRun.declined ? amphitheatre.list() : []), ...bathsFixed],
 
     // The floor height at a path distance, x across (0 except on steps).
     floorAt,
@@ -1097,7 +1129,7 @@ export function createTrack(scene, kit, villa = null) {
     setPumice(start, length) {
       if (pumice) return;
       let from = Math.max(start, cursor.distance + 1);
-      for (const run of [cursor.run, theatreRun, villaRun]) if (run && !run.declined) from = Math.max(from, run.end);
+      for (const run of [cursor.run, theatreRun, villaRun, amphRun]) if (run && !run.declined) from = Math.max(from, run.end);
       pumice = { start: from, length };
     },
     get pumice() {
@@ -1122,6 +1154,11 @@ export function createTrack(scene, kit, villa = null) {
       }
       const inside = chunkAt(distance)?.run;
       if (inside?.kind === 'baths' && distance - inside.start < BATHS_INDOORS + 2) return 0; // under the baths' vaults
+      if (amphRun && !amphRun.declined) {
+        // Nothing falls in its vaulted passages.
+        const z = distance - amphRun.start - AMPHITHEATRE.gateAt;
+        if (AMPHITHEATRE.tunnels.some(([a, b]) => z > a && z < b)) return 0;
+      }
       if (villaRun && !villaRun.declined) {
         // Nothing falls under the house's roofs: only in its open garden.
         const rel = distance - villaRun.start;
@@ -1191,7 +1228,8 @@ export function createTrack(scene, kit, villa = null) {
     update(playerZ, fogDistance = Infinity) {
       placeWorld(-playerZ);
       const inTheatre = theatreRun && !theatreRun.declined && playerDistance > theatreRun.start && playerDistance < theatreRun.start + ROUTE.ringEnd;
-      ground.update(playerZ, inTheatre);
+      const inArena = amphRun && !amphRun.declined && playerDistance > amphRun.start && playerDistance < amphRun.start + AMPHITHEATRE.exitAt;
+      ground.update(playerZ, inArena ? AMPHITHEATRE.groundDrop : inTheatre ? THEATRE.groundDrop : -0.1);
       // Recycle chunks that are now too far behind; lay new ones ahead.
       while (path.length && path[0].distance + L < playerDistance - TRACK.chunksBehind * L) release(path.shift());
       if (leftovers.length && playerDistance >= releaseLeftoversAt) {
@@ -1203,6 +1241,11 @@ export function createTrack(scene, kit, villa = null) {
       if (villaRun && ((villaRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > villaRun.end + TRACK.chunksBehind * L)) {
         house.hide();
         villaRun = null;
+      }
+      // The amphitheatre goes once it is behind (or once its way was not taken).
+      if (amphRun && ((amphRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > amphRun.end + TRACK.chunksBehind * L)) {
+        amphitheatre.hide();
+        amphRun = null;
       }
       // The theatre goes once it is behind (or once its way was not taken).
       if (theatreRun && ((theatreRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > theatreRun.end + TRACK.chunksBehind * L)) {

@@ -6,7 +6,7 @@ import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
-import { loadVilla, seeThrough } from './villa.js';
+import { loadVilla, loadAmphitheatre, seeThrough } from './villa.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart, journeyPhaseTime } from './phases.js';
 import { speedAt } from './speed.js';
@@ -65,8 +65,13 @@ setupSettings(audio.levels, {
 });
 
 setLoading(true);
-const [kit, character, villa] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap), loadVilla(environment.envMap)]);
-const track = createTrack(scene, kit, villa);
+const [kit, character, villa, amphitheatre] = await Promise.all([
+  loadKit(environment.envMap),
+  loadCharacter(environment.envMap),
+  loadVilla(environment.envMap),
+  loadAmphitheatre(environment.envMap),
+]);
+const track = createTrack(scene, kit, villa, amphitheatre);
 
 environment.addVolcano(kit);
 setLoading(false);
@@ -548,6 +553,13 @@ const CRASH_REASONS = {
   'hot pool': 'You fell into the hot pool',
   labrum: 'You ran into the bath basin',
   brazier: 'You ran into a bronze brazier',
+  'lion cage': 'You ran into a beast cage',
+  'fallen awning mast': 'You tripped over a fallen awning mast',
+  'weapons rack': 'You ran into a rack of arms',
+  'torn awning': 'You ran into the torn awning',
+  'training posts': 'You ran into the training posts',
+  'overturned sand cart': 'You ran into an overturned cart',
+  'tipped brazier': 'You ran into a tipped brazier',
 };
 
 function checkCollisions() {

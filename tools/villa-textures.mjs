@@ -631,3 +631,5 @@ export function grassTuft() {
   for (let i = 0; i < 6; i++) dab(g, rr(40, 216), rr(40, 140), rr(4, 7), pick(['#f0e8e0', '#e8c64a', '#d0405a']), 1, 0, 1);
   return c;
 }
+
+export { rnd, rr, pick, hex, rgb, shade, mix, clamp, lerp, n2, fbm2, h2, line, dab, rect, frame, weather, marble, bevel, paintedColumn, paintedTree, bird, figure, picture, candelabrum, garland, vista, tesserae };

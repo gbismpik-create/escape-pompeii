@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { VILLA, GRAPHICS } from './config.js';
+import { VILLA, AMPHITHEATRE, GRAPHICS } from './config.js';
 import { loadGLTF } from './assets.js';
 import { isLowEnd } from './device.js';
 
@@ -107,10 +107,12 @@ function positionsOnly(mesh) {
   return g.applyMatrix4(mesh.matrixWorld);
 }
 
-// Loads the villa: { meshes, shadowGeometry, obstacles }.
-export async function loadVilla(envMap) {
-  const gltf = await loadGLTF(VILLA.file);
-  const root = gltf.scene.getObjectByName('Pompeii_Villa') ?? gltf.scene;
+// Loads a set piece built like the villa (one mesh per material, its route
+// and obstacles in the root's extras): { meshes, shadowGeometry, obstacles, route }.
+// noShadow: materials that cast no shadow (flat ground).
+export async function loadSetPiece(file, rootName, envMap, noShadow = []) {
+  const gltf = await loadGLTF(file);
+  const root = gltf.scene.getObjectByName(rootName) ?? gltf.scene;
   root.updateMatrixWorld(true);
   const meshes = [];
   root.traverse((o) => {
@@ -119,7 +121,14 @@ export async function loadVilla(envMap) {
   for (const mesh of meshes) mesh.material = addSeeThrough(gameMaterial(mesh.material, envMap));
   // Leaves and grass are cut out by their textures; their square cards
   // would cast square shadows, so they don't cast any.
-  const solid = meshes.filter((m) => !m.material.alphaTest && !m.material.transparent);
+  const solid = meshes.filter((m) => !m.material.alphaTest && !m.material.transparent && !noShadow.includes(m.material.name));
   const shadowGeometry = mergeGeometries(solid.map(positionsOnly));
-  return { meshes, shadowGeometry, obstacles: root.userData.obstacles ?? [] };
+  return { meshes, shadowGeometry, obstacles: root.userData.obstacles ?? [], route: root.userData.routeY ?? null };
 }
+
+// The rich house (domus).
+export const loadVilla = (envMap) => loadSetPiece(VILLA.file, 'Pompeii_Villa', envMap);
+
+// The amphitheatre (tools/build-amphitheatre.mjs): its ground, plaza and
+// arena sand cast no shadows.
+export const loadAmphitheatre = (envMap) => loadSetPiece(AMPHITHEATRE.file, 'Pompeii_Amphitheatre', envMap, ['grass', 'gravel', 'sand']);
