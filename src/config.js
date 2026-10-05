@@ -17,12 +17,12 @@ export const DISTRICTS = {
   // district twice running, none once the pumice has begun). Which one is
   // picked by weight; one already seen this run counts for less.
   offerChance: 0.6,
-  weights: { forum: 3, theatre: 2, baths: 3, amphitheatre: 3 },
+  weights: { forum: 3, theatre: 2, baths: 3, amphitheatre: 3, palaestra: 3 },
   seenWeight: 0.25, // a district already seen this run: its weight times this
   only: null, // tests only: always offer this district
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
   names: {
-    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'The House of the Vettii', baths: 'The Stabian Baths', amphitheatre: 'The Amphitheatre',
+    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'The House of the Vettii', baths: 'The Stabian Baths', amphitheatre: 'The Amphitheatre', palaestra: 'The Great Palaestra',
     // the finale (FINALE)
     gate: 'Porta Stabia', tombs: 'The Tombs outside Porta Stabia', fields: 'The Road to Stabiae', beach: 'The Shore at Stabiae',
   },
@@ -220,7 +220,7 @@ export const JOURNEY = {
 export const ROUTE_MAP = {
   every: 8, // metres between the route's recorded points
   // The places marked on it, by district (DISTRICTS): their names on the map.
-  places: { forum: 'Forum', theatre: 'Theatre', villa: 'Vettii', baths: 'Baths', amphitheatre: 'Amphitheatre', gate: 'Porta Stabia', beach: 'Stabiae' },
+  places: { forum: 'Forum', theatre: 'Theatre', villa: 'Vettii', baths: 'Baths', amphitheatre: 'Amphitheatre', palaestra: 'Palaestra', gate: 'Porta Stabia', beach: 'Stabiae' },
   size: [300, 190], // CSS pixels
 };
 
@@ -610,7 +610,7 @@ export const PUMICE = {
   halfWidth: 4.55, // across the street, just short of the house fronts
   lumps: 0.1, // metres of unevenness on its surface
   drift: 0.35, // metres it piles higher against the house fronts
-  clearIn: ['forum', 'theatre', 'villa', 'baths', 'amphitheatre'], // districts kept clear of it (roofed halls, swept squares)
+  clearIn: ['forum', 'theatre', 'villa', 'baths', 'amphitheatre', 'palaestra'], // districts kept clear of it (roofed halls, swept squares)
   districtRamp: 10, // metres over which it slopes away just inside them
   colors: [0x5f5f5c, 0xc4c3bc], // dark and light grey-white pumice
 };
@@ -653,6 +653,25 @@ export const BATHS = {
     color: 0xdedad2,
     hissVolume: 0.5,
   },
+};
+
+// The Great Palaestra (a district): the walled exercise ground beside the
+// amphitheatre, a calm, wide stretch between the tight streets. Five lanes
+// across the field (DISTRICTS.gateOpen / narrowBefore, as in the Forum),
+// porticoes down both sides, plane trees, the swimming pool beside the
+// track, and the amphitheatre seen over its east wall.
+export const PALAESTRA = {
+  chunks: 5, // 150 m: the gateway in, three middles, the gateway out
+  poolChunk: 2, // which chunk has the swimming pool
+  treeRows: [[17.5, 2], [12.5, 5.5]], // [metres from the middle, first tree] of each double row
+  treeSpacing: 7.5,
+  rowShare: 0.9, // calmer: rows only on the open field between the gateway and the narrowing (about half as many as in a street)...
+  obstacles: { fullRowChance: 0, lane: { Basket: 2, Rubble: 2, AmphoraStack: 1 } }, // ...none right across
+  fallShare: 0.5, // and half as many tiles and stones falling
+  // [metres across (path x), metres along] where the amphitheatre's north
+  // gate stands, only to look at (beyond the wall on the pool's side; its
+  // trees and stalls stay clear of the palaestra)
+  amphitheatreAt: [100, 7.5],
 };
 
 // The Amphitheatre (a district; the model: tools/build-amphitheatre.mjs,

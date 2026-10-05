@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -675,7 +675,9 @@ renderer.setAnimationLoop((timestamp) => {
     fallingTarget.velocityZ = -speed * shield.speedFactor;
     // Nothing new falls on the last stretch before the sea.
     const nearFinish = mode === 'escape' && currentDistance() > journeyLength - JOURNEY.finishClearDistance;
-    falling.update(dt, nearFinish ? 0 : environment.phase.fallRate, speed * shield.speedFactor, fallingTarget);
+    // (and fewer in the open palaestra, far from roofs)
+    const fallShare = track.districtAt(currentDistance()) === 'palaestra' ? PALAESTRA.fallShare : 1;
+    falling.update(dt, nearFinish ? 0 : environment.phase.fallRate * fallShare, speed * shield.speedFactor, fallingTarget);
     updateBoarding();
     pressSurge();
     track.beach.update(dt);

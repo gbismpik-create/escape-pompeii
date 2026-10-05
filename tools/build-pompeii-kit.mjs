@@ -1415,6 +1415,108 @@ function hull(L, B, D, segs = 20) {
   pieces.push(P);
 }
 
+// ================================================================== THE GREAT PALAESTRA (a district)
+// The exercise ground beside the amphitheatre: a wide field of beaten earth
+// in a walled square, porticoes along its sides, double rows of plane trees
+// shading them, a swimming pool (natatio) in the middle. Kit space as for the
+// street: +z along the way; the way across it is five lanes wide.
+const PAL = { wall: 27, portico: 21.5, sand: C(0xb9a47e), sandDk: C(0x9c8762) };
+// The field: rectangles [x0, x1, z0, z1] of beaten earth (the pool's chunk leaves a hole for it).
+function palaestraGround(name, rects) {
+  const P = new Piece(name);
+  for (const [x0, x1, z0, z1] of rects) {
+    P.add(grid(Math.max(1, Math.round((x1 - x0) / 3)), Math.max(1, Math.round((z1 - z0) / 3)), (u, v) => {
+      const x = lerp(x0, x1, u), z = lerp(z0, z1, v);
+      return V(x, -0.02 + 0.03 * vnoise(x * 0.37, 0, z * 0.27), z);
+    }), 'stone', {
+      colorFn: (p) => {
+        const worn = 1 - smooth((Math.abs(p.x) - 4.5) / 3); // the runners' track, trodden paler
+        return PAL.sand.clone().lerp(PAL.sandDk, 0.5 * fbm(p.x * 0.15, 0, p.z * 0.15)).lerp(C(0xcdbb95), 0.45 * worn);
+      },
+      noise: 0.1, freq: 2,
+    });
+  }
+  pieces.push(P);
+}
+palaestraGround('Palaestra_Ground_30m', [[-PAL.wall, PAL.wall, 0, 30]]);
+palaestraGround('Palaestra_Ground_Pool_30m', [[-PAL.wall, -12.8, 0, 30], [-5.6, PAL.wall, 0, 30], [-12.8, -5.6, 0, 2.4], [-12.8, -5.6, 27.6, 30]]);
+{
+  // One side's portico along 30 m (built on the +x side; turned for the other):
+  // a stylobate, ten stuccoed brick columns (red below, white above), a beam,
+  // a tiled lean-to roof up to the high back wall.
+  const P = new Piece('Palaestra_Portico_30m');
+  const X = PAL.portico, BACK = PAL.wall, H = 4.6;
+  P.add(xf(block(BACK - X + 0.8, 0.3, 30, 0.02), [(X - 0.8 + BACK) / 2, 0, 15]), 'stone', { color: COL.lime, noise: 0.06 });
+  for (let i = 0; i < 10; i++) {
+    const z = 1.5 + i * 3;
+    P.add(xf(lathe([[0.3, 0], [0.3, H * 0.35], [0.27, H * 0.36], [0.25, H], [0, H]], 12), [X, 0.3, z]), 'plaster', {
+      colorFn: (p) => (p.y < 0.3 + H * 0.35 ? COL.pompRed.clone() : COL.whiteWash.clone()), noise: 0.05,
+    });
+    P.add(xf(block(0.75, 0.22, 0.75, 0.01), [X, 0.3 + H, z]), 'plaster', { color: COL.whiteWash });
+  }
+  P.add(xf(block(0.6, 0.5, 30, 0.01), [X, 0.52 + H, 15]), 'plaster', { color: COL.cream });
+  P.add(grid(4, 20, (u, v) => {
+    const x = lerp(X - 0.7, BACK + 0.1, u), z = v * 30;
+    return V(x, 1.0 + H + (x - X) * 0.28 + 0.04 * Math.abs(Math.sin(v * Math.PI * 60)), z);
+  }), 'terracotta', { colorFn: (p) => COL.terra.clone().lerp(COL.terraDk, clamp(fbm(p.x, p.y, p.z * 2) - 0.3)), noise: 0.1 });
+  // its underside, seen from the field: boards on rafters (u and v swapped, so it faces down)
+  P.add(grid(20, 4, (v, u) => {
+    const x = lerp(X - 0.7, BACK + 0.1, u), z = v * 30;
+    return V(x, 0.97 + H + (x - X) * 0.28, z);
+  }), 'wood', { colorFn: (p) => (Math.abs(((p.z % 1.5) + 1.5) % 1.5 - 0.75) < 0.1 ? COL.woodDk.clone() : COL.wood.clone()), noise: 0.15 });
+  // the back (outer) wall: red dado, cream above, a little higher than the roof
+  P.add(xf(block(0.5, 8, 30, 0.01), [BACK + 0.25, 0, 15]), 'plaster', {
+    colorFn: (p) => (p.y < 1.3 ? COL.pompRed.clone() : COL.cream.clone().lerp(COL.whiteWash, 0.3 * vnoise(p.z * 0.3, p.y * 0.3, 0))), noise: 0.06,
+  });
+  pieces.push(P);
+}
+{
+  // A plane tree (Platanus orientalis): a pale mottled trunk forking into
+  // a broad, lumpy crown, about 11 m.
+  const P = new Piece('Plane_Tree');
+  const bark = (p) => C(0xa49a84).lerp(C(0x6d6a55), smooth(vnoise(p.x * 6, p.y * 3, p.z * 6) * 1.6 - 0.4));
+  P.add(lathe([[0.35, 0], [0.28, 1.2], [0.24, 3.6], [0, 3.8]], 10), 'wood', { colorFn: bark, noise: 0.05 });
+  for (const [dx, dz] of [[1, 0.3], [-0.8, 0.6], [0.1, -1]]) {
+    const g = new THREE.CylinderGeometry(0.1, 0.18, 3.2, 7);
+    g.translate(0, 1.6, 0).rotateZ(-dx * 0.45).rotateX(dz * 0.45).translate(0, 3.4, 0);
+    P.add(g, 'wood', { colorFn: bark });
+  }
+  for (const [x, y, z, r] of [[0, 7.6, 0, 3.4], [2.2, 6.6, 0.8, 2.6], [-2.1, 6.8, 0.6, 2.5], [0.4, 6.4, -2.2, 2.6], [-0.6, 9.2, 0.2, 2.2], [1.4, 8.6, -1.2, 2.0]]) {
+    P.add(xf(lump(r, r * 0.72, r, 0.35, 1), [x, y, z]), 'plaster', {
+      colorFn: (p) => C(0x4a5e2c).lerp(C(0x7a8a42), smooth((p.y - 5.5) / 5)).multiplyScalar(0.7 + 0.45 * vnoise(p.x * 1.5, p.y * 1.5, p.z * 1.5)),
+      noise: 0.15,
+    });
+  }
+  pieces.push(P);
+}
+{
+  // The swimming pool (natatio), 24 x 6 m beside the track (built on the -x
+  // side, its near edge at x = -6.2): a raised marble rim round still water.
+  // (The water lies just above the game's plain ground, at -0.1, which
+  // hides anything deeper; matte, so it reads as water under an ash-dark sky.)
+  const P = new Piece('Palaestra_Pool');
+  const X0 = -6.2, X1 = -12.2, Z0 = 3, Z1 = 27, xc = (X0 + X1) / 2, zc = (Z0 + Z1) / 2;
+  for (const [w, d, x, z] of [[X0 - X1 + 1.2, 0.6, xc, Z0 - 0.3], [X0 - X1 + 1.2, 0.6, xc, Z1 + 0.3], [0.6, Z1 - Z0, X0 + 0.3, zc], [0.6, Z1 - Z0, X1 - 0.3, zc]]) {
+    P.add(xf(block(w, 0.3, d, 0.02), [x, -0.05, z]), 'stone', { color: C(0xe8e2d4), noise: 0.05 });
+  }
+  P.add(xf(new THREE.PlaneGeometry(X0 - X1, Z1 - Z0), [xc, -0.06, zc], [-Math.PI / 2, 0, 0]), 'plaster', { colorFn: (p) => C(0x3f8a92).lerp(C(0x7fb8b4), 0.4 * vnoise(p.x * 0.8, 0, p.z * 0.4)), noise: 0.04 });
+  pieces.push(P);
+}
+{
+  // The wall across the way in (z = 0) with its wide gateway, out to the side walls.
+  const P = new Piece('Palaestra_Gate');
+  const open = 5.6, H = 6.5;
+  for (const s of [1, -1]) {
+    P.add(xf(block(1.3, H + 0.6, 1.3, 0.03), [s * (open + 0.65), 0, 0]), 'stone', { color: COL.lime, noise: 0.06 });
+    P.add(xf(block(PAL.wall - open - 1.3, H, 0.6, 0.02), [s * (open + 1.3 + (PAL.wall - open - 1.3) / 2), 0, 0]), 'plaster', {
+      colorFn: (p) => (p.y < 1.3 ? COL.pompRed.clone() : COL.cream.clone()), noise: 0.06,
+    });
+  }
+  P.add(xf(block(2 * open + 2.6, 1.1, 1.3, 0.03), [0, H + 0.6, 0]), 'stone', { color: COL.lime, noise: 0.05 });
+  P.add(xf(block(5, 0.7, 0.04, 0.01), [0, H + 0.8, 0.66]), 'stone', { color: COL.limeDk });
+  pieces.push(P);
+}
+
 // ================================================================== THE STABIAN BATHS (a district)
 // The rooms in their real order under low stucco barrel vaults: changing
 // room (apodyterium) with benches and niches, the round cold room

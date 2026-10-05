@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE, BATHS, AMPHITHEATRE } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE, BATHS, AMPHITHEATRE, PALAESTRA } from './config.js';
 import { createGateCollapse } from './gate.js';
 import { createBeach } from './beach.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
@@ -159,6 +159,25 @@ function planForum(random, { temple = 0, gate = null } = {}) {
   if (gate === 'out') placements.push({ piece: 'Forum_Gate', x: 0, z: L - 0.7, angle: Math.PI });
   // Where a statue or column that may topple can stand (statues.js).
   placements.free = [-1, 1].flatMap((side) => [4, 10, 16, 22].map((z) => ({ side, z })));
+  return placements;
+}
+
+// A chunk of the Great Palaestra, in kit space: the field, a portico down
+// each side, double rows of plane trees shading them; the swimming pool
+// beside the track (pool), the gateway in or out (gate).
+function planPalaestra(random, { gate = null, pool = false } = {}) {
+  const placements = [{ piece: pool ? 'Palaestra_Ground_Pool_30m' : 'Palaestra_Ground_30m', x: 0, z: 0, angle: 0 }];
+  placements.push({ piece: 'Palaestra_Portico_30m', x: 0, z: 0, angle: 0 }, { piece: 'Palaestra_Portico_30m', x: 0, z: L, angle: Math.PI });
+  for (const s of [1, -1]) for (const [x, first] of PALAESTRA.treeRows) {
+    if (pool && s < 0 && x < 14) continue; // the pool's side: only the outer row
+    for (let z = first; z < L; z += PALAESTRA.treeSpacing) {
+      placements.push({ piece: 'Plane_Tree', x: s * x + (random() - 0.5) * 0.8, z: z + (random() - 0.5) * 1.2, angle: random() * Math.PI * 2 });
+    }
+  }
+  if (pool) placements.push({ piece: 'Palaestra_Pool', x: 0, z: 0, angle: 0 });
+  if (gate === 'in') placements.push({ piece: 'Palaestra_Gate', x: 0, z: 0.7, angle: 0 });
+  if (gate === 'out') placements.push({ piece: 'Palaestra_Gate', x: 0, z: L - 0.7, angle: Math.PI });
+  placements.free = [];
   return placements;
 }
 
@@ -414,8 +433,9 @@ function createPumiceMesh(material) {
 // (its x = -1.8 lane is the path's right). Its obstacles: { type, lane 0..2
 // (-1: right across), z0, z1, act: 'jump' | 'slide' | 'dodge' | 'none' }.
 // rules: laneHalfWidth, jumpHeight, stumbleOnly (types that are a stumble),
-// offset (metres into the run where its z = 0 is), floor(metres into the run).
-function createSetPiece(world, model, name, { laneHalfWidth, jumpHeight, stumbleOnly = [], offset = 0, floor = () => 0 }) {
+// offset (metres into the run where its z = 0 is), floor(metres into the run),
+// sceneryHides (materials left out when it is only scenery: its own ground).
+function createSetPiece(world, model, name, { laneHalfWidth, jumpHeight, stumbleOnly = [], offset = 0, floor = () => 0, sceneryHides = [] }) {
   const group = new THREE.Group();
   group.name = name;
   const inner = new THREE.Group();
@@ -438,9 +458,11 @@ function createSetPiece(world, model, name, { laneHalfWidth, jumpHeight, stumble
     // start: where its run starts (world-group space); angle: the path's
     // angle there; run: its path distances.
     place(start, angle, run) {
+      group.matrixAutoUpdate = true;
       group.position.copy(start);
       group.rotation.y = angle;
       group.visible = true;
+      for (const mesh of model.meshes) mesh.visible = true;
       const across = (LANES.count * LANES.width) / 2;
       hitboxes = model.obstacles
         .filter((o) => o.act !== 'none')
@@ -460,8 +482,19 @@ function createSetPiece(world, model, name, { laneHalfWidth, jumpHeight, stumble
           };
         });
     },
+    // Only to look at: its own z = 0 placed by this matrix (world-group
+    // space, turned like the path), no obstacles.
+    showAt(matrix) {
+      group.matrixAutoUpdate = false;
+      group.matrix.copy(matrix).multiply(new THREE.Matrix4().makeTranslation(0, 0, offset)); // (undoes the run offset)
+      group.matrixWorldNeedsUpdate = true;
+      group.visible = true;
+      for (const mesh of model.meshes) mesh.visible = !sceneryHides.includes(mesh.material.name);
+      hitboxes = [];
+    },
     hide() {
       group.visible = false;
+      group.matrixAutoUpdate = true;
       hitboxes = [];
     },
     findCollision(hitbox) {
@@ -559,6 +592,18 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     in: build(planForum(random, { gate: 'in' })),
     out: build(planForum(random, { gate: 'out' })),
   };
+  // The Great Palaestra: the way in, the middles (one with the pool), the way out.
+  const palaestraLayouts = {
+    in: build(planPalaestra(random, { gate: 'in' })),
+    out: build(planPalaestra(random, { gate: 'out' })),
+    middle: build(planPalaestra(random)),
+    pool: build(planPalaestra(random, { pool: true })),
+  };
+  const palaestraLayout = (distance, run) =>
+    distance === run.start ? palaestraLayouts.in
+      : distance === run.end - L ? palaestraLayouts.out
+      : Math.round((distance - run.start) / L) === PALAESTRA.poolChunk ? palaestraLayouts.pool
+      : palaestraLayouts.middle;
   const forumLayout = (distance, run) =>
     distance === run.start ? forumLayouts.in : distance === run.end - L ? forumLayouts.out : forumLayouts.middle[Math.floor(Math.random() * 3)];
   const finishMarks = createFinishMarks(world);
@@ -596,8 +641,9 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     const [z0, y0] = amphRoute[i - 1], [z1, y1] = amphRoute[i];
     return THREE.MathUtils.lerp(y0, y1, (z - z0) / (z1 - z0));
   };
-  const amphitheatre = amph ? createSetPiece(world, amph, 'amphitheatre', { ...AMPHITHEATRE, offset: AMPHITHEATRE.gateAt, floor: amphFloor }) : null;
+  const amphitheatre = amph ? createSetPiece(world, amph, 'amphitheatre', { ...AMPHITHEATRE, offset: AMPHITHEATRE.gateAt, floor: amphFloor, sceneryHides: ['grass', 'gravel'] }) : null;
   let amphRun = null; // the amphitheatre on offer or being run through, or null
+  let amphBeyond = null; // the palaestra run it is shown beside, or null
   let villaRun = null; // the house on offer or being run through, or null
   let villaLast = false; // the last junction had the house (never two running)
   // Theatre chunks have no layout of their own: the theatre is one set piece
@@ -725,7 +771,8 @@ export function createTrack(scene, kit, villa = null, amph = null) {
   const chunkAt = (d) => path.find((c) => d >= c.distance && d < c.distance + L);
   // How many lanes at a path distance: the Forum is wider, from just past
   // its entrance arch to a little before its end.
-  const forumWide = (run, d) => run?.kind === 'forum' && d >= run.start + DISTRICTS.gateOpen && d < run.end - DISTRICTS.narrowBefore;
+  const WIDE = ['forum', 'palaestra']; // the open squares, five lanes across
+  const forumWide = (run, d) => WIDE.includes(run?.kind) && d >= run.start + DISTRICTS.gateOpen && d < run.end - DISTRICTS.narrowBefore;
   const lanesAt = (d) => (forumWide(chunkAt(d)?.run, d) ? DISTRICTS.forumLanes : LANES.count);
   const tmp = new THREE.Vector3();
   const toWorldFrame = new THREE.Matrix4();
@@ -759,6 +806,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
           : district === 'beach' ? (distance + L <= finishDistance + FINALE.beach.shore ? beachLayout : distance < finishDistance + FINALE.beach.shore ? shoreLayout : emptyLayout) // sand, then the sea (beach.js)
           : countryLayouts[district][Math.floor(Math.random() * 3)]
       : district === 'forum' ? forumLayout(distance, run)
+      : district === 'palaestra' ? palaestraLayout(distance, run)
       : chunk.gap ? gapLayouts[chunk.gap]
       : layouts[Math.floor(Math.random() * layouts.length)];
     for (const lod of ['near', 'far']) {
@@ -782,7 +830,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
       const metres = STATUES.clearance * speedAt(toppler) * MAX_SPEED_MULTIPLIER;
       clear.push([toppler - metres, toppler + metres]);
     }
-    if (run?.kind === 'forum') {
+    if (WIDE.includes(run?.kind)) {
       // Nothing where the outer lanes end and the runner may be moving in.
       const narrow = run.end - DISTRICTS.narrowBefore;
       const metres = DISTRICTS.laneChangeClear * speedAt(narrow) * MAX_SPEED_MULTIPLIER;
@@ -791,7 +839,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     obstacles.fill(chunk.slot, chunk, {
       empty: kind === 'T' || kind === 'X' || kind === 'side',
       clear,
-      openSquare: district === 'forum',
+      openSquare: WIDE.includes(district),
       // On steps: each piece stands on its own step, and nothing spans the lanes.
       stepped: steppedAt(distance, distance + L),
       floorAt: (d, x) => floorAt(d, x, run),
@@ -801,6 +849,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
         : district === 'theatre' ? (d) => theatreRules(d - run.start)
         : district === 'baths' ? (d) => bathsRules(d - run.start, d)
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
+        : district === 'palaestra' ? () => (Math.random() < PALAESTRA.rowShare ? PALAESTRA.obstacles : null) // calmer: fewer rows, none full
         : district === 'amphitheatre' ? (d) => (d - run.start < AMPHITHEATRE.exitAt + 4 ? null : undefined) // only its own, until the street beyond
         : undefined,
       lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
@@ -886,6 +935,8 @@ export function createTrack(scene, kit, villa = null, amph = null) {
         run = { kind: 'forum', start: d, end: d + L * (min + Math.floor(Math.random() * (max - min + 1))) };
       } else if (way === offerWay && offer === 'baths') {
         run = { kind: 'baths', start: d, end: d + BATHS_LENGTH };
+      } else if (way === offerWay && offer === 'palaestra') {
+        run = { kind: 'palaestra', start: d, end: d + PALAESTRA.chunks * L };
       } else if (way === offerWay && offer === 'amphitheatre') {
         run = amphRun = { kind: 'amphitheatre', start: d, end: d + AMPHITHEATRE.chunks * L };
         amphitheatre.place(start, angle, run);
@@ -948,6 +999,12 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     }
     if (villaRun && chosen.run !== villaRun) villaRun.declined = true;
     if (amphRun && chosen.run !== amphRun) amphRun.declined = true;
+    if (chosen.run?.kind === 'palaestra' && amphitheatre && !amphRun) {
+      // The amphitheatre stands beyond its east wall (only to look at).
+      amphBeyond = chosen.run;
+      const [x, z] = PALAESTRA.amphitheatreAt;
+      amphitheatre.showAt(frameAt(chosen.run.start).multiply(new THREE.Matrix4().makeTranslation(x, 0, -z)));
+    }
     if (chosen.run?.kind === 'amphitheatre') steps.push({ from: chosen.run.start, to: chosen.run.end, floor: (rel) => amphFloor(rel) });
     junction = null;
     exits = null;
@@ -977,7 +1034,8 @@ export function createTrack(scene, kit, villa = null, amph = null) {
       forum: fits(maxForum * L),
       theatre: (!theatreUsed || !THEATRE.oncePerRun) && !theatreRun && fits(ROUTE.length),
       baths: fits(BATHS_LENGTH),
-      amphitheatre: Boolean(amphitheatre) && !amphRun && fits(AMPHITHEATRE.chunks * L),
+      amphitheatre: Boolean(amphitheatre) && !amphRun && !amphBeyond && fits(AMPHITHEATRE.chunks * L),
+      palaestra: fits(PALAESTRA.chunks * L),
     };
     if (DISTRICTS.only) return can[DISTRICTS.only] ? DISTRICTS.only : null;
     if (Math.random() >= DISTRICTS.offerChance) return null;
@@ -1025,6 +1083,7 @@ export function createTrack(scene, kit, villa = null, amph = null) {
     villaRun = null;
     amphitheatre?.hide();
     amphRun = null;
+    amphBeyond = null;
     pumice = null;
     finale = null;
     gate.hide();
@@ -1246,6 +1305,10 @@ export function createTrack(scene, kit, villa = null, amph = null) {
       if (amphRun && ((amphRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > amphRun.end + TRACK.chunksBehind * L)) {
         amphitheatre.hide();
         amphRun = null;
+      }
+      if (amphBeyond && playerDistance > amphBeyond.end + TRACK.chunksBehind * L) {
+        amphitheatre.hide();
+        amphBeyond = null;
       }
       // The theatre goes once it is behind (or once its way was not taken).
       if (theatreRun && ((theatreRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > theatreRun.end + TRACK.chunksBehind * L)) {
