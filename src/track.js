@@ -592,7 +592,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   const gateLayout = build(planGate(random));
   // The Stabian Baths: the model (villa.js) as one set piece, its street
   // front a little way into the run, its back street at the run's end.
-  const baths = bathsModel ? createSetPiece(world, bathsModel, 'baths', { ...BATHS, offset: BATHS.gateAt }) : null;
+  let baths = bathsModel ? createSetPiece(world, bathsModel, 'baths', { ...BATHS, offset: BATHS.gateAt }) : null;
   let bathsRun = null; // the baths on offer or being run through, or null
   let steamVents = []; // the baths' steam vents (path distances), once its way is taken
   const countryLayouts = {
@@ -606,9 +606,9 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   const shoreAt = (FINALE.boardAt + FINALE.beach.shore) % L;
   const shoreLayout = build([{ piece: 'Beach_Sand_30m', x: 0, z: 0, angle: 0, sz: shoreAt / L }]);
   const beach = createBeach(world, kit, frameAt);
-  const house = villa ? createSetPiece(world, villa, 'villa', VILLA) : null;
+  let house = villa ? createSetPiece(world, villa, 'villa', VILLA) : null;
   // The amphitheatre: its floor follows its route down to the arena and up again.
-  const amphRoute = amph?.route ?? [[0, 0]];
+  let amphRoute = amph?.route ?? [[0, 0]];
   const amphFloor = (rel) => {
     const z = rel - AMPHITHEATRE.gateAt;
     const i = amphRoute.findIndex(([at]) => at > z);
@@ -616,7 +616,8 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     const [z0, y0] = amphRoute[i - 1], [z1, y1] = amphRoute[i];
     return THREE.MathUtils.lerp(y0, y1, (z - z0) / (z1 - z0));
   };
-  const amphitheatre = amph ? createSetPiece(world, amph, 'amphitheatre', { ...AMPHITHEATRE, offset: AMPHITHEATRE.gateAt, floor: amphFloor, sceneryHides: ['grass', 'gravel'] }) : null;
+  const makeAmphitheatre = (model) => createSetPiece(world, model, 'amphitheatre', { ...AMPHITHEATRE, offset: AMPHITHEATRE.gateAt, floor: amphFloor, sceneryHides: ['grass', 'gravel'] });
+  let amphitheatre = amph ? makeAmphitheatre(amph) : null;
   let amphRun = null; // the amphitheatre on offer or being run through, or null
   let amphBeyond = null; // the palaestra run it is shown beside, or null
   // The obstacles of the set pieces on the way (tests, tools and the steam).
@@ -1093,6 +1094,17 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   return {
     world,
     reset,
+
+    // A set piece that finished loading after the start ('villa',
+    // 'amphitheatre' or 'baths'): from now on it can be offered.
+    addSetPiece(kind, model) {
+      if (kind === 'villa' && !house) house = createSetPiece(world, model, 'villa', VILLA);
+      if (kind === 'baths' && !baths) baths = createSetPiece(world, model, 'baths', { ...BATHS, offset: BATHS.gateAt });
+      if (kind === 'amphitheatre' && !amphitheatre) {
+        amphRoute = model.route ?? [[0, 0]];
+        amphitheatre = makeAmphitheatre(model);
+      }
+    },
     obstacles,
     statues,
 

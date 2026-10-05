@@ -64,15 +64,38 @@ setupSettings(audio.levels, {
   onOpenChange: (open) => (isPaused = open),
 });
 
+// Anything that goes wrong shows on screen (on a phone there is no console).
+const showProblem = (message) => {
+  let box = document.getElementById('problem');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'problem';
+    box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:99;padding:6px 8px;font:12px sans-serif;color:#fff;background:rgba(120,20,10,0.85);border-radius:6px;pointer-events:none';
+    document.body.appendChild(box);
+  }
+  box.textContent = `Problem: ${message}`;
+};
+window.addEventListener('error', (e) => showProblem(e.message));
+window.addEventListener('unhandledrejection', (e) => showProblem(e.reason?.message ?? String(e.reason)));
+
 setLoading(true);
-const [kit, character, villa, amphitheatre, baths] = await Promise.all([
-  loadKit(environment.envMap),
-  loadCharacter(environment.envMap),
-  loadVilla(environment.envMap),
-  loadAmphitheatre(environment.envMap),
-  loadBaths(environment.envMap),
-]);
-const track = createTrack(scene, kit, villa, amphitheatre, baths);
+const [kit, character] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap)]);
+const track = createTrack(scene, kit);
+// The big set pieces load after the start, one at a time (a phone has little
+// memory to spare); each can be offered once it is in. One that fails to
+// load is simply never offered.
+// (While testing one district, DISTRICTS.only, only its own set piece loads.)
+const SET_PIECES = [['baths', loadBaths], ['villa', loadVilla], ['amphitheatre', loadAmphitheatre]]
+  .filter(([kind]) => !DISTRICTS.only || kind === DISTRICTS.only || !['baths', 'villa', 'amphitheatre'].includes(DISTRICTS.only));
+(async () => {
+  for (const [kind, load] of SET_PIECES) {
+    try {
+      track.addSetPiece(kind, await load(environment.envMap));
+    } catch (error) {
+      showProblem(`${kind} did not load (${error.message})`);
+    }
+  }
+})();
 
 environment.addVolcano(kit);
 setLoading(false);
