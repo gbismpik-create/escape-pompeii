@@ -19,7 +19,7 @@ export const DISTRICTS = {
   offerChance: 0.6,
   weights: { forum: 3, theatre: 2, baths: 3, amphitheatre: 3, palaestra: 3 },
   seenWeight: 0.25, // a district already seen this run: its weight times this
-  only: 'baths', // tests only: always offer this district (null in the real game)
+  only: 'amphitheatre', // tests only: always offer this district (null in the real game)
   autoTake: true, // tests only: he turns down the way to it by himself (false in the real game)
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
   names: {
