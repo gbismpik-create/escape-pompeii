@@ -15,7 +15,11 @@ export const LANES = {
 export const DISTRICTS = {
   forumChance: 0.35, // chance a way out of a junction leads into the Forum (never twice running)
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
-  names: { residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)' },
+  names: {
+    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)',
+    // the finale (FINALE)
+    gate: 'Porta Stabia', tombs: 'The Tombs outside Porta Stabia', fields: 'The Road to Stabiae', beach: 'The Shore at Stabiae',
+  },
   gateOpen: 6, // metres into the Forum (past the entrance arch) where its name shows and the lanes widen
   forumLanes: 5, // lanes across the Forum (LANES.count elsewhere)
   narrowBefore: 20, // metres before the Forum's end where the lanes are back to LANES.count
@@ -506,6 +510,43 @@ export const STATUES = {
   pedestalHeight: 1.02, // the figure stands this high
   // The six gods (tools/build-statues.mjs); each has its own inscribed pedestal, 'Pedestal_<God>'.
   types: ['Statue_Apollo', 'Statue_Diana', 'Statue_Venus', 'Statue_Jupiter', 'Statue_Minerva', 'Statue_Mercury'],
+};
+
+// The finale (Escape mode): the last stretch of the journey, out of the city
+// by its south gate, Porta Stabia, along the road lined with tombs, through
+// vineyards and fields, to the shore at Stabiae and the boats. Lengths in
+// metres; the finale starts on a chunk boundary and the finish (where the
+// runner reaches the boats) moves to boardAt metres into it.
+export const FINALE = {
+  sections: [
+    { kind: 'gate', length: 30 }, // the last houses, then the city wall and the passage through it
+    { kind: 'tombs', length: 90 },
+    { kind: 'fields', length: 180 },
+    { kind: 'beach', length: 150 },
+  ],
+  boardAt: 430,
+  margin: 60, // no junction within this many metres before the finale
+  wallAt: 12, // the wall's inner face, metres into the gate chunk
+  wallDepth: 12, // and its thickness (the passage's length)
+  // The arch giving way: a great tufa lintel drops into the passage, just
+  // above a sliding runner. It shakes and sheds dust (warningTime), then
+  // falls (fallTime), timed to be down doneBefore seconds before he gets there.
+  collapse: {
+    at: 18, // metres into the gate chunk
+    warningTime: 0.9,
+    fallTime: 0.35,
+    doneBefore: 0.6,
+    dropFrom: 4, // metres above where it ends up
+    height: 1.25, // its underside above the floor when down (a sliding runner is 0.8 tall)
+    halfWidth: 3.2, // the passage
+    halfDepth: 0.55,
+    wobble: 0.04, // radians while it shakes
+  },
+  // Outside the walls the pumice thins out (it fell thickest on the town).
+  pumiceOutside: 0.25,
+  pumiceBeach: 0.08,
+  pumiceTaper: 40, // metres over which it thins
+  countryWidth: 45, // metres either side the pumice covers outside the walls
 };
 
 // The pumice fall (phase 2): grey pumice stones fill the streets, deeper and

@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -150,6 +150,26 @@ function onStatueLanded(position) {
   shake = Math.max(shake, STUMBLE.cameraShake * 0.4);
 }
 
+// ---- The finale ----
+const finaleLength = FINALE.sections.reduce((sum, s) => sum + s.length, 0);
+
+// Once the finale is laid the finish is at the boats: follow it.
+function followFinish() {
+  if (mode !== 'escape' || !track.finishDistance || track.finishDistance === journeyLength) return;
+  journeyLength = track.finishDistance;
+  setJourney(journeyLength);
+}
+
+// Porta Stabia's arch: dust while it shakes, a crash of stone when it lands.
+const gateEffects = {
+  onDust: (p) => falling.puff(p.x + (Math.random() - 0.5) * 4, p.y, p.z, 4),
+  onLand: (p) => {
+    falling.puff(p.x, p.y, p.z, 30);
+    audio.impact();
+    shake = STUMBLE.cameraShake * 2;
+  },
+};
+
 // ---- The pumice (phase 2) ----
 // Fixes where along the path the pumice starts, once that is near enough
 // (PUMICE.lockAhead): where phase 2 begins. In Escape mode that is a share
@@ -213,7 +233,7 @@ function turn(way) {
   if (mode === 'escape' && turnAngle) {
     // Move the sea before the new street is laid (see track.setFinish).
     const centre = track.junction.centre;
-    const length = Math.max(journeyLength + routeChangeFor(turnAngle), centre + JOURNEY.minAfterTurn);
+    const length = Math.max(journeyLength + routeChangeFor(turnAngle), centre + JOURNEY.minAfterTurn + finaleLength);
     showRouteChange(length - journeyLength);
     journeyLength = length;
     track.setFinish(length);
@@ -239,7 +259,7 @@ function updateJunction() {
   } else if (!queuedTurn && j.ways.includes('straight') && d >= j.centre + ROAD_HALF) {
     // Straight on: through a crossroads, or through the door of a house (a shortcut).
     if (j.villa && mode === 'escape') {
-      const length = Math.max(journeyLength - VILLA.shortcut, j.centre + VILLA.length + JOURNEY.minAfterTurn);
+      const length = Math.max(journeyLength - VILLA.shortcut, j.centre + VILLA.length + JOURNEY.minAfterTurn + finaleLength);
       showRouteChange(length - journeyLength);
       journeyLength = length;
       track.setFinish(length);
@@ -459,6 +479,7 @@ const CRASH_REASONS = {
   Cart: 'You ran into an abandoned cart',
   AmphoraStack: 'You ran into a stack of amphorae',
   FallenStatue: 'You tripped over a fallen statue',
+  GateCollapse: 'The gateway came down on you',
   Basket: 'You tripped over a basket',
   Scenery_Panel: 'You ran into fallen stage scenery',
   table: 'You ran into a marble table',
@@ -533,6 +554,8 @@ renderer.setAnimationLoop((timestamp) => {
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     updatePumice();
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
+    followFinish();
+    track.gate.update(dt, currentDistance(), currentSpeed(), gateEffects);
     updateDistance(currentDistance());
     updateDistrict();
     crowds.update(dt, currentDistance(), currentSpeed(), (d) => track.districtAt(d) === 'forum', player.hitbox, onBump);

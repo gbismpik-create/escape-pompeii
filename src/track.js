@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE } from './config.js';
+import { createGateCollapse } from './gate.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
 import { createObstacles } from './obstacles.js';
 import { createStatues } from './statues.js';
@@ -45,6 +46,7 @@ const CENTRE = L - SQUARE / 2; // the junction's centre line, from the chunk sta
 // (forward and poseOn, the path maths, are in path.js.)
 const QUARTER = Math.PI / 2;
 const ROUTE = theatreRoute();
+const FINALE_LENGTH = FINALE.sections.reduce((sum, s) => sum + s.length, 0);
 // A small seeded random generator, so layouts are the same every visit.
 function seeded(seed) {
   let s = seed;
@@ -156,6 +158,25 @@ function planForum(random, { temple = 0, gate = null } = {}) {
   if (gate === 'out') placements.push({ piece: 'Forum_Gate', x: 0, z: L - 0.7, angle: Math.PI });
   // Where a statue or column that may topple can stand (statues.js).
   placements.free = [-1, 1].flatMap((side) => [4, 10, 16, 22].map((z) => ({ side, z })));
+  return placements;
+}
+
+// The finale's first chunk, in kit space: the last houses of the town, then
+// the city wall across the street with Porta Stabia's passage through it,
+// and the road out beyond.
+function planGate(random) {
+  const placements = [
+    { piece: 'Road_30m', x: 0, z: 0, angle: 0 },
+    { piece: 'Kerbs_30m', x: 0, z: 0, angle: 0, sz: FINALE.wallAt / L },
+    { piece: 'Porta_Stabia', x: 0, z: FINALE.wallAt, angle: 0 },
+  ];
+  for (const side of [-1, 1]) {
+    let previous = null;
+    for (let i = 0; i * KIT.houseWidth < FINALE.wallAt; i++) {
+      const house = (previous = pickHouse(random, previous));
+      placements.push({ piece: house, x: side * KIT.facadeX, z: KIT.houseWidth * (i + 0.5), angle: -side * Math.PI / 2 });
+    }
+  }
   return placements;
 }
 
@@ -296,18 +317,21 @@ function createPumiceMesh(material) {
   const noise = (x, z) => { const h = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return h - Math.floor(h); };
   return {
     mesh,
-    // distance: where the chunk starts along the path.
-    update(distance, depthAt) {
+    // distance: where the chunk starts along the path; halfWidth: how far
+    // it reaches either side (the street, or the open country outside the walls).
+    update(distance, depthAt, halfWidth = PUMICE.halfWidth) {
       let deepest = 0;
       const position = geometry.attributes.position, color = geometry.attributes.color;
       for (let j = 0; j < PUMICE_ALONG; j++) {
         const depth = depthAt(j * PUMICE_STEP);
         deepest = Math.max(deepest, depth);
         for (let i = 0; i < PUMICE_ACROSS; i++) {
-          const x = THREE.MathUtils.lerp(-PUMICE.halfWidth, PUMICE.halfWidth, i / (PUMICE_ACROSS - 1));
+          // (points crowd towards the middle, where the runner sees them close up)
+          const u = (i / (PUMICE_ACROSS - 1)) * 2 - 1;
+          const x = halfWidth * Math.sign(u) * Math.abs(u) ** (halfWidth > PUMICE.halfWidth ? 2.5 : 1);
           const n = noise(x, Math.round(distance / PUMICE_STEP) + j);
           // Drifts piled against the house fronts (barely under the lanes).
-          const drift = PUMICE.drift * (Math.abs(x) / PUMICE.halfWidth) ** 4;
+          const drift = halfWidth > PUMICE.halfWidth ? 0 : PUMICE.drift * (Math.abs(x) / PUMICE.halfWidth) ** 4;
           // Just under the road where there is none yet; lumpy where there is.
           const lumps = depth > 0.1 ? (n - 0.5) * 2 * PUMICE.lumps : 0;
           position.setXYZ(j * PUMICE_ACROSS + i, x, depth - 0.05 + lumps + (depth / PUMICE.depth) * drift, j * PUMICE_STEP);
@@ -475,6 +499,9 @@ export function createTrack(scene, kit, villa = null) {
   // (the kit's -1 side); turning right, on its left (+1).
   const gapLayouts = { left: build(planLayout(random, { gap: -1 })), right: build(planLayout(random, { gap: 1 })) };
   const backLaneLayout = build(planLayout(random, { from: VILLA.length % L }));
+  // The finale: Porta Stabia, then (for now) the open road beyond.
+  const gateLayout = build(planGate(random));
+  const gate = createGateCollapse(world, kit, frameAt, (d, x) => floorAt(d, x));
   const house = villa ? createVillaPiece(world, villa) : null;
   let villaRun = null; // the house on offer or being run through, or null
   let villaLast = false; // the last junction had the house (never two running)
@@ -526,7 +553,17 @@ export function createTrack(scene, kit, villa = null) {
   const free = Array.from({ length: slotCount }, (_, slot) => createSlot(slot));
   // The pumice: { start, length } along the path once fixed (main.js), or null.
   let pumice = null;
-  const pumiceAt = (d) => (pumice ? PUMICE.depth * THREE.MathUtils.smoothstep(d, pumice.start, pumice.start + pumice.length) : 0);
+  function pumiceAt(d) {
+    if (!pumice) return 0;
+    let depth = PUMICE.depth * THREE.MathUtils.smoothstep(d, pumice.start, pumice.start + pumice.length);
+    if (finale) {
+      // Outside the walls it thins: a layer on the fields, a crust on the beach.
+      const k = (from, to, a) => THREE.MathUtils.lerp(from, to, THREE.MathUtils.smoothstep(d, a, a + FINALE.pumiceTaper));
+      const outside = k(PUMICE.depth, FINALE.pumiceOutside, finale.gateExit);
+      depth = Math.min(depth, k(outside, FINALE.pumiceBeach, finale.beach));
+    }
+    return depth;
+  }
   // Does a district's run (ending at path distance `to`) end before the pumice starts?
   const beforePumice = (to) => !pumice || to < pumice.start;
   let path = []; // chunks in order along the path
@@ -538,6 +575,21 @@ export function createTrack(scene, kit, villa = null) {
   let junction = null; // the junction chunk waiting for a choice
   let nextJunction = Infinity; // path distance where the next junction chunk starts
   let finishDistance = null;
+  // The finale once it is laid: { start, gateExit, beach, sections: [{ kind, start, end }] }.
+  let finale = null;
+  // Where the finale would start for a finish: on a chunk boundary, FINALE_LENGTH before it.
+  const finaleStartFor = (finish) => Math.ceil((finish - FINALE_LENGTH) / L) * L;
+  function layFinale(start) {
+    let at = start;
+    const sections = FINALE.sections.map(({ kind, length }) => ({ kind, start: at, end: (at += length) }));
+    sections[sections.length - 1].end = Infinity; // the shore goes on past the boats
+    finale = { start, sections, gateExit: start + FINALE.wallAt + FINALE.wallDepth, beach: sections.find((s) => s.kind === 'beach').start };
+    // The finish moves to the boats.
+    finishDistance = start + FINALE.boardAt;
+    finishIndex = Infinity;
+    obstacles.setLastRow(finishDistance - JOURNEY.finishClearDistance);
+  }
+  const finaleSectionAt = (d) => finale.sections.find((s) => d >= s.start && d < s.end);
   let finishIndex = Infinity; // first open chunk (Escape mode)
   // Where the next chunk on the path goes (and the Forum it is in, if any).
   const cursor = { position: new THREE.Vector3(), angle: 0, distance: 0, run: null };
@@ -595,6 +647,7 @@ export function createTrack(scene, kit, villa = null) {
       : kind === 'open' ? openLayout
       : district === 'theatre' ? emptyLayout
       : district === 'villa' ? (distance === run.end - L ? backLaneLayout : emptyLayout)
+      : kind === 'finale' ? (district === 'gate' ? gateLayout : openLayout)
       : district === 'forum' ? forumLayout(distance, run)
       : chunk.gap ? gapLayouts[chunk.gap]
       : layouts[Math.floor(Math.random() * layouts.length)];
@@ -606,7 +659,8 @@ export function createTrack(scene, kit, villa = null) {
       }
     }
     chunk.lods.shadow.userData.mesh.geometry = layout.shadow;
-    chunk.pumice.update(distance, (z) => pumiceAt(distance + z));
+    chunk.pumice.update(distance, (z) => pumiceAt(distance + z), kind === 'finale' && district !== 'gate' ? FINALE.countryWidth : PUMICE.halfWidth);
+    if (district === 'gate') gate.place(distance + FINALE.collapse.at);
     // A statue, if one is due here. One that may topple keeps the road
     // around where it would land clear of obstacle rows.
     const toppler = kind === 'street' || kind === 'T' || kind === 'X' || kind === 'forum' ? statues.place(chunk, layout.free) : null;
@@ -630,7 +684,8 @@ export function createTrack(scene, kit, villa = null) {
       // On steps: each piece stands on its own step, and nothing spans the lanes.
       stepped: steppedAt(distance, distance + L),
       floorAt,
-      rulesAt: district === 'theatre' ? (d) => theatreRules(d - run.start)
+      rulesAt: district === 'gate' ? () => null // only the arch coming down
+        : district === 'theatre' ? (d) => theatreRules(d - run.start)
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
         : undefined,
       lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
@@ -656,7 +711,9 @@ export function createTrack(scene, kit, villa = null) {
     const chunk = free.pop();
     if (!chunk) return false;
     const d = cursor.distance;
-    const run = cursor.run && d < cursor.run.end ? cursor.run : null;
+    if (finishDistance && !finale && d >= finaleStartFor(finishDistance)) layFinale(d);
+    const section = finale && d >= finale.start ? finaleSectionAt(d) : null;
+    const run = section ?? (cursor.run && d < cursor.run.end ? cursor.run : null);
     // Past the theatre, wait to lay the street until the runner is inside it,
     // so the street (which leads away round the far side) never shows
     // through the junction he came from.
@@ -664,7 +721,7 @@ export function createTrack(scene, kit, villa = null) {
       free.push(chunk);
       return false;
     }
-    const kind = d >= finishIndex * L ? 'open' : run ? run.kind : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
+    const kind = section ? 'finale' : d >= finishIndex * L ? 'open' : run ? run.kind : d === nextJunction ? (Math.random() < TURNS.crossroadsChance ? 'X' : 'T') : 'street';
     // Tests only: a stepped stretch every fourth pair of chunks.
     if (TRACK.testSteps && Math.round(d / L) % 8 === 4) steps.push({ from: d, to: d + 2 * L, heights: TRACK.testSteps });
     // A curve (k ≠ 0): the path bends through this chunk.
@@ -675,6 +732,7 @@ export function createTrack(scene, kit, villa = null) {
     if (kind === 'T' || kind === 'X') villaLast = chunk.villa;
     placeChunk(chunk, cursor.position, cursor.angle, d, kind, run ? run.kind : 'residential', run);
     path.push(chunk);
+    if (section) cursor.run = null;
     // Where the next chunk starts: along the straight or round the curves.
     cursor.angle = pose(d + L, cursor.position);
     cursor.distance += L;
@@ -697,7 +755,7 @@ export function createTrack(scene, kit, villa = null) {
       // Where this way leads: sometimes into the theatre (once a run, if it
       // ends well before the sea), or the Forum (never twice running).
       const d = cursor.distance;
-      const theatreFits = (!finishDistance || d + ROUTE.length + TURNS.finishMargin < finishDistance) && beforePumice(d + ROUTE.length);
+      const theatreFits = (!finishDistance || d + ROUTE.length < lastJunctionBefore()) && beforePumice(d + ROUTE.length);
       let run = null;
       if (chunk.villa && way === 'straight') {
         // Straight on: through the house's door, down its rooms, out of the back door.
@@ -763,13 +821,15 @@ export function createTrack(scene, kit, villa = null) {
   // Is there room for the house before the sea, after a junction at d?
   const villaFits = (d) => {
     const end = d + 2 * L + Math.ceil(VILLA.length / L) * L;
-    return beforePumice(end) && (!finishDistance || end + TURNS.finishMargin < finishDistance);
+    return beforePumice(end) && (!finishDistance || end < lastJunctionBefore());
   };
 
   function planNextJunction(from) {
     nextJunction = TURNS.enabled ? nextJunctionAfter(from, randomInterval()) : Infinity;
-    if (finishDistance && nextJunction + L > finishDistance - TURNS.finishMargin) nextJunction = Infinity;
+    if (finishDistance && nextJunction + L > lastJunctionBefore()) nextJunction = Infinity;
   }
+  // No junction (or district) reaches past this: the finale and a margin before it.
+  const lastJunctionBefore = () => (finale ? finale.start : finishDistance - FINALE_LENGTH) - FINALE.margin;
 
   // finish: where the run ends (Escape mode), or null (Endless).
   function reset(finish = null) {
@@ -794,6 +854,8 @@ export function createTrack(scene, kit, villa = null) {
     house?.hide();
     villaRun = null;
     pumice = null;
+    finale = null;
+    gate.hide();
     villaLast = false;
     placeWorld(0);
     cursor.run = null;
@@ -802,7 +864,7 @@ export function createTrack(scene, kit, villa = null) {
     statues.reset();
     planNextJunction(0);
     nextJunction = TURNS.enabled ? Math.max(nextJunction, nextJunctionAfter(0, TURNS.firstAfter)) : Infinity;
-    if (finishDistance && nextJunction + L > finishDistance - TURNS.finishMargin) nextJunction = Infinity;
+    if (finishDistance && nextJunction + L > lastJunctionBefore()) nextJunction = Infinity;
     for (let i = 0; i < TRACK.chunksBehind + 1 + TRACK.chunksAhead && !junction; i++) extend();
   }
 
@@ -841,7 +903,7 @@ export function createTrack(scene, kit, villa = null) {
     // runner's own street that is exactly the scene, so his hitbox can be
     // used as it is, on straights, after turns and round curves alike.
     findCollision(hitbox) {
-      return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null);
+      return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? gate.findCollision(hitbox) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null);
     },
 
     // The rich house's own obstacles while it is on the path (tests and tools).
@@ -855,6 +917,14 @@ export function createTrack(scene, kit, villa = null) {
 
     // The pumice depth at a path distance (0 before it starts).
     pumiceAt,
+
+    // Porta Stabia's arch (the finale): update(dt, playerDistance, speed, callbacks).
+    gate,
+
+    // Where the run ends (Escape mode): it moves to the boats once the finale is laid.
+    get finishDistance() {
+      return finishDistance;
+    },
 
     // Fixes where the pumice starts (path distance) and over how many metres
     // it rises. Never under street already laid, nor inside a district run
@@ -939,6 +1009,7 @@ export function createTrack(scene, kit, villa = null) {
     // from it). Only the path not laid yet changes, so call this before
     // take(): the new street is laid after the turn.
     setFinish(finish) {
+      if (finale) return; // laid: the finish is at the boats
       finishDistance = finish;
       finishIndex = Math.floor(finish / L);
       obstacles.setLastRow(finish - JOURNEY.finishClearDistance);

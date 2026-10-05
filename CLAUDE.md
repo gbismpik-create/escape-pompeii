@@ -30,7 +30,7 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-Rooftops.
+The finale: Porta Stabia, the tombs road, vineyards and fields, the beach at Stabiae, end screen with epilogue.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
@@ -39,4 +39,4 @@ From the GAME_DESIGN.md build order:
 - Rescued followers
 - Gladiator barracks courtyard with gladiator followers (last step of the theatre district)
 - Villa: tighter random obstacle rows inside the house
-- Outside the walls: tombs road, fields, beach finale
+- Rooftops, steps 2–4: rubble ramp onto the roofs, gaps, washing lines, roof crossings at junctions, collapsing roofs in phase 3 (step 1, the pumice, is built)

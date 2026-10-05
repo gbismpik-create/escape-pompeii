@@ -1092,6 +1092,68 @@ function rubble(P, cx, cz, w, h, n) {
   pieces.push(P);
 }
 
+// ================================================================== PORTA STABIA (the south gate) and its collapsing arch
+// The city wall across the street with a vaulted passage through it, in
+// kit space: the wall's inner face at z = 0, its outer face at z = DEPTH.
+// Opus incertum (lava and limestone pieces in mortar) with tufa blocks
+// round the arch and framing the passage, a walkway with merlons on top.
+{
+  const P = new Piece('Porta_Stabia');
+  const HALF = 3.2, SPRING = 4.4, TOP = 9.0, DEPTH = 12, SPAN = 26;
+  const incertum = (p) => {
+    const cell = vnoise(p.x * 1.6 + p.z * 0.7, p.y * 1.6, p.z * 1.6 - p.x * 0.3);
+    const joint = Math.abs(fbm(p.x * 2.2 + 3, p.y * 2.2, p.z * 2.2) - 0.5) < 0.035;
+    if (joint) return COL.mortar.clone().lerp(COL.limeDk, 0.4);
+    const base = cell > 0.62 ? COL.lime : cell > 0.38 ? COL.rock : COL.basaltLt;
+    return dustUp(base.clone().multiplyScalar(0.85 + 0.3 * vnoise(p.x * 7, p.y * 7, p.z * 7)), p.y, 1.6, 0.35);
+  };
+  const tuffBlocks = (p) => COL.tuff.clone().multiplyScalar(0.85 + 0.12 * (Math.floor(p.y / 0.55) % 2) + 0.1 * fbm(p.x * 4, p.y * 4, p.z * 4));
+  // the wall either side of the passage
+  for (const s of [-1, 1]) {
+    P.add(xf(block(SPAN - HALF, TOP + 0.5, DEPTH, 0.05), [s * (HALF + SPAN) / 2, -0.5, DEPTH / 2]), 'stone', { colorFn: incertum, noise: 0.06 });
+    // tufa blocks framing the passage on both faces
+    for (const z of [-0.08, DEPTH + 0.08]) P.add(xf(block(1.1, SPRING + 0.5, 0.3, 0.02), [s * (HALF + 0.55), -0.5, z]), 'stone', { colorFn: tuffBlocks, noise: 0.05 });
+  }
+  // above the arch: solid wall with the vault cut out of its underside
+  const over = new THREE.Shape();
+  over.moveTo(-HALF, SPRING);
+  over.absarc(0, SPRING, HALF, Math.PI, 0, true);
+  over.lineTo(HALF, TOP);
+  over.lineTo(-HALF, TOP);
+  over.lineTo(-HALF, SPRING);
+  P.add(new THREE.ExtrudeGeometry(over, { depth: DEPTH, bevelEnabled: false, curveSegments: 20 }), 'stone', { colorFn: incertum, noise: 0.06 });
+  // voussoirs: a ring of tufa blocks round the arch on both faces
+  const N = 15;
+  for (const z of [-0.12, DEPTH + 0.12]) for (let i = 0; i < N; i++) {
+    const a = (Math.PI * (i + 0.5)) / N, r = HALF + 0.45;
+    P.add(xf(block(0.62, 0.9, 0.34, 0.03), [Math.cos(a) * r, SPRING + Math.sin(a) * r - 0.45, z], [0, 0, a - Math.PI / 2]), 'stone', { colorFn: tuffBlocks, noise: 0.06 });
+  }
+  // walkway with merlons along the top, on its inner and outer edges
+  for (const z of [0.3, DEPTH - 0.3]) for (let x = -SPAN + 1; x <= SPAN - 1; x += 2.2) {
+    P.add(xf(block(1.3, 1.1, 0.6, 0.03), [x, TOP, z]), 'stone', { colorFn: incertum, noise: 0.06 });
+  }
+  // cracks spreading from the crown of the arch: where it will give way
+  for (const z of [-0.3, DEPTH + 0.3]) for (const x of [-1.1, 0.4, 1.5]) {
+    P.add(xf(new THREE.PlaneGeometry(0.07, 1.7), [x, SPRING + HALF + 0.4, z], [0, 0, 0.35 * Math.sign(x)]), 'stone', { color: COL.mortar, noise: 0.05 });
+  }
+  pieces.push(P);
+}
+{
+  // The section of the arch that gives way: a great lintel of tufa wedged
+  // across the passage, with broken voussoirs and rubble on it. Its
+  // underside is at y = 0 (the game drops it to just above a sliding runner).
+  const P = new Piece('Gate_Collapse');
+  const tuff = (p) => COL.tuff.clone().multiplyScalar(0.8 + 0.25 * fbm(p.x * 3, p.y * 3, p.z * 3));
+  P.add(xf(block(6.7, 0.9, 1.1, 0.06, 2), [0, 0, 0], [0, 0, 0.05]), 'stone', { colorFn: tuff, noise: 0.08 });
+  for (const [x, a] of [[-2.2, 0.5], [-0.6, -0.2], [0.9, 0.35], [2.4, -0.45]]) {
+    P.add(xf(block(0.62, 0.9, 0.36, 0.03), [x, 0.85, rr(-0.2, 0.2)], [rr(-0.2, 0.2), 0, a]), 'stone', { colorFn: tuff, noise: 0.06 });
+  }
+  for (let i = 0; i < 26; i++) {
+    P.add(xf(new THREE.IcosahedronGeometry(rr(0.08, 0.22), 0), [rr(-3, 3), rr(0.85, 1.3), rr(-0.5, 0.5)]), 'stone', { color: (i % 3 ? COL.lime : COL.rock).clone().multiplyScalar(rr(0.75, 1)), noise: 0.1 });
+  }
+  pieces.push(P);
+}
+
 // ================================================================== EXPORT
 const scene = new THREE.Scene();
 let total = 0;
