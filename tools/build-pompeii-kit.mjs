@@ -1344,6 +1344,77 @@ function lump(rx, ry, rz, bump = 0.12, detail = 2) {
   pieces.push(P);
 }
 
+// ================================================================== THE SHORE AT STABIAE (the finale's end)
+// Sand right across the road's line, low dunes with tufts of grass further
+// out; boats drawn up on the beach; the fleet's galleys offshore. Kit space
+// as for the street (+z along the way, towards the sea).
+{
+  const P = new Piece('Beach_Sand_30m');
+  P.add(grid(24, 10, (u, v) => {
+    const x = lerp(-50, 50, u), z = v * 30, side = Math.abs(x);
+    const dune = side > 12 ? 1.6 * smooth((side - 12) / 20) * (0.6 + 0.6 * fbm(x * 0.07, 0, z * 0.07)) : 0;
+    return V(x, -0.02 + dune + 0.06 * vnoise(x * 0.4, 0, z * 0.4), z);
+  }), 'stone', {
+    colorFn: (p) => C(0xb5a588).lerp(C(0x8f8470), 0.4 * fbm(p.x * 0.2, 0, p.z * 0.2)).multiplyScalar(0.9 + 0.15 * vnoise(p.x * 3, 1, p.z * 3)),
+    noise: 0.08, freq: 2,
+  });
+  // tufts of beach grass on the dunes
+  for (let i = 0; i < 40; i++) {
+    const s = rnd() < 0.5 ? -1 : 1, x = s * rr(14, 40), z = rr(0, 30);
+    P.add(xf(new THREE.ConeGeometry(rr(0.25, 0.45), rr(0.4, 0.7), 5), [x, 0.6 + 1.2 * smooth((Math.abs(x) - 12) / 20), z]), 'plaster', { color: C(0x5d6a3c).multiplyScalar(rr(0.7, 1)), noise: 0.2 });
+  }
+  pieces.push(P);
+}
+// A hull along +z (bow at +z): half-round section, rising sheer at both
+// ends; length L, beam B, depth D. Returns the planks as a geometry.
+function hull(L, B, D, segs = 20) {
+  return grid(segs, 8, (u, v) => {
+    const z = (u - 0.5) * L, t = Math.abs(u - 0.5) * 2;
+    const beam = B / 2 * Math.sqrt(Math.max(0, 1 - t ** 2.2)) + 0.02;
+    const a = v * Math.PI; // from one gunwale under the keel to the other
+    const sheer = D * (1 + 0.35 * t ** 2);
+    return V(Math.cos(a) * beam, sheer - Math.sin(a) * D * (1 - 0.3 * t), z);
+  });
+}
+{
+  // A small fishing boat drawn up on the sand, about 6 m: planked hull, a
+  // deck of boards, thwarts, two oars shipped, a short mast.
+  const P = new Piece('Boat_Small');
+  const L = 6, B = 1.9, D = 0.75;
+  P.add(hull(L, B, D), 'wood', { colorFn: (p) => (p.y < 0.35 ? C(0x2b231d) : COL.wood.clone().lerp(COL.woodLt, 0.4 * vnoise(p.x * 3, p.y * 12, p.z))), noise: 0.12, freq: 8 });
+  P.add(xf(new THREE.BoxGeometry(B * 0.8, 0.05, L * 0.75), [0, 0.52, 0]), 'wood', { color: COL.woodLt, noise: 0.15, freq: 10 }); // the deck the runner lands on
+  for (const z of [-1.4, 0.2, 1.6]) P.add(xf(new THREE.BoxGeometry(B * 0.85, 0.06, 0.25), [0, 0.8, z]), 'wood', { color: COL.woodDk });
+  for (const s of [-1, 1]) P.add(xf(new THREE.CylinderGeometry(0.035, 0.035, 4, 5), [s * 0.6, 0.9, 0], [Math.PI / 2, 0, s * 0.05]), 'wood', { color: COL.woodLt });
+  P.add(xf(new THREE.CylinderGeometry(0.06, 0.07, 3.2, 6), [0, 2.3, 0.9]), 'wood', { color: COL.woodDk });
+  // eyes painted on the bow, against bad luck
+  for (const s of [-1, 1]) P.add(xf(new THREE.CircleGeometry(0.1, 8), [s * 0.42, 0.95, L / 2 - 0.55], [0, s * 1.2, 0]), 'plaster', { color: C(0xe8e0d0) });
+  pieces.push(P);
+}
+{
+  // A war galley of the fleet at Misenum (a quadrireme), about 30 m: a long
+  // dark hull with a bronze ram, two banks of oars a side, a curved stern
+  // post, a mast with its sail furled on the yard.
+  const P = new Piece('Galley');
+  const L = 30, B = 4.6, D = 2.2;
+  P.add(hull(L, B, D, 36), 'wood', { colorFn: (p) => (p.y < 0.9 ? C(0x1f1a17) : p.y > D - 0.35 ? COL.pompRedDk.clone() : C(0x4b3a2c).multiplyScalar(0.85 + 0.25 * vnoise(p.z * 2, p.y * 6, 0))), noise: 0.1 });
+  P.add(xf(new THREE.BoxGeometry(B * 0.9, 0.12, L * 0.85), [0, D - 0.1, 0]), 'wood', { color: COL.wood });
+  P.add(xf(new THREE.ConeGeometry(0.45, 2.4, 4), [0, 0.5, L / 2 + 0.9], [-Math.PI / 2, Math.PI / 4, 0]), 'metal', { color: COL.bronze }); // the ram
+  // the stern post curling up and forward (the aplustre)
+  const curl = [];
+  for (let i = 0; i <= 10; i++) { const a = (i / 10) * Math.PI * 1.2; curl.push(V(0, D + 0.6 + Math.sin(a) * 2.2, -L / 2 - 0.3 + (1 - Math.cos(a)) * 1.3 - 1.3)); }
+  P.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(curl), 16, 0.16, 6), 'wood', { color: C(0x4b3a2c) });
+  // oars: two banks a side, dipping to the water
+  for (const s of [-1, 1]) for (const bank of [0, 1]) for (let i = 0; i < 16; i++) {
+    const z = -L * 0.36 + i * (L * 0.72 / 15) + bank * 0.4;
+    P.add(xf(new THREE.BoxGeometry(0.07, 0.07, 6), [s * (B / 2 + 2.4 + bank * 0.5), D - 1.0 - bank * 0.3, z], [0, Math.PI / 2, s * (0.45 + bank * 0.1)]), 'wood', { color: COL.woodLt });
+  }
+  // mast, yard and furled sail
+  P.add(xf(new THREE.CylinderGeometry(0.16, 0.2, 13, 8), [0, D + 6.5, 2]), 'wood', { color: COL.woodDk });
+  P.add(xf(new THREE.CylinderGeometry(0.12, 0.12, 14, 6), [0, D + 11.5, 2], [0, 0, Math.PI / 2]), 'wood', { color: COL.woodDk });
+  P.add(xf(new THREE.CylinderGeometry(0.35, 0.35, 12.5, 8), [0, D + 11.1, 2], [0, 0, Math.PI / 2]), 'cloth', { color: C(0xd8ccb0), noise: 0.15 });
+  pieces.push(P);
+}
+
 // ================================================================== EXPORT
 const scene = new THREE.Scene();
 let total = 0;

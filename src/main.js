@@ -162,6 +162,27 @@ function followFinish() {
   setJourney(journeyLength);
 }
 
+// The shore: he leaps into the boat ahead of his lane, stops on its deck,
+// and the boat pulls away from the beach with him aboard.
+let boardJumped = false;
+let sailing = null; // { boat, time } while the boat pulls away
+const BEACH = FINALE.beach;
+function updateBoarding() {
+  if (mode !== 'escape' || boardJumped || !track.finishDistance) return;
+  const stern = track.finishDistance + BEACH.boatAt - BEACH.boatLength / 2;
+  if (currentDistance() >= stern - currentSpeed() * BEACH.jumpTime && track.districtAt(currentDistance()) === 'beach') {
+    boardJumped = true;
+    shield.lower(); // (a raised shield would stop the leap)
+    player.handleAction('jump');
+  }
+}
+// The final sprint over the sand: the surge closes in behind.
+function pressSurge() {
+  if (mode !== 'escape' || track.districtAt(currentDistance()) !== 'beach') return;
+  const left = track.finishDistance - currentDistance();
+  surge.press(BEACH.surgePress * THREE.MathUtils.clamp(1 - left / 120, 0, 1));
+}
+
 // Porta Stabia's arch: dust while it shakes, a crash of stone when it lands.
 const gateEffects = {
   onDust: (p) => falling.puff(p.x + (Math.random() - 0.5) * 4, p.y, p.z, 4),
@@ -392,6 +413,8 @@ function restart() {
   cameraFloor = 0;
   isGameOver = false;
   isFinishing = false;
+  boardJumped = false;
+  sailing = null;
   queuedTurn = null;
   turnFrom = turnYaw = 0;
   player.setTurn(0);
@@ -544,11 +567,30 @@ renderer.setAnimationLoop((timestamp) => {
     setAshFade(surge.caughtProgress);
     if (surge.caughtProgress >= 1) gameOver('The surge caught up with you');
   } else if (isFinishing) {
-    // Past the line: ease to a stop, then the end screen.
-    stopProgress = Math.min(1, stopProgress + dt / JOURNEY.stopTime);
-    player.update(dt, environment.phase.speedMultiplier * (1 - stopProgress) ** 2);
-    track.update(player.object.position.z, environment.fogDistance);
-    if (stopProgress >= 1) showEndScreen();
+    // The surge drops back behind: he has got away.
+    surge.update(dt, player.object.position, environment.phase.surgeVisibility);
+    if (sailing) {
+      // The boat pulls away from the shore with him aboard.
+      sailing.time += dt;
+      const speed = BEACH.sailSpeed * Math.min(1, sailing.time / 1.2);
+      player.object.position.z -= track.beach.update(dt, speed);
+      player.object.position.y = BEACH.deck + sailing.boat.position.y;
+      player.tick(dt);
+      track.update(player.object.position.z, environment.fogDistance);
+      if (sailing.time >= BEACH.sailTime) showEndScreen();
+    } else {
+      // Past the line: ease to a stop (on the boat's deck), then the boat pushes off.
+      stopProgress = Math.min(1, stopProgress + dt / (boardJumped ? BEACH.stopTime : JOURNEY.stopTime));
+      player.update(dt, environment.phase.speedMultiplier * (1 - stopProgress) ** 2);
+      track.update(player.object.position.z, environment.fogDistance);
+      track.beach.update(dt);
+      if (stopProgress >= 1 && player.isGrounded) {
+        if (boardJumped) {
+          player.settle();
+          sailing = { boat: track.beach.depart(player.object.position.x), time: 0 };
+        } else showEndScreen();
+      }
+    }
   } else {
     runTime += dt;
     const { speedMultiplier, envIntensity } = environment.phase;
@@ -585,6 +627,9 @@ renderer.setAnimationLoop((timestamp) => {
     // Nothing new falls on the last stretch before the sea.
     const nearFinish = mode === 'escape' && currentDistance() > journeyLength - JOURNEY.finishClearDistance;
     falling.update(dt, nearFinish ? 0 : environment.phase.fallRate, speed * shield.speedFactor, fallingTarget);
+    updateBoarding();
+    pressSurge();
+    track.beach.update(dt);
     surge.update(dt, player.object.position, environment.phase.surgeVisibility);
     if (mode === 'escape' && currentDistance() >= journeyLength && !isGameOver && !isCaught) startFinish();
   }

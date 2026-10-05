@@ -98,6 +98,12 @@ export function createSurge(scene) {
       return caught;
     },
 
+    // The final sprint: keeps the cloud at least this close behind (0 = as
+    // usual, 1 = right behind). It never catches him by itself.
+    press(k) {
+      gap = Math.min(gap, THREE.MathUtils.lerp(SURGE.farGap, SURGE.stumbleGap, k));
+    },
+
     reset() {
       gap = SURGE.farGap;
       lastStumble = -Infinity;

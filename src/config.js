@@ -557,6 +557,27 @@ export const FINALE = {
   tombsX: 4.3, // the tombs' fronts
   tombSpacing: [6.5, 9], // metres between tombs along the road
   vineRows: { from: 8, to: 32, every: 2.6 },
+  // The shore: boats drawn up on the sand, one ahead of each lane, the sea
+  // just beyond. Metres from the finish (where the runner reaches the boats).
+  beach: {
+    shore: 4.5, // the waterline, past the finish
+    boatLength: 6, boatAt: 0.8, // each lane's boat: its middle just past the finish
+    deck: 0.55, // the boat's deck above the sand
+    sprintClear: 60, // no obstacles in the last metres: the final sprint
+    obstacles: { fullRowChance: 0, lane: { AmphoraStack: 1, Basket: 1, Rubble: 1 } },
+    // Boarding: he leaps in (jumpTime seconds of running before the boat's
+    // stern), stops on the deck (stopTime), then the boat pushes off.
+    jumpTime: 0.3,
+    stopTime: 0.35,
+    sailTime: 3.2, // seconds of the boat pulling away before the end screen
+    sailSpeed: 4, // m/s it reaches, rowing out
+    // The surge closes in behind over the beach (0 = as usual, 1 = right behind).
+    surgePress: 0.5,
+    // The fleet offshore, beyond the boats: [x, metres past the shore, turn].
+    galleys: [[-22, 30, 0.5], [13, 44, -0.35], [-5, 62, 0.15]],
+    // More boats drawn up on the sand either side: [x, metres past the finish, turn].
+    sideBoats: [[-6.5, 0, 0.25], [7, -1.5, -0.3], [-11, -3, 0.7], [12, 1, -0.1], [-17, -2, 1.3]],
+  },
 };
 
 // The pumice fall (phase 2): grey pumice stones fill the streets, deeper and

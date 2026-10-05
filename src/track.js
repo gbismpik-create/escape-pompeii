@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE, FINALE } from './config.js';
 import { createGateCollapse } from './gate.js';
+import { createBeach } from './beach.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
 import { createObstacles } from './obstacles.js';
 import { createStatues } from './statues.js';
@@ -539,6 +540,12 @@ export function createTrack(scene, kit, villa = null) {
     fields: [build(planFields(random)), build(planFields(random)), build(planFields(random))],
   };
   const gate = createGateCollapse(world, kit, frameAt, (d, x) => floorAt(d, x));
+  const beachLayout = build([{ piece: 'Beach_Sand_30m', x: 0, z: 0, angle: 0 }]);
+  // The chunk the waterline crosses: sand up to it (the finale starts on a
+  // chunk boundary, so the shore always falls the same way into its chunk).
+  const shoreAt = (FINALE.boardAt + FINALE.beach.shore) % L;
+  const shoreLayout = build([{ piece: 'Beach_Sand_30m', x: 0, z: 0, angle: 0, sz: shoreAt / L }]);
+  const beach = createBeach(world, kit, frameAt);
   const house = villa ? createVillaPiece(world, villa) : null;
   let villaRun = null; // the house on offer or being run through, or null
   let villaLast = false; // the last junction had the house (never two running)
@@ -624,7 +631,7 @@ export function createTrack(scene, kit, villa = null) {
     // The finish moves to the boats.
     finishDistance = start + FINALE.boardAt;
     finishIndex = Infinity;
-    obstacles.setLastRow(finishDistance - JOURNEY.finishClearDistance);
+    obstacles.setLastRow(finishDistance - FINALE.beach.sprintClear); // the final sprint is clear
   }
   const finaleSectionAt = (d) => finale.sections.find((s) => d >= s.start && d < s.end);
   let finishIndex = Infinity; // first open chunk (Escape mode)
@@ -637,7 +644,13 @@ export function createTrack(scene, kit, villa = null) {
   // or { from, to, floor(metres in, lane) } (the theatre).
   let steps = [];
   function floorAt(d, x) {
-    return pumiceAt(d) + stepsAt(d, x);
+    return pumiceAt(d) + stepsAt(d, x) + boatDeckAt(d);
+  }
+  // The boats on the shore (one ahead of each lane): their decks.
+  function boatDeckAt(d) {
+    if (!finale) return 0;
+    const middle = finishDistance + FINALE.beach.boatAt, half = FINALE.beach.boatLength / 2 - 0.4;
+    return Math.abs(d - middle) < half ? FINALE.beach.deck : 0;
   }
   function stepsAt(d, x) {
     const run = steps.find((r) => d >= r.from && d < r.to);
@@ -684,7 +697,10 @@ export function createTrack(scene, kit, villa = null) {
       : kind === 'open' ? openLayout
       : district === 'theatre' ? emptyLayout
       : district === 'villa' ? (distance === run.end - L ? backLaneLayout : emptyLayout)
-      : kind === 'finale' ? (district === 'gate' ? gateLayout : countryLayouts[district] ? countryLayouts[district][Math.floor(Math.random() * 3)] : openLayout)
+      : kind === 'finale'
+        ? district === 'gate' ? gateLayout
+          : district === 'beach' ? (distance + L <= finishDistance + FINALE.beach.shore ? beachLayout : distance < finishDistance + FINALE.beach.shore ? shoreLayout : emptyLayout) // sand, then the sea (beach.js)
+          : countryLayouts[district][Math.floor(Math.random() * 3)]
       : district === 'forum' ? forumLayout(distance, run)
       : chunk.gap ? gapLayouts[chunk.gap]
       : layouts[Math.floor(Math.random() * layouts.length)];
@@ -698,6 +714,7 @@ export function createTrack(scene, kit, villa = null) {
     chunk.lods.shadow.userData.mesh.geometry = layout.shadow;
     chunk.pumice.update(distance, (z) => pumiceAt(distance + z));
     if (district === 'gate') gate.place(distance + FINALE.collapse.at);
+    if (district === 'beach' && distance === run.start) beach.place(finishDistance);
     // A statue, if one is due here. One that may topple keeps the road
     // around where it would land clear of obstacle rows.
     const toppler = kind === 'street' || kind === 'T' || kind === 'X' || kind === 'forum' ? statues.place(chunk, layout.free) : null;
@@ -723,12 +740,13 @@ export function createTrack(scene, kit, villa = null) {
       floorAt,
       rulesAt: district === 'gate' ? () => null // only the arch coming down
         : FINALE.obstacles[district] ? () => FINALE.obstacles[district]
+        : district === 'beach' ? () => FINALE.beach.obstacles
         : district === 'theatre' ? (d) => theatreRules(d - run.start)
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
         : undefined,
       lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
     });
-    if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
+    if (!finale && finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, on the path.
       finishMarks.matrix.copy(frameAt(finishDistance));
       finishMarks.matrixAutoUpdate = false;
@@ -894,6 +912,7 @@ export function createTrack(scene, kit, villa = null) {
     pumice = null;
     finale = null;
     gate.hide();
+    beach.hide();
     villaLast = false;
     placeWorld(0);
     cursor.run = null;
@@ -958,6 +977,9 @@ export function createTrack(scene, kit, villa = null) {
 
     // Porta Stabia's arch (the finale): update(dt, playerDistance, speed, callbacks).
     gate,
+
+    // The shore at Stabiae: the boats, the sea, the galleys (beach.js).
+    beach,
 
     // Where the run ends (Escape mode): it moves to the boats once the finale is laid.
     get finishDistance() {
