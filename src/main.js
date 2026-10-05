@@ -1,11 +1,12 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
+import { loadVilla } from './villa.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart, journeyPhaseTime } from './phases.js';
 import { speedAt } from './speed.js';
@@ -62,8 +63,8 @@ setupSettings(audio.levels, {
 });
 
 setLoading(true);
-const [kit, character] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap)]);
-const track = createTrack(scene, kit);
+const [kit, character, villa] = await Promise.all([loadKit(environment.envMap), loadCharacter(environment.envMap), loadVilla(environment.envMap)]);
+const track = createTrack(scene, kit, villa);
 
 environment.addVolcano(kit);
 setLoading(false);
@@ -220,9 +221,17 @@ function updateJunction() {
   if (queuedTurn && d >= j.centre) {
     turn(queuedTurn);
     queuedTurn = null;
-  } else if (!queuedTurn && j.type === 'X' && d >= j.centre + ROAD_HALF) {
+  } else if (!queuedTurn && j.ways.includes('straight') && d >= j.centre + ROAD_HALF) {
+    // Straight on: through a crossroads, or through the door of a house (a shortcut).
+    if (j.villa && mode === 'escape') {
+      const length = Math.max(journeyLength - VILLA.shortcut, j.centre + VILLA.length + JOURNEY.minAfterTurn);
+      showRouteChange(length - journeyLength);
+      journeyLength = length;
+      track.setFinish(length);
+      setJourney(length);
+    }
     track.take('straight');
-  } else if (j.type === 'T' && -player.hitbox.min.z >= j.wall) {
+  } else if (!j.ways.includes('straight') && -player.hitbox.min.z >= j.wall) {
     // The front of his hitbox reached the house fronts across the end.
     audio.impact();
     gameOver('You ran into a wall');
@@ -435,6 +444,13 @@ const CRASH_REASONS = {
   Cart: 'You ran into an abandoned cart',
   AmphoraStack: 'You ran into a stack of amphorae',
   FallenStatue: 'You tripped over a fallen statue',
+  Basket: 'You tripped over a basket',
+  Scenery_Panel: 'You ran into fallen stage scenery',
+  table: 'You ran into a marble table',
+  fountain: 'You ran into the garden fountain',
+  'hypocaust hole': 'You fell through the bath floor',
+  'hot pool': 'You fell into the hot pool',
+  labrum: 'You ran into the bath basin',
 };
 
 function checkCollisions() {
@@ -443,6 +459,16 @@ function checkCollisions() {
   if (!hit) return;
 
   const obstacle = hit.hitbox;
+  if (hit.stumbleOnly) {
+    // A splash, not a crash (the house's rain pool): he stumbles out of it
+    // to the side (clear of whatever stands beyond it in its lane), once.
+    hit.used = true;
+    player.stumble((obstacle.min.x + obstacle.max.x) / 2);
+    audio.stumble();
+    shake = STUMBLE.cameraShake;
+    if (surge.stumble(runTime)) isCaught = true;
+    return;
+  }
   if (!isSideClip(player.previousHitbox, player.hitbox, obstacle)) {
     audio.impact();
     gameOver(CRASH_REASONS[hit.type]);

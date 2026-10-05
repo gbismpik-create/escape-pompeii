@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES } from './config.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
 import { createObstacles } from './obstacles.js';
 import { createStatues } from './statues.js';
@@ -58,24 +58,27 @@ const pickHouse = (random, previous) => {
 
 // Where each piece goes in one street layout, in kit space (street along +z).
 // placements.free lists the pavement spots left without a prop ({ side, z }),
-// where a statue can stand.
-function planLayout(random) {
+// where a statue can stand. gap: a side (-1 or 1) whose first house is left
+// out, where the rich house stands beside the start of the street.
+// from: where the street starts (the house's back lane starts part way in).
+function planLayout(random, { gap = 0, from = 0 } = {}) {
   const free = [];
   const placements = [
-    { piece: 'Road_30m', x: 0, z: 0, angle: 0 },
-    { piece: 'Kerbs_30m', x: 0, z: 0, angle: 0 },
+    { piece: 'Road_30m', x: 0, z: from, angle: 0, sz: (L - from) / L },
+    { piece: 'Kerbs_30m', x: 0, z: from, angle: 0, sz: (L - from) / L },
   ];
   for (const side of [-1, 1]) {
     // Houses: no two of the same type side by side.
     let previous = null;
     for (let i = 0; i < KIT.housesPerSide; i++) {
       const house = (previous = pickHouse(random, previous));
+      if ((side === gap && i === 0) || KIT.houseWidth * i < from) continue;
       // Built facing +z: turn -90° on the +x side and +90° on the -x side
       // so the fronts face the street.
       placements.push({ piece: house, x: side * KIT.facadeX, z: KIT.houseWidth * (i + 0.5), angle: -side * Math.PI / 2 });
     }
     // Props on the pavement, at different spots along the chunk.
-    const spots = [2.5, 7.5, 12.5, 17.5, 22.5, 27.5].sort(() => random() - 0.5);
+    const spots = [2.5, 7.5, 12.5, 17.5, 22.5, 27.5].filter((z) => z > from && !(side === gap && z < KIT.houseWidth)).sort(() => random() - 0.5);
     const [min, max] = KIT.props.perSide;
     const count = min + Math.floor(random() * (max - min + 1));
     const names = Object.keys(KIT.props);
@@ -267,6 +270,61 @@ function theatreRules(rel) {
   return null; // off the steps, the vomitorium, the forecourt
 }
 
+// The rich house: the model (villa.js) as one set piece, and its obstacles'
+// hitboxes in path space once it is placed. Built along +z; the path runs
+// along -z, so it is turned half round (its x = -1.8 lane is the path's right).
+function createVillaPiece(world, villa) {
+  const group = new THREE.Group();
+  group.name = 'villa';
+  const inner = new THREE.Group();
+  inner.rotation.y = Math.PI;
+  for (const mesh of villa.meshes) {
+    mesh.receiveShadow = true;
+    inner.add(mesh);
+  }
+  const shadow = new THREE.Mesh(villa.shadowGeometry, villa.meshes[0].material);
+  shadow.castShadow = true;
+  shadow.layers.set(SHADOW_LAYER);
+  inner.add(shadow);
+  group.add(inner);
+  group.visible = false;
+  world.add(group);
+  let hitboxes = [];
+  return {
+    group,
+    // start: where its street door is (world-group space); angle: the path's
+    // angle there; run: its path distances.
+    place(start, angle, run) {
+      group.position.copy(start);
+      group.rotation.y = angle;
+      group.visible = true;
+      const h = VILLA.laneHalfWidth;
+      hitboxes = villa.obstacles
+        .filter((o) => o.act !== 'none')
+        .map((o) => {
+          const x = -(o.lane - 1) * LANES.width; // turned half round
+          const top = o.act === 'jump' ? VILLA.jumpHeight : OBSTACLES.blockHeight;
+          return {
+            type: o.type,
+            move: o.act === 'jump' ? 'jump' : 'block',
+            stumbleOnly: VILLA.stumbleOnly.includes(o.type),
+            used: false,
+            distance: run.start + (o.z0 + o.z1) / 2,
+            hitbox: new THREE.Box3(new THREE.Vector3(x - h, 0, -(run.start + o.z1)), new THREE.Vector3(x + h, top, -(run.start + o.z0))),
+          };
+        });
+    },
+    hide() {
+      group.visible = false;
+      hitboxes = [];
+    },
+    findCollision(hitbox) {
+      return hitboxes.find((o) => !o.used && o.hitbox.intersectsBox(hitbox)) ?? null;
+    },
+    list: () => hitboxes,
+  };
+}
+
 // The Large Theatre: one set piece, full detail only (one draw call per
 // material), with a merged copy that only casts shadows (see SHADOW_LAYER).
 function createTheatre(world, kit) {
@@ -297,7 +355,8 @@ function createTheatre(world, kit) {
   };
 }
 
-export function createTrack(scene, kit) {
+// villa: the rich house (villa.js), or null for none (tests).
+export function createTrack(scene, kit, villa = null) {
   const world = new THREE.Group();
   world.name = 'world';
   world.matrixAutoUpdate = false; // placed from the path's pose each frame
@@ -355,6 +414,14 @@ export function createTrack(scene, kit) {
   const forumLayout = (distance, run) =>
     distance === run.start ? forumLayouts.in : distance === run.end - L ? forumLayouts.out : forumLayouts.middle[Math.floor(Math.random() * 3)];
   const finishMarks = createFinishMarks(world);
+  // The rich house: side streets with a gap for it beside their start, and
+  // its back lane. Turning left, the house is on the right of the new street
+  // (the kit's -1 side); turning right, on its left (+1).
+  const gapLayouts = { left: build(planLayout(random, { gap: -1 })), right: build(planLayout(random, { gap: 1 })) };
+  const backLaneLayout = build(planLayout(random, { from: VILLA.length % L }));
+  const house = villa ? createVillaPiece(world, villa) : null;
+  let villaRun = null; // the house on offer or being run through, or null
+  let villaLast = false; // the last junction had the house (never two running)
   // Theatre chunks have no layout of their own: the theatre is one set piece
   // laid along its route (built in the path's own frame: forward is -z).
   const emptyLayout = { near: new Map(), far: new Map(), shadow: new THREE.BufferGeometry(), free: [] };
@@ -452,10 +519,17 @@ export function createTrack(scene, kit) {
     // Mirroring left-right doubles the variety. (The kit is double-sided, so
     // the flipped faces still draw correctly.)
     chunk.mirrored = kind === 'street' && Math.random() < 0.5;
+    if (kind !== 'side') chunk.gap = null;
     chunk.root.scale.x = chunk.mirrored ? -1 : 1;
     chunk.root.visible = true;
     const layout =
-      kind === 'T' || kind === 'X' ? junctionLayouts[kind] : kind === 'open' ? openLayout : district === 'theatre' ? emptyLayout : district === 'forum' ? forumLayout(distance, run) : layouts[Math.floor(Math.random() * layouts.length)];
+      kind === 'T' || kind === 'X' ? junctionLayouts[chunk.villa ? 'X' : kind] // the house's front closes the far side instead of the wall
+      : kind === 'open' ? openLayout
+      : district === 'theatre' ? emptyLayout
+      : district === 'villa' ? (distance === run.end - L ? backLaneLayout : emptyLayout)
+      : district === 'forum' ? forumLayout(distance, run)
+      : chunk.gap ? gapLayouts[chunk.gap]
+      : layouts[Math.floor(Math.random() * layouts.length)];
     for (const lod of ['near', 'far']) {
       for (const [material, mesh] of chunk.lods[lod].userData.meshes) {
         const geometry = layout[lod].get(material);
@@ -487,7 +561,9 @@ export function createTrack(scene, kit) {
       // On steps: each piece stands on its own step, and nothing spans the lanes.
       stepped: steppedAt(distance, distance + L),
       floorAt,
-      rulesAt: district === 'theatre' ? (d) => theatreRules(d - run.start) : undefined,
+      rulesAt: district === 'theatre' ? (d) => theatreRules(d - run.start)
+        : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
+        : undefined,
       lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
     });
     if (finishDistance && distance <= finishDistance && finishDistance < distance + L) {
@@ -525,6 +601,9 @@ export function createTrack(scene, kit) {
     // A curve (k ≠ 0): the path bends through this chunk.
     const k = curveFor(d);
     if (TRACK.testCurve && k !== (segmentAt(d).k ?? 0)) segments.push({ from: d, start: cursor.position.clone(), angle: cursor.angle, k });
+    // A T-junction may have the rich house across it (never two junctions running).
+    chunk.villa = kind === 'T' && house && !villaLast && villaFits(d) && Math.random() < VILLA.chance;
+    if (kind === 'T' || kind === 'X') villaLast = chunk.villa;
     placeChunk(chunk, cursor.position, cursor.angle, d, kind, run ? run.kind : 'residential', run);
     path.push(chunk);
     // Where the next chunk starts: along the straight or round the curves.
@@ -540,7 +619,7 @@ export function createTrack(scene, kit) {
     junction = chunk;
     exits = {};
     const centre = chunk.start.clone().addScaledVector(forward(chunk.angle, tmp), CENTRE);
-    const ways = chunk.kind === 'X' ? { left: 1, right: -1, straight: 0 } : { left: 1, right: -1 };
+    const ways = chunk.kind === 'X' || chunk.villa ? { left: 1, right: -1, straight: 0 } : { left: 1, right: -1 };
     for (const [way, turn] of Object.entries(ways)) {
       const side = free.pop();
       if (!side) continue;
@@ -551,13 +630,19 @@ export function createTrack(scene, kit) {
       const d = cursor.distance;
       const theatreFits = !finishDistance || d + ROUTE.length + TURNS.finishMargin < finishDistance;
       let run = null;
-      if ((!theatreUsed || THEATRE.testRepeat) && !theatreRun && theatreFits && Math.random() < THEATRE.chance) {
+      if (chunk.villa && way === 'straight') {
+        // Straight on: through the house's door, down its rooms, out of the back door.
+        run = villaRun = { kind: 'villa', start: d, end: d + Math.ceil(VILLA.length / L) * L };
+        house.place(start, angle, run);
+      } else if ((!theatreUsed || THEATRE.testRepeat) && !theatreRun && theatreFits && Math.random() < THEATRE.chance) {
         run = theatreRun = { kind: 'theatre', start: d, end: d + ROUTE.length };
         theatre.place(start, angle);
       } else if (!cameFromForum && Math.random() < DISTRICTS.forumChance) {
         const [min, max] = DISTRICTS.forumChunks;
         run = { kind: 'forum', start: d, end: d + L * (min + Math.floor(Math.random() * (max - min + 1))) };
       }
+      // Beside the house, the side streets leave a gap for it on its side.
+      side.gap = chunk.villa && way !== 'straight' ? way : null;
       placeChunk(side, start, angle, d, 'side', run ? run.kind : 'residential', run);
       exits[way] = side;
     }
@@ -598,11 +683,15 @@ export function createTrack(scene, kit) {
       // The theatre was down another way.
       theatreRun.declined = true;
     }
+    if (villaRun && chosen.run !== villaRun) villaRun.declined = true;
     junction = null;
     exits = null;
     // The next junction comes after the Forum, out in the streets again.
     planNextJunction(chosen.run ? chosen.run.end : cursor.distance);
   }
+
+  // Is there room for the house before the sea, after a junction at d?
+  const villaFits = (d) => !finishDistance || d + 2 * L + Math.ceil(VILLA.length / L) * L + TURNS.finishMargin < finishDistance;
 
   function planNextJunction(from) {
     nextJunction = TURNS.enabled ? nextJunctionAfter(from, randomInterval()) : Infinity;
@@ -629,6 +718,9 @@ export function createTrack(scene, kit) {
     theatre.hide();
     theatreRun = null;
     theatreUsed = false;
+    house?.hide();
+    villaRun = null;
+    villaLast = false;
     placeWorld(0);
     cursor.run = null;
     cameFromForum = false;
@@ -675,8 +767,11 @@ export function createTrack(scene, kit) {
     // runner's own street that is exactly the scene, so his hitbox can be
     // used as it is, on straights, after turns and round curves alike.
     findCollision(hitbox) {
-      return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox);
+      return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null);
     },
+
+    // The rich house's own obstacles while it is on the path (tests and tools).
+    houseObstacles: () => (villaRun && !villaRun.declined ? house.list() : []),
 
     // The floor height at a path distance, x across (0 except on steps).
     floorAt,
@@ -699,6 +794,11 @@ export function createTrack(scene, kit) {
         // Nothing falls in the theatre's vaulted passage or its vomitorium.
         const rel = distance - theatreRun.start;
         if ((rel > -2 && rel < ROUTE.passageEnd) || (rel > ROUTE.tunnelStart - 2 && rel < ROUTE.tunnelEnd + 2)) return 0;
+      }
+      if (villaRun && !villaRun.declined) {
+        // Nothing falls under the house's roofs: only in its open garden.
+        const rel = distance - villaRun.start;
+        if (rel > -2 && rel < VILLA.length + 2 && !VILLA.openSky.some(([a, b]) => rel > a && rel < b)) return 0;
       }
       let best = Infinity;
       for (const o of obstacles.list()) best = Math.min(best, Math.abs(o.distance - distance));
@@ -726,6 +826,7 @@ export function createTrack(scene, kit) {
       if (!junction) return null;
       return {
         type: junction.kind,
+        villa: Boolean(junction.villa), // the rich house across it, door open (straight on)
         centre: junction.distance + CENTRE,
         wall: junction.distance + L,
         ways: Object.keys(exits),
@@ -769,6 +870,11 @@ export function createTrack(scene, kit) {
         leftovers.forEach(release);
         leftovers = [];
       }
+      // The house goes once it is behind (or once its way was not taken).
+      if (villaRun && ((villaRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > villaRun.end + TRACK.chunksBehind * L)) {
+        house.hide();
+        villaRun = null;
+      }
       // The theatre goes once it is behind (or once its way was not taken).
       if (theatreRun && ((theatreRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > theatreRun.end + TRACK.chunksBehind * L)) {
         theatre.hide();
@@ -787,6 +893,7 @@ export function createTrack(scene, kit) {
         chunk.lods.shadow.visible = distance < GRAPHICS.shadowDistance;
       }
       if (theatreRun) theatre.group.visible = theatreRun.start - cameraDistance < fogDistance;
+      if (villaRun) house.group.visible = villaRun.start - cameraDistance < fogDistance;
     },
   };
 }

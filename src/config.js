@@ -15,7 +15,7 @@ export const LANES = {
 export const DISTRICTS = {
   forumChance: 0.35, // chance a way out of a junction leads into the Forum (never twice running)
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
-  names: { residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre' },
+  names: { residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)' },
   gateOpen: 6, // metres into the Forum (past the entrance arch) where its name shows and the lanes widen
   forumLanes: 5, // lanes across the Forum (LANES.count elsewhere)
   narrowBefore: 20, // metres before the Forum's end where the lanes are back to LANES.count
@@ -502,6 +502,24 @@ export const STATUES = {
   wobble: 0.06, // radians: the statue rocks on its pedestal while the shadow shows
   pedestalHeight: 1.1, // the figure stands this high
   types: ['Statue_Apollo', 'Statue_Emperor', 'Statue_Faun', 'Statue_Notable'], // pieces in the street kit
+};
+
+// The rich house (domus) shortcut: the far side of some T-junctions is a
+// house front with its door open, a third way, straight through it (the
+// model: tools/build-villa.mjs, loaded by villa.js). Inside, its own
+// obstacles (the rain pool, the fountain, the baths), and out of the back
+// door onto another street, nearer the sea.
+export const VILLA = {
+  file: 'assets/villa.glb',
+  chance: 0.3, // chance a T-junction has the house across it (never two junctions running)
+  length: 70, // metres from its street door to its back door
+  shortcut: 150, // Escape mode: metres nearer the sea for going through
+  // Its obstacles' hitboxes: across one lane; 'jump' ones this high (the
+  // rain pool's rim and a hole in the floor), 'dodge' ones OBSTACLES.blockHeight.
+  laneHalfWidth: 0.8,
+  jumpHeight: 0.35,
+  stumbleOnly: ['impluvium'], // running into the rain pool is a splash and a stumble, not the end
+  openSky: [[28, 49]], // metres in where it is open to the sky (the garden): things can fall there
 };
 
 // The Large Theatre (theatre route in path.js, the model in the kit): a way

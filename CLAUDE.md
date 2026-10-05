@@ -30,13 +30,13 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-Theatre district.
+Villa shortcut.
 
 ## Later (do NOT build yet)
 Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
 
 From the GAME_DESIGN.md build order:
 - Rescued followers
-- Villa shortcut
+- Gladiator barracks courtyard with gladiator followers (last step of the theatre district)
 - Rooftop phase
 - Outside the walls: tombs road, fields, beach finale
