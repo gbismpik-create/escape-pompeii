@@ -610,6 +610,8 @@ export const PUMICE = {
   halfWidth: 4.55, // across the street, just short of the house fronts
   lumps: 0.1, // metres of unevenness on its surface
   drift: 0.35, // metres it piles higher against the house fronts
+  clearIn: ['forum', 'theatre', 'villa', 'baths'], // districts kept clear of it (roofed halls, swept squares)
+  districtRamp: 10, // metres over which it slopes away just inside them
   colors: [0x5f5f5c, 0xc4c3bc], // dark and light grey-white pumice
 };
 
@@ -707,7 +709,7 @@ export const THEATRE = {
     // the three steps: things left behind on them, one lane at a time
     tier: { fullRowChance: 0, lane: { Basket: 2, Rubble: 1, AmphoraStack: 1 } },
   },
-  testRepeat: false, // tests only: the theatre may come more than once a run
+  oncePerRun: false, // true: the theatre comes at most once a run
   groundDrop: -1.8, // the plain ground sinks this low in the theatre (the orchestra is below the street)
 };
 

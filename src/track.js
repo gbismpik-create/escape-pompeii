@@ -627,9 +627,16 @@ export function createTrack(scene, kit, villa = null) {
   const free = Array.from({ length: slotCount }, (_, slot) => createSlot(slot));
   // The pumice: { start, length } along the path once fixed (main.js), or null.
   let pumice = null;
-  function pumiceAt(d) {
+  // run: the district run at d (by default the one on the path there).
+  function pumiceAt(d, run = chunkAt(d)?.run) {
     if (!pumice) return 0;
     let depth = PUMICE.depth * THREE.MathUtils.smoothstep(d, pumice.start, pumice.start + pumice.length);
+    if (run && PUMICE.clearIn.includes(run.kind)) {
+      // Districts are kept clear (roofed halls, swept squares): the pumice
+      // slopes down just inside and back up just before the way out.
+      const ramp = PUMICE.districtRamp;
+      depth *= Math.max(1 - THREE.MathUtils.smoothstep(d, run.start, run.start + ramp), THREE.MathUtils.smoothstep(d, run.end - ramp, run.end));
+    }
     if (finale) {
       // Outside the walls it thins: a layer on the fields, a crust on the beach.
       const k = (from, to, a) => THREE.MathUtils.lerp(from, to, THREE.MathUtils.smoothstep(d, a, a + FINALE.pumiceTaper));
@@ -638,8 +645,6 @@ export function createTrack(scene, kit, villa = null) {
     }
     return depth;
   }
-  // Does a district's run (ending at path distance `to`) end before the pumice starts?
-  const beforePumice = (to) => !pumice || to < pumice.start;
   let path = []; // chunks in order along the path
   let exits = null; // a junction's side streets: { left, right, straight } chunks
   // The ways not taken stay until they are behind the camera (releaseAt:
@@ -672,8 +677,8 @@ export function createTrack(scene, kit, villa = null) {
   // (rising from flat over TRACK.stepRamp metres and sinking back at the end),
   // or { from, to, floor(metres in, lane) } (the theatre).
   let steps = [];
-  function floorAt(d, x) {
-    return pumiceAt(d) + stepsAt(d, x) + boatDeckAt(d);
+  function floorAt(d, x, run = chunkAt(d)?.run) {
+    return pumiceAt(d, run) + stepsAt(d, x) + boatDeckAt(d);
   }
   // The boats on the shore (one ahead of each lane): their decks.
   function boatDeckAt(d) {
@@ -742,7 +747,7 @@ export function createTrack(scene, kit, villa = null) {
       }
     }
     chunk.lods.shadow.userData.mesh.geometry = layout.shadow;
-    chunk.pumice.update(distance, (z) => pumiceAt(distance + z));
+    chunk.pumice.update(distance, (z) => pumiceAt(distance + z, run));
     if (district === 'gate') gate.place(distance + FINALE.collapse.at);
     if (district === 'beach' && distance === run.start) beach.place(finishDistance);
     // A statue, if one is due here. One that may topple keeps the road
@@ -767,7 +772,7 @@ export function createTrack(scene, kit, villa = null) {
       openSquare: district === 'forum',
       // On steps: each piece stands on its own step, and nothing spans the lanes.
       stepped: steppedAt(distance, distance + L),
-      floorAt,
+      floorAt: (d, x) => floorAt(d, x, run),
       rulesAt: district === 'gate' ? () => null // only the arch coming down
         : FINALE.obstacles[district] ? () => FINALE.obstacles[district]
         : district === 'beach' ? () => FINALE.beach.obstacles
@@ -933,16 +938,16 @@ export function createTrack(scene, kit, villa = null) {
   }
 
   // Which district (if any) a junction at path distance d offers: picked by
-  // weight among those that fit before the pumice and the finale, never the
+  // weight among those that fit before the finale, never the
   // last one taken, a district already seen this run counting for less.
   let lastDistrict = null;
   let districtsSeen = new Set();
   function pickDistrict(d) {
-    const fits = (length) => beforePumice(d + length) && (!finishDistance || d + length < lastJunctionBefore());
+    const fits = (length) => !finishDistance || d + length < lastJunctionBefore();
     const [, maxForum] = DISTRICTS.forumChunks;
     const can = {
       forum: fits(maxForum * L),
-      theatre: (!theatreUsed || THEATRE.testRepeat) && !theatreRun && fits(ROUTE.length),
+      theatre: (!theatreUsed || !THEATRE.oncePerRun) && !theatreRun && fits(ROUTE.length),
       baths: fits(BATHS_LENGTH),
     };
     if (DISTRICTS.only) return can[DISTRICTS.only] ? DISTRICTS.only : null;
@@ -957,7 +962,7 @@ export function createTrack(scene, kit, villa = null) {
   // Is there room for the house before the sea, after a junction at d?
   const villaFits = (d) => {
     const end = d + 2 * L + Math.ceil(VILLA.length / L) * L;
-    return beforePumice(end) && (!finishDistance || end < lastJunctionBefore());
+    return !finishDistance || end < lastJunctionBefore();
   };
 
   function planNextJunction(from) {
