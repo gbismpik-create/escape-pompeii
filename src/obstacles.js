@@ -195,7 +195,7 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
         let row = randomRow(openSquare, rules, count);
         while (stepped && row.full) row = randomRow(openSquare, rules, count);
         if (row.full) {
-          place(row.full, 0, distance, list, 0, count / LANES.count);
+          place(row.full, 0, distance, list, floorAt(distance, 0), count / LANES.count);
         } else {
           row.lanes.forEach((name, lane) => {
             const x = laneToX(lane, count);

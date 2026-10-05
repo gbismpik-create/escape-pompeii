@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES } from './config.js';
+import { TRACK, KIT, STREET, GRAPHICS, CAMERA, JOURNEY, TURNS, LANES, STATUES, DISTRICTS, THEATRE, VILLA, OBSTACLES, PUMICE } from './config.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
 import { createObstacles } from './obstacles.js';
 import { createStatues } from './statues.js';
@@ -270,6 +270,61 @@ function theatreRules(rel) {
   return null; // off the steps, the vomitorium, the forecourt
 }
 
+// The pumice layer of one chunk: a strip across the street, along the chunk
+// (kit space: z = 0..L along it), its height following the depth along the
+// path. One mesh per chunk slot; the geometry is rewritten when the chunk
+// is laid. depthAt(z): the pumice depth z metres into the chunk.
+const PUMICE_ACROSS = 15;
+const PUMICE_STEP = 0.5; // metres between rows of points along the chunk
+const PUMICE_ALONG = L / PUMICE_STEP + 1;
+function createPumiceMesh(material) {
+  const count = PUMICE_ACROSS * PUMICE_ALONG;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+  const index = [];
+  for (let j = 0; j < PUMICE_ALONG - 1; j++) for (let i = 0; i < PUMICE_ACROSS - 1; i++) {
+    const a = j * PUMICE_ACROSS + i, b = a + 1, c = a + PUMICE_ACROSS, d = c + 1;
+    index.push(a, c, b, b, c, d);
+  }
+  geometry.setIndex(index);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  mesh.visible = false;
+  const dark = new THREE.Color(PUMICE.colors[0]), light = new THREE.Color(PUMICE.colors[1]), c = new THREE.Color();
+  // A little repeatable noise (0..1) for the stones' lumps and colour.
+  const noise = (x, z) => { const h = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return h - Math.floor(h); };
+  return {
+    mesh,
+    // distance: where the chunk starts along the path.
+    update(distance, depthAt) {
+      let deepest = 0;
+      const position = geometry.attributes.position, color = geometry.attributes.color;
+      for (let j = 0; j < PUMICE_ALONG; j++) {
+        const depth = depthAt(j * PUMICE_STEP);
+        deepest = Math.max(deepest, depth);
+        for (let i = 0; i < PUMICE_ACROSS; i++) {
+          const x = THREE.MathUtils.lerp(-PUMICE.halfWidth, PUMICE.halfWidth, i / (PUMICE_ACROSS - 1));
+          const n = noise(x, Math.round(distance / PUMICE_STEP) + j);
+          // Drifts piled against the house fronts (barely under the lanes).
+          const drift = PUMICE.drift * (Math.abs(x) / PUMICE.halfWidth) ** 4;
+          // Just under the road where there is none yet; lumpy where there is.
+          const lumps = depth > 0.1 ? (n - 0.5) * 2 * PUMICE.lumps : 0;
+          position.setXYZ(j * PUMICE_ACROSS + i, x, depth - 0.05 + lumps + (depth / PUMICE.depth) * drift, j * PUMICE_STEP);
+          // Mostly pale stones, with dark ones scattered through.
+          c.copy(dark).lerp(light, n < 0.18 ? n : 0.55 + 0.45 * n);
+          color.setXYZ(j * PUMICE_ACROSS + i, c.r, c.g, c.b);
+        }
+      }
+      mesh.visible = deepest > 0.06;
+      if (!mesh.visible) return;
+      position.needsUpdate = color.needsUpdate = true;
+      geometry.computeVertexNormals();
+      geometry.computeBoundingSphere();
+    },
+  };
+}
+
 // The rich house: the model (villa.js) as one set piece, and its obstacles'
 // hitboxes in path space once it is placed. Built along +z; the path runs
 // along -z, so it is turned half round (its x = -1.8 lane is the path's right).
@@ -379,7 +434,8 @@ export function createTrack(scene, kit, villa = null) {
     const angle = pose(s, framePoint);
     return target.makeRotationY(angle).setPosition(framePoint);
   }
-  const path3 = { frameAt, angleAt: (s) => pose(s, framePoint) };
+  // (groundAt: how deep the pumice is there, so a toppling statue lands on it.)
+  const path3 = { frameAt, angleAt: (s) => pose(s, framePoint), groundAt: (s) => pumiceAt(s) };
 
   // Slots: the path ahead and behind, plus the side streets of a junction
   // (and two spare, while the ways not taken are still in view).
@@ -447,6 +503,9 @@ export function createTrack(scene, kit, villa = null) {
       root.add(group);
       lods[lod] = group;
     }
+    // The pumice filling the street (phase 2 on).
+    const pumice = createPumiceMesh(pumiceMaterial);
+    root.add(pumice.mesh);
     // The shadow caster: one mesh, drawn into the shadow map only.
     const shadow = new THREE.Mesh(new THREE.BufferGeometry(), materials[0]);
     shadow.castShadow = true;
@@ -461,9 +520,15 @@ export function createTrack(scene, kit, villa = null) {
     // along the path it starts, and its kind ('street', 'T', 'X', 'open',
     // 'side', 'forum', 'theatre'). district: 'residential' | 'forum' |
     // 'theatre'; run: the district's { kind, start, end } path distances.
-    return { slot, root, lods, start: new THREE.Vector3(), angle: 0, distance: 0, kind: 'street', district: 'residential', run: null };
+    return { slot, root, lods, pumice, start: new THREE.Vector3(), angle: 0, distance: 0, kind: 'street', district: 'residential', run: null };
   }
+  const pumiceMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
   const free = Array.from({ length: slotCount }, (_, slot) => createSlot(slot));
+  // The pumice: { start, length } along the path once fixed (main.js), or null.
+  let pumice = null;
+  const pumiceAt = (d) => (pumice ? PUMICE.depth * THREE.MathUtils.smoothstep(d, pumice.start, pumice.start + pumice.length) : 0);
+  // Does a district's run (ending at path distance `to`) end before the pumice starts?
+  const beforePumice = (to) => !pumice || to < pumice.start;
   let path = []; // chunks in order along the path
   let exits = null; // a junction's side streets: { left, right, straight } chunks
   // The ways not taken stay until they are behind the camera (releaseAt:
@@ -483,6 +548,9 @@ export function createTrack(scene, kit, villa = null) {
   // or { from, to, floor(metres in, lane) } (the theatre).
   let steps = [];
   function floorAt(d, x) {
+    return pumiceAt(d) + stepsAt(d, x);
+  }
+  function stepsAt(d, x) {
     const run = steps.find((r) => d >= r.from && d < r.to);
     if (!run) return 0;
     const lane = THREE.MathUtils.clamp(Math.round(x / LANES.width + (LANES.count - 1) / 2), 0, LANES.count - 1);
@@ -538,6 +606,7 @@ export function createTrack(scene, kit, villa = null) {
       }
     }
     chunk.lods.shadow.userData.mesh.geometry = layout.shadow;
+    chunk.pumice.update(distance, (z) => pumiceAt(distance + z));
     // A statue, if one is due here. One that may topple keeps the road
     // around where it would land clear of obstacle rows.
     const toppler = kind === 'street' || kind === 'T' || kind === 'X' || kind === 'forum' ? statues.place(chunk, layout.free) : null;
@@ -628,7 +697,7 @@ export function createTrack(scene, kit, villa = null) {
       // Where this way leads: sometimes into the theatre (once a run, if it
       // ends well before the sea), or the Forum (never twice running).
       const d = cursor.distance;
-      const theatreFits = !finishDistance || d + ROUTE.length + TURNS.finishMargin < finishDistance;
+      const theatreFits = (!finishDistance || d + ROUTE.length + TURNS.finishMargin < finishDistance) && beforePumice(d + ROUTE.length);
       let run = null;
       if (chunk.villa && way === 'straight') {
         // Straight on: through the house's door, down its rooms, out of the back door.
@@ -640,6 +709,7 @@ export function createTrack(scene, kit, villa = null) {
       } else if (!cameFromForum && Math.random() < DISTRICTS.forumChance) {
         const [min, max] = DISTRICTS.forumChunks;
         run = { kind: 'forum', start: d, end: d + L * (min + Math.floor(Math.random() * (max - min + 1))) };
+        if (!beforePumice(run.end)) run = null;
       }
       // Beside the house, the side streets leave a gap for it on its side.
       side.gap = chunk.villa && way !== 'straight' ? way : null;
@@ -691,7 +761,10 @@ export function createTrack(scene, kit, villa = null) {
   }
 
   // Is there room for the house before the sea, after a junction at d?
-  const villaFits = (d) => !finishDistance || d + 2 * L + Math.ceil(VILLA.length / L) * L + TURNS.finishMargin < finishDistance;
+  const villaFits = (d) => {
+    const end = d + 2 * L + Math.ceil(VILLA.length / L) * L;
+    return beforePumice(end) && (!finishDistance || end + TURNS.finishMargin < finishDistance);
+  };
 
   function planNextJunction(from) {
     nextJunction = TURNS.enabled ? nextJunctionAfter(from, randomInterval()) : Infinity;
@@ -720,6 +793,7 @@ export function createTrack(scene, kit, villa = null) {
     theatreUsed = false;
     house?.hide();
     villaRun = null;
+    pumice = null;
     villaLast = false;
     placeWorld(0);
     cursor.run = null;
@@ -778,6 +852,22 @@ export function createTrack(scene, kit, villa = null) {
 
     // How many lanes there are at a path distance.
     lanesAt,
+
+    // The pumice depth at a path distance (0 before it starts).
+    pumiceAt,
+
+    // Fixes where the pumice starts (path distance) and over how many metres
+    // it rises. Never under street already laid, nor inside a district run
+    // already on its way (the Forum, the theatre, the house).
+    setPumice(start, length) {
+      if (pumice) return;
+      let from = Math.max(start, cursor.distance + 1);
+      for (const run of [cursor.run, theatreRun, villaRun]) if (run && !run.declined) from = Math.max(from, run.end);
+      pumice = { start: from, length };
+    },
+    get pumice() {
+      return pumice;
+    },
 
     // Path space (x across, y up, z = -metres along) → the world group's space.
     toWorld(point, target = new THREE.Vector3()) {

@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE } from './config.js';
 import { createPlayer } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
@@ -148,6 +148,21 @@ function onStatueLanded(position) {
   falling.puff(position.x, position.y + 0.2, position.z, 24);
   audio.smash(player.object.position.z - position.z);
   shake = Math.max(shake, STUMBLE.cameraShake * 0.4);
+}
+
+// ---- The pumice (phase 2) ----
+// Fixes where along the path the pumice starts, once that is near enough
+// (PUMICE.lockAhead): where phase 2 begins. In Escape mode that is a share
+// of the journey; in Endless, where the runner will be when phase 2's time
+// comes. It rises over PUMICE.riseTime seconds of running at phase 2's speed.
+function updatePumice() {
+  if (track.pumice) return;
+  const d = currentDistance();
+  const phase2 = PHASES.list[1];
+  let start = mode === 'escape' ? journeyLength * JOURNEY.phaseShares[0] : d + Math.max(0, phase2.start - runTime) * currentSpeed();
+  if (environment.phase.index >= 1) start = Math.min(start, d); // already there (the debug key skips ahead)
+  if (start - d > PUMICE.lockAhead) return;
+  track.setPumice(start, PUMICE.riseTime[mode] * speedAt(start) * phase2.speedMultiplier);
 }
 
 // ---- Junctions ----
@@ -516,6 +531,7 @@ renderer.setAnimationLoop((timestamp) => {
     const zBefore = player.object.position.z;
     player.update(dt, speedMultiplier);
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
+    updatePumice();
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     updateDistance(currentDistance());
     updateDistrict();

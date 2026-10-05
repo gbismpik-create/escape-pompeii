@@ -508,6 +508,21 @@ export const STATUES = {
   types: ['Statue_Apollo', 'Statue_Diana', 'Statue_Venus', 'Statue_Jupiter', 'Statue_Minerva', 'Statue_Mercury'],
 };
 
+// The pumice fall (phase 2): grey pumice stones fill the streets, deeper and
+// deeper. Its depth is set along the path (so everything laid ahead knows
+// it): from where phase 2 starts it rises to `depth` over `riseTime` seconds
+// of running, then stays. The runner, obstacles and statues stand on it.
+// Once it has begun, no Forum, theatre or house shortcut is offered.
+export const PUMICE = {
+  depth: 1.4, // metres at its deepest: doorways half buried
+  riseTime: { escape: 15, endless: 30 }, // seconds of running over which it rises
+  lockAhead: 450, // metres ahead of the runner at which its start is fixed
+  halfWidth: 4.55, // across the street, just short of the house fronts
+  lumps: 0.1, // metres of unevenness on its surface
+  drift: 0.35, // metres it piles higher against the house fronts
+  colors: [0x5f5f5c, 0xc4c3bc], // dark and light grey-white pumice
+};
+
 // The rich house (domus) shortcut: the far side of some T-junctions is a
 // house front with its door open, a third way, straight through it (the
 // model: tools/build-villa.mjs, loaded by villa.js). Inside, its own

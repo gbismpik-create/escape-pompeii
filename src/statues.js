@@ -92,6 +92,7 @@ export function createStatues(world, kit, path) {
     return {
       root, pedestals, figures, shadow, active: false, type: null, distance: 0, slot: -1, side: 1,
       shape: SHAPES.statue, roadY: 0, // the road's height from the statue's foot
+      ground: 0, // the road's (or pumice's) height in path space, where it falls
       // toppling: 'standing' | 'warning' | 'falling' | 'down'
       willTopple: false, state: 'standing', time: 0, hitbox: new THREE.Box3(), x: 0,
     };
@@ -138,8 +139,8 @@ export function createStatues(world, kit, path) {
   function setHitbox(statue) {
     const f = statue.shape.fallen;
     const a = statue.side * (statue.x - f.from), b = statue.side * (statue.x - f.to);
-    statue.hitbox.min.set(Math.min(a, b), 0, -statue.distance - f.halfWidth);
-    statue.hitbox.max.set(Math.max(a, b), f.height, -statue.distance + f.halfWidth);
+    statue.hitbox.min.set(Math.min(a, b), statue.ground, -statue.distance - f.halfWidth);
+    statue.hitbox.max.set(Math.max(a, b), statue.ground + f.height, -statue.distance + f.halfWidth);
   }
 
   return {
@@ -174,7 +175,11 @@ export function createStatues(world, kit, path) {
       statue.type = column ? COLUMN : TYPES[Math.floor(Math.random() * TYPES.length)];
       statue.shape = shapeOf(statue.type);
       if (statue.shape.pedestal) statue.pedestals[statue.type].visible = true;
-      statue.roadY = forum ? 0 : -STATUES.pavementHeight;
+      // Its foot stands on the pavement (none in the Forum); the ground it
+      // falls onto is the road, or the pumice once that has filled the street.
+      const foot = forum ? 0 : STATUES.pavementHeight;
+      statue.ground = path.groundAt(chunk.distance + spot.z);
+      statue.roadY = statue.ground - foot;
       statue.willTopple = (chunk.kind === 'street' || chunk.kind === 'forum') && Math.random() < (forum ? STATUES.forumToppleChance : STATUES.toppleChance);
       standUp(statue);
       const f = statue.shape.fallen;
@@ -185,7 +190,7 @@ export function createStatues(world, kit, path) {
       // chunk is), so the kit's side swaps.
       statue.side = -spot.side * (chunk.mirrored ? -1 : 1);
       statue.x = column ? STATUES.column.x : forum ? STATUES.forumX : STATUES.pavementX;
-      statue.root.position.set(statue.side * statue.x, -statue.roadY, 0).applyMatrix4(path.frameAt(statue.distance));
+      statue.root.position.set(statue.side * statue.x, foot, 0).applyMatrix4(path.frameAt(statue.distance));
       // Face the road: the figure is built facing +z.
       statue.root.rotation.y = -statue.side * (Math.PI / 2) + path.angleAt(statue.distance);
       statue.root.visible = true;
