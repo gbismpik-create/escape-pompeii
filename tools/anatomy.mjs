@@ -4,7 +4,7 @@ import { Sculpture, v, add, sub, mul, dot, cross, len, norm, lerp3, frame, frame
 
 let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; const rr = (a, b) => a + (b - a) * rnd();
 
-function head(S, Hc, Fh, o = {}) {
+export function head(S, Hc, Fh, o = {}) {
   const at = l => Fh.at(Hc, l);
   S.ell(at([0, 0.025, -0.012]), [0.077, 0.098, 0.093], Fh, 0.02);                       // cranium
   S.ell(at([0, -0.024, 0.034]), [0.066, 0.083, 0.064], Fh, 0.025);                      // face mass

@@ -78,12 +78,21 @@ function planLayout(random, { gap = 0, from = 0 } = {}) {
       if ((side === gap && i === 0) || KIT.houseWidth * i < from) continue;
       // Built facing +z: turn -90° on the +x side and +90° on the -x side
       // so the fronts face the street.
-      placements.push({ piece: house, x: side * KIT.facadeX, z: KIT.houseWidth * (i + 0.5), angle: -side * Math.PI / 2 });
+      const angle = -side * Math.PI / 2;
+      // Now and then a portico takes this place and the next.
+      if (i + 1 < KIT.housesPerSide && random() < KIT.colonnadeChance) {
+        placements.push({ piece: 'Colonnade', x: side * KIT.facadeX, z: KIT.houseWidth * (i + 1), angle });
+        previous = 'Colonnade';
+        i++;
+        continue;
+      }
+      placements.push({ piece: house, x: side * KIT.facadeX, z: KIT.houseWidth * (i + 0.5), angle });
     }
-    // Props on the pavement, at different spots along the chunk.
-    const spots = [2.5, 7.5, 12.5, 17.5, 22.5, 27.5].filter((z) => z > from && !(side === gap && z < KIT.houseWidth)).sort(() => random() - 0.5);
+    // Props on the pavement, in front of the middle of a house (clear of
+    // the posts of balconies and awnings), at different spots along the chunk.
+    const spots = [3, 9, 15, 21, 27].filter((z) => z > from && !(side === gap && z < KIT.houseWidth)).sort(() => random() - 0.5);
     const [min, max] = KIT.props.perSide;
-    const count = min + Math.floor(random() * (max - min + 1));
+    const count = Math.min(spots.length, min + Math.floor(random() * (max - min + 1)));
     const names = Object.keys(KIT.props);
     const weights = names.map((n) => KIT.props[n][1]);
     const total = weights.reduce((a, b) => a + b, 0);
@@ -534,7 +543,11 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   // is a single draw call.
   const build = (plan) => {
     const far = mergeLayout(kit.far, plan);
-    const shadow = mergeGeometries([...far.values()]);
+    // (Only positions: some materials have texture coordinates, some don't.)
+    const shadow = mergeGeometries([...far.values()].map((g) => {
+      const shape = new THREE.BufferGeometry().setAttribute('position', g.getAttribute('position'));
+      return shape.setIndex(g.index);
+    }));
     shadow.computeBoundingSphere();
     return { near: mergeLayout(kit.near, plan, kit.far), far, shadow, free: plan.free ?? [] };
   };

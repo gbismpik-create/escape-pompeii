@@ -81,8 +81,17 @@ export const KIT = {
   // The statues of the gods (tools/build-statues.mjs), read in as more kit pieces.
   statuesFile: 'assets/statues.glb',
   statuesFarFile: 'assets/statues-far.glb',
+  // The HD street (tools/build-street-hd.mjs): painted house fronts, basalt
+  // road, kerbs, props and the cart, amphora stack and rubble obstacles.
+  streetFile: 'assets/street-hd.glb',
+  streetFarFile: 'assets/street-hd-far.glb',
   layouts: 5, // different street layouts merged at load (each also used mirrored)
-  houses: ['House_Red', 'House_Ochre', 'House_White'],
+  // House fronts from the HD street: a house, a house with shops and a
+  // balcony, a tavern, a bakery, a fullery (cloth workshop).
+  houses: ['House_A', 'House_B', 'Tavern', 'Bakery', 'Fullery'],
+  // A street portico two houses wide: the chance it takes two free places
+  // in a row of houses (not at junctions).
+  colonnadeChance: 0.15,
   housesPerSide: 5, // 6 m wide each: 5 fill a 30 m chunk
   houseWidth: 6,
   facadeX: 4.6, // house fronts stand at |x| = 4.6, the pavement's outer edge
@@ -92,7 +101,6 @@ export const KIT = {
     // name: [distance from the street centre, chance of being picked]
     Amphora: [3.35, 3],
     Fountain: [3.7, 1],
-    Thermopolium: [3.55, 1],
   },
 };
 
