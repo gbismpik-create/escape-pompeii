@@ -22,7 +22,7 @@ export const DISTRICTS = {
   only: null, // tests only: always offer this district
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
   names: {
-    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'A Rich House (Domus)', baths: 'The Stabian Baths', amphitheatre: 'The Amphitheatre',
+    residential: "Via dell'Abbondanza", forum: 'The Forum', theatre: 'The Large Theatre', villa: 'The House of the Vettii', baths: 'The Stabian Baths', amphitheatre: 'The Amphitheatre',
     // the finale (FINALE)
     gate: 'Porta Stabia', tombs: 'The Tombs outside Porta Stabia', fields: 'The Road to Stabiae', beach: 'The Shore at Stabiae',
   },
@@ -220,7 +220,7 @@ export const JOURNEY = {
 export const ROUTE_MAP = {
   every: 8, // metres between the route's recorded points
   // The places marked on it, by district (DISTRICTS): their names on the map.
-  places: { forum: 'Forum', theatre: 'Theatre', villa: 'Domus', baths: 'Baths', amphitheatre: 'Amphitheatre', gate: 'Porta Stabia', beach: 'Stabiae' },
+  places: { forum: 'Forum', theatre: 'Theatre', villa: 'Vettii', baths: 'Baths', amphitheatre: 'Amphitheatre', gate: 'Porta Stabia', beach: 'Stabiae' },
   size: [300, 190], // CSS pixels
 };
 
