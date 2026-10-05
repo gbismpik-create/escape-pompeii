@@ -67,13 +67,14 @@ function readPieces(gltf, materials, envMap) {
   return pieces;
 }
 
-// Loads the full-detail and the simplified kit. envMap: reflections for metal.
+// Loads the full-detail and the simplified kit, with the statues of the gods
+// as more pieces (their own files). envMap: reflections for metal.
 export async function loadKit(envMap) {
-  const [near, far] = await Promise.all([loadGLTF(KIT.file), loadGLTF(KIT.farFile)]);
+  const [near, far, statues, statuesFar] = await Promise.all([KIT.file, KIT.farFile, KIT.statuesFile, KIT.statuesFarFile].map(loadGLTF));
   const materials = {};
   return {
     materials,
-    near: readPieces(near, materials, envMap),
-    far: readPieces(far, materials, envMap),
+    near: { ...readPieces(near, materials, envMap), ...readPieces(statues, materials, envMap) },
+    far: { ...readPieces(far, materials, envMap), ...readPieces(statuesFar, materials, envMap) },
   };
 }

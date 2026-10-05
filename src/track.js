@@ -149,7 +149,7 @@ function planForum(random, { temple = 0, gate = null } = {}) {
     // (the simplified version: there are many and they are seen from afar).
     const z = 6 + random() * 18;
     const type = STATUES.types[Math.floor(random() * STATUES.types.length)];
-    placements.push({ piece: 'Pedestal', x: s * 10.2, z, angle: -s * Math.PI / 2 });
+    placements.push({ piece: type.replace('Statue_', 'Pedestal_'), x: s * 10.2, z, angle: -s * Math.PI / 2 });
     placements.push({ piece: type, x: s * 10.2, y: STATUES.pedestalHeight, z, angle: -s * Math.PI / 2, lowDetail: true });
   }
   if (gate === 'in') placements.push({ piece: 'Forum_Gate', x: 0, z: 0.7, angle: 0 });

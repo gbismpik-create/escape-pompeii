@@ -18,6 +18,7 @@ import { isLowEnd } from './device.js';
 // its pedestal and lies across one lane as an obstacle.
 
 const TYPES = STATUES.types;
+const pedestalOf = (type) => type.replace('Statue_', 'Pedestal_'); // each god has its own inscribed pedestal
 const COLUMN = 'Forum_Column';
 const POOL = 6; // in the Forum they stand closer together
 const L = TRACK.chunkLength;
@@ -53,13 +54,17 @@ function partsMesh(parts, farParts = null) {
 
 // path: { frameAt(s), angleAt(s) }, where the path is s metres along it.
 export function createStatues(world, kit, path) {
-  for (const type of [...TYPES, COLUMN, 'Pedestal']) if (!kit.near[type]) throw new Error(`The street kit has no "${type}"`);
+  for (const type of [...TYPES, COLUMN, ...TYPES.map(pedestalOf)]) if (!kit.near[type]) throw new Error(`The street kit has no "${type}"`);
   // One figure group per type per pool slot is wasteful; instead each pool
   // slot holds one group per type and shows the one it needs.
   const pool = Array.from({ length: POOL }, () => {
     const root = new THREE.Group();
-    const pedestal = partsMesh(kit.near.Pedestal);
-    root.add(pedestal);
+    const pedestals = {};
+    for (const type of TYPES) {
+      pedestals[type] = partsMesh(kit.near[pedestalOf(type)]);
+      pedestals[type].visible = false;
+      root.add(pedestals[type]);
+    }
     const figures = {};
     for (const type of [...TYPES, COLUMN]) {
       const figure = partsMesh(kit.near[type], kit.far[type] ?? kit.near[type]);
@@ -85,7 +90,7 @@ export function createStatues(world, kit, path) {
     root.visible = false;
     world.add(root);
     return {
-      root, pedestal, figures, shadow, active: false, type: null, distance: 0, slot: -1, side: 1,
+      root, pedestals, figures, shadow, active: false, type: null, distance: 0, slot: -1, side: 1,
       shape: SHAPES.statue, roadY: 0, // the road's height from the statue's foot
       // toppling: 'standing' | 'warning' | 'falling' | 'down'
       willTopple: false, state: 'standing', time: 0, hitbox: new THREE.Box3(), x: 0,
@@ -103,6 +108,7 @@ export function createStatues(world, kit, path) {
     statue.root.visible = false;
     standUp(statue);
     statue.figures[statue.type].visible = false;
+    if (statue.pedestals[statue.type]) statue.pedestals[statue.type].visible = false;
   }
 
   function standUp(statue) {
@@ -167,7 +173,7 @@ export function createStatues(world, kit, path) {
       const column = forum && Math.random() < STATUES.column.chance;
       statue.type = column ? COLUMN : TYPES[Math.floor(Math.random() * TYPES.length)];
       statue.shape = shapeOf(statue.type);
-      statue.pedestal.visible = statue.shape.pedestal;
+      if (statue.shape.pedestal) statue.pedestals[statue.type].visible = true;
       statue.roadY = forum ? 0 : -STATUES.pavementHeight;
       statue.willTopple = (chunk.kind === 'street' || chunk.kind === 'forum') && Math.random() < (forum ? STATUES.forumToppleChance : STATUES.toppleChance);
       standUp(statue);

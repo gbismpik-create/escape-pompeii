@@ -67,6 +67,9 @@ export const GRAPHICS = {
 export const KIT = {
   file: 'assets/pompeii-kit.glb',
   farFile: 'assets/pompeii-kit-far.glb', // simplified, for distant chunks
+  // The statues of the gods (tools/build-statues.mjs), read in as more kit pieces.
+  statuesFile: 'assets/statues.glb',
+  statuesFarFile: 'assets/statues-far.glb',
   layouts: 5, // different street layouts merged at load (each also used mirrored)
   houses: ['House_Red', 'House_Ochre', 'House_White'],
   housesPerSide: 5, // 6 m wide each: 5 fill a 30 m chunk
@@ -500,8 +503,9 @@ export const STATUES = {
   column: { chance: 0.5, x: 7.3, fallen: { halfWidth: 0.4, height: 0.8, from: 0.3, to: 6.4 }, lieHeight: 0.3 },
   shadowDarkness: 0.18,
   wobble: 0.06, // radians: the statue rocks on its pedestal while the shadow shows
-  pedestalHeight: 1.1, // the figure stands this high
-  types: ['Statue_Apollo', 'Statue_Emperor', 'Statue_Faun', 'Statue_Notable'], // pieces in the street kit
+  pedestalHeight: 1.02, // the figure stands this high
+  // The six gods (tools/build-statues.mjs); each has its own inscribed pedestal, 'Pedestal_<God>'.
+  types: ['Statue_Apollo', 'Statue_Diana', 'Statue_Venus', 'Statue_Jupiter', 'Statue_Minerva', 'Statue_Mercury'],
 };
 
 // The rich house (domus) shortcut: the far side of some T-junctions is a
