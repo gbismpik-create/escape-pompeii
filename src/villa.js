@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { VILLA, AMPHITHEATRE, BATHS, GRAPHICS } from './config.js';
+import { VILLA, AMPHITHEATRE, BATHS, PALAESTRA, GRAPHICS } from './config.js';
 import { loadGLTF } from './assets.js';
 import { isLowEnd } from './device.js';
 
@@ -75,11 +75,14 @@ function addSeeThrough(material) {
 
 // The game's version of a villa material: Lambert on phones (cheaper), with
 // the texture, vertex colours and see-through leaf edges kept.
-function gameMaterial(source, envMap) {
+// painted: whether the mesh carries vertex colours (the plain parts, like a
+// statue's bronze spear, don't, and take the material's own colour).
+function gameMaterial(source, envMap, painted = true) {
   const shared = {
     name: source.name,
     map: source.map,
-    vertexColors: true,
+    color: source.color,
+    vertexColors: painted,
     side: THREE.DoubleSide,
     transparent: source.transparent,
     opacity: source.opacity,
@@ -118,7 +121,7 @@ export async function loadSetPiece(file, rootName, envMap, noShadow = []) {
   root.traverse((o) => {
     if (o.isMesh) meshes.push(o);
   });
-  for (const mesh of meshes) mesh.material = addSeeThrough(gameMaterial(mesh.material, envMap));
+  for (const mesh of meshes) mesh.material = addSeeThrough(gameMaterial(mesh.material, envMap, Boolean(mesh.geometry.attributes.color)));
   // Leaves and grass are cut out by their textures; their square cards
   // would cast square shadows, so they don't cast any.
   const solid = meshes.filter((m) => !m.material.alphaTest && !m.material.transparent && !noShadow.includes(m.material.name));
@@ -136,3 +139,14 @@ export const loadAmphitheatre = (envMap) => loadSetPiece(AMPHITHEATRE.file, 'Pom
 // The Stabian Baths (tools/build-stabian-baths.mjs): its grass and street
 // paving cast no shadows.
 export const loadBaths = (envMap) => loadSetPiece(BATHS.file, 'Pompeii_Stabian_Baths', envMap, ['grass', 'basalt', 'sand', 'signinum']);
+
+// The Great Palaestra (tools/build-great-palaestra.mjs) with its sculpted
+// statues (a separate file in the same space): its ground casts no shadows.
+export async function loadPalaestra(envMap) {
+  const [place, statues] = await Promise.all([
+    loadSetPiece(PALAESTRA.file, 'Pompeii_Great_Palaestra', envMap, ['grass', 'gravel', 'basalt', 'signinum', 'sand']),
+    loadSetPiece(PALAESTRA.statuesFile, 'Palaestra_Statues', envMap).catch(() => null), // (without statues if they fail)
+  ]);
+  if (statues) place.meshes.push(...statues.meshes);
+  return place;
+}

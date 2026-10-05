@@ -162,25 +162,6 @@ function planForum(random, { temple = 0, gate = null } = {}) {
   return placements;
 }
 
-// A chunk of the Great Palaestra, in kit space: the field, a portico down
-// each side, double rows of plane trees shading them; the swimming pool
-// beside the track (pool), the gateway in or out (gate).
-function planPalaestra(random, { gate = null, pool = false } = {}) {
-  const placements = [{ piece: pool ? 'Palaestra_Ground_Pool_30m' : 'Palaestra_Ground_30m', x: 0, z: 0, angle: 0 }];
-  placements.push({ piece: 'Palaestra_Portico_30m', x: 0, z: 0, angle: 0 }, { piece: 'Palaestra_Portico_30m', x: 0, z: L, angle: Math.PI });
-  for (const s of [1, -1]) for (const [x, first] of PALAESTRA.treeRows) {
-    if (pool && s < 0 && x < 14) continue; // the pool's side: only the outer row
-    for (let z = first; z < L; z += PALAESTRA.treeSpacing) {
-      placements.push({ piece: 'Plane_Tree', x: s * x + (random() - 0.5) * 0.8, z: z + (random() - 0.5) * 1.2, angle: random() * Math.PI * 2 });
-    }
-  }
-  if (pool) placements.push({ piece: 'Palaestra_Pool', x: 0, z: 0, angle: 0 });
-  if (gate === 'in') placements.push({ piece: 'Palaestra_Gate', x: 0, z: 0.7, angle: 0 });
-  if (gate === 'out') placements.push({ piece: 'Palaestra_Gate', x: 0, z: L - 0.7, angle: Math.PI });
-  placements.free = [];
-  return placements;
-}
-
 // The finale's first chunk, in kit space: the last houses of the town, then
 // the city wall across the street with Porta Stabia's passage through it,
 // and the road out beyond.
@@ -512,7 +493,7 @@ function createTheatre(world, kit) {
 
 // villa: the rich house (villa.js), or null for none (tests); amph: the
 // amphitheatre, bathsModel: the Stabian Baths (villa.js), or null for none.
-export function createTrack(scene, kit, villa = null, amph = null, bathsModel = null) {
+export function createTrack(scene, kit, villa = null, amph = null, bathsModel = null, palaestraModel = null) {
   const world = new THREE.Group();
   world.name = 'world';
   world.matrixAutoUpdate = false; // placed from the path's pose each frame
@@ -568,18 +549,6 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     in: build(planForum(random, { gate: 'in' })),
     out: build(planForum(random, { gate: 'out' })),
   };
-  // The Great Palaestra: the way in, the middles (one with the pool), the way out.
-  const palaestraLayouts = {
-    in: build(planPalaestra(random, { gate: 'in' })),
-    out: build(planPalaestra(random, { gate: 'out' })),
-    middle: build(planPalaestra(random)),
-    pool: build(planPalaestra(random, { pool: true })),
-  };
-  const palaestraLayout = (distance, run) =>
-    distance === run.start ? palaestraLayouts.in
-      : distance === run.end - L ? palaestraLayouts.out
-      : Math.round((distance - run.start) / L) === PALAESTRA.poolChunk ? palaestraLayouts.pool
-      : palaestraLayouts.middle;
   const forumLayout = (distance, run) =>
     distance === run.start ? forumLayouts.in : distance === run.end - L ? forumLayouts.out : forumLayouts.middle[Math.floor(Math.random() * 3)];
   const finishMarks = createFinishMarks(world);
@@ -619,12 +588,15 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   const makeAmphitheatre = (model) => createSetPiece(world, model, 'amphitheatre', { ...AMPHITHEATRE, offset: AMPHITHEATRE.gateAt, floor: amphFloor, sceneryHides: ['grass', 'gravel'] });
   let amphitheatre = amph ? makeAmphitheatre(amph) : null;
   let amphRun = null; // the amphitheatre on offer or being run through, or null
-  let amphBeyond = null; // the palaestra run it is shown beside, or null
+  // The Great Palaestra (its model and its statues, villa.js).
+  let palaestra = palaestraModel ? createSetPiece(world, palaestraModel, 'palaestra', { ...PALAESTRA, offset: PALAESTRA.gateAt }) : null;
+  let palaestraRun = null; // the palaestra on offer or being run through, or null
   // The obstacles of the set pieces on the way (tests, tools and the steam).
   const setPieceObstacles = () => [
     ...(villaRun && !villaRun.declined ? house.list() : []),
     ...(amphRun && !amphRun.declined ? amphitheatre.list() : []),
     ...(bathsRun && !bathsRun.declined ? baths.list() : []),
+    ...(palaestraRun && !palaestraRun.declined ? palaestra.list() : []),
   ];
   let villaRun = null; // the house on offer or being run through, or null
   let villaLast = false; // the last junction had the house (never two running)
@@ -753,7 +725,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   const chunkAt = (d) => path.find((c) => d >= c.distance && d < c.distance + L);
   // How many lanes at a path distance: the Forum is wider, from just past
   // its entrance arch to a little before its end.
-  const WIDE = ['forum', 'palaestra']; // the open squares, five lanes across
+  const WIDE = ['forum']; // the open squares, five lanes across
   const forumWide = (run, d) => WIDE.includes(run?.kind) && d >= run.start + DISTRICTS.gateOpen && d < run.end - DISTRICTS.narrowBefore;
   const lanesAt = (d) => (forumWide(chunkAt(d)?.run, d) ? DISTRICTS.forumLanes : LANES.count);
   const tmp = new THREE.Vector3();
@@ -788,7 +760,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
           : district === 'beach' ? (distance + L <= finishDistance + FINALE.beach.shore ? beachLayout : distance < finishDistance + FINALE.beach.shore ? shoreLayout : emptyLayout) // sand, then the sea (beach.js)
           : countryLayouts[district][Math.floor(Math.random() * 3)]
       : district === 'forum' ? forumLayout(distance, run)
-      : district === 'palaestra' ? palaestraLayout(distance, run)
+      : district === 'palaestra' ? emptyLayout
       : chunk.gap ? gapLayouts[chunk.gap]
       : layouts[Math.floor(Math.random() * layouts.length)];
     for (const lod of ['near', 'far']) {
@@ -831,7 +803,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
         : district === 'theatre' ? (d) => theatreRules(d - run.start)
         : district === 'baths' ? () => null // only its own
         : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
-        : district === 'palaestra' ? () => (Math.random() < PALAESTRA.rowShare ? PALAESTRA.obstacles : null) // calmer: fewer rows, none full
+        : district === 'palaestra' ? () => null // only its own
         : district === 'amphitheatre' ? (d) => (d - run.start < AMPHITHEATRE.exitAt + 4 ? null : undefined) // only its own, until the street beyond
         : undefined,
       lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
@@ -920,7 +892,8 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
         run = bathsRun = { kind: 'baths', start: d, end: d + BATHS.chunks * L };
         baths.place(start, angle, run);
       } else if (way === offerWay && offer === 'palaestra') {
-        run = { kind: 'palaestra', start: d, end: d + PALAESTRA.chunks * L };
+        run = palaestraRun = { kind: 'palaestra', start: d, end: d + PALAESTRA.chunks * L };
+        palaestra.place(start, angle, run);
       } else if (way === offerWay && offer === 'amphitheatre') {
         run = amphRun = { kind: 'amphitheatre', start: d, end: d + AMPHITHEATRE.chunks * L };
         amphitheatre.place(start, angle, run);
@@ -972,12 +945,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     }
     if (villaRun && chosen.run !== villaRun) villaRun.declined = true;
     if (amphRun && chosen.run !== amphRun) amphRun.declined = true;
-    if (chosen.run?.kind === 'palaestra' && amphitheatre && !amphRun) {
-      // The amphitheatre stands beyond its east wall (only to look at).
-      amphBeyond = chosen.run;
-      const [x, z] = PALAESTRA.amphitheatreAt;
-      amphitheatre.showAt(frameAt(chosen.run.start).multiply(new THREE.Matrix4().makeTranslation(x, 0, -z)));
-    }
+    if (palaestraRun && chosen.run !== palaestraRun) palaestraRun.declined = true;
     if (chosen.run?.kind === 'amphitheatre') steps.push({ from: chosen.run.start, to: chosen.run.end, floor: (rel) => amphFloor(rel) });
     junction = null;
     exits = null;
@@ -997,8 +965,8 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
       forum: fits(maxForum * L),
       theatre: (!theatreUsed || !THEATRE.oncePerRun) && !theatreRun && fits(ROUTE.length),
       baths: Boolean(baths) && !bathsRun && fits(BATHS.chunks * L),
-      amphitheatre: Boolean(amphitheatre) && !amphRun && !amphBeyond && fits(AMPHITHEATRE.chunks * L),
-      palaestra: fits(PALAESTRA.chunks * L),
+      amphitheatre: Boolean(amphitheatre) && !amphRun && fits(AMPHITHEATRE.chunks * L),
+      palaestra: Boolean(palaestra) && !palaestraRun && fits(PALAESTRA.chunks * L),
     };
     if (DISTRICTS.only) return can[DISTRICTS.only] ? DISTRICTS.only : null;
     if (Math.random() >= DISTRICTS.offerChance) return null;
@@ -1046,7 +1014,8 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     villaRun = null;
     amphitheatre?.hide();
     amphRun = null;
-    amphBeyond = null;
+    palaestra?.hide();
+    palaestraRun = null;
     pumice = null;
     finale = null;
     gate.hide();
@@ -1100,6 +1069,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     addSetPiece(kind, model) {
       if (kind === 'villa' && !house) house = createSetPiece(world, model, 'villa', VILLA);
       if (kind === 'baths' && !baths) baths = createSetPiece(world, model, 'baths', { ...BATHS, offset: BATHS.gateAt });
+      if (kind === 'palaestra' && !palaestra) palaestra = createSetPiece(world, model, 'palaestra', { ...PALAESTRA, offset: PALAESTRA.gateAt });
       if (kind === 'amphitheatre' && !amphitheatre) {
         amphRoute = model.route ?? [[0, 0]];
         amphitheatre = makeAmphitheatre(model);
@@ -1115,7 +1085,8 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     findCollision(hitbox) {
       return obstacles.findCollision(hitbox) ?? statues.findCollision(hitbox) ?? gate.findCollision(hitbox) ??
         (bathsRun && !bathsRun.declined ? baths.findCollision(hitbox) : null) ?? (villaRun && !villaRun.declined ? house.findCollision(hitbox) : null) ??
-        (amphRun && !amphRun.declined ? amphitheatre.findCollision(hitbox) : null);
+        (amphRun && !amphRun.declined ? amphitheatre.findCollision(hitbox) : null) ??
+        (palaestraRun && !palaestraRun.declined ? palaestra.findCollision(hitbox) : null);
     },
 
     // The rich house's own obstacles while it is on the path (tests and tools).
@@ -1163,7 +1134,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     setPumice(start, length) {
       if (pumice) return;
       let from = Math.max(start, cursor.distance + 1);
-      for (const run of [cursor.run, theatreRun, villaRun, amphRun, bathsRun]) if (run && !run.declined) from = Math.max(from, run.end);
+      for (const run of [cursor.run, theatreRun, villaRun, amphRun, bathsRun, palaestraRun]) if (run && !run.declined) from = Math.max(from, run.end);
       pumice = { start: from, length };
     },
     get pumice() {
@@ -1268,7 +1239,8 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
       const inTheatre = theatreRun && !theatreRun.declined && playerDistance > theatreRun.start && playerDistance < theatreRun.start + ROUTE.ringEnd;
       const inArena = amphRun && !amphRun.declined && playerDistance > amphRun.start && playerDistance < amphRun.start + AMPHITHEATRE.exitAt;
       const inBaths = bathsRun && !bathsRun.declined && playerDistance > bathsRun.start && playerDistance < bathsRun.end;
-      ground.update(playerZ, inArena ? AMPHITHEATRE.groundDrop : inBaths ? BATHS.groundDrop : inTheatre ? THEATRE.groundDrop : -0.1);
+      const inPalaestra = palaestraRun && !palaestraRun.declined && playerDistance > palaestraRun.start && playerDistance < palaestraRun.end;
+      ground.update(playerZ, inArena ? AMPHITHEATRE.groundDrop : inBaths ? BATHS.groundDrop : inPalaestra ? PALAESTRA.groundDrop : inTheatre ? THEATRE.groundDrop : -0.1);
       // Recycle chunks that are now too far behind; lay new ones ahead.
       while (path.length && path[0].distance + L < playerDistance - TRACK.chunksBehind * L) release(path.shift());
       if (leftovers.length && playerDistance >= releaseLeftoversAt) {
@@ -1290,9 +1262,9 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
         amphitheatre.hide();
         amphRun = null;
       }
-      if (amphBeyond && playerDistance > amphBeyond.end + TRACK.chunksBehind * L) {
-        amphitheatre.hide();
-        amphBeyond = null;
+      if (palaestraRun && ((palaestraRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > palaestraRun.end + TRACK.chunksBehind * L)) {
+        palaestra.hide();
+        palaestraRun = null;
       }
       // The theatre goes once it is behind (or once its way was not taken).
       if (theatreRun && ((theatreRun.declined && playerDistance >= releaseLeftoversAt) || playerDistance > theatreRun.end + TRACK.chunksBehind * L)) {

@@ -11,6 +11,8 @@
     "build:villa": "cd tools && node build-villa.mjs && cd .. && gltf-transform meshopt tools/villa.glb public/assets/villa.glb && rm tools/villa.glb",
     "build:amphitheatre": "cd tools && node build-amphitheatre.mjs && cd .. && gltf-transform meshopt tools/amphitheatre.glb public/assets/amphitheatre.glb && rm tools/amphitheatre.glb",
     "build:baths": "cd tools && node build-stabian-baths.mjs && cd .. && gltf-transform meshopt tools/stabian-baths.glb public/assets/stabian-baths.glb && rm tools/stabian-baths.glb",
+    "build:palaestra": "cd tools && node build-great-palaestra.mjs && cd .. && gltf-transform meshopt tools/great-palaestra.glb public/assets/great-palaestra.glb && rm tools/great-palaestra.glb",
+    "build:palaestra-statues": "cd tools && node build-palaestra-statues.mjs && cd .. && gltf-transform simplify tools/pompeii-palaestra-statues.glb tools/palaestra-statues-s.glb --ratio 0.1 --error 0.003 && gltf-transform meshopt tools/palaestra-statues-s.glb public/assets/palaestra-statues.glb && rm tools/pompeii-palaestra-statues*.glb tools/palaestra-statues-s.glb",
     "build:kit": "cd tools && node build-pompeii-kit.mjs && cd .. && gltf-transform meshopt tools/pompeii-kit.glb public/assets/pompeii-kit.glb && gltf-transform simplify tools/pompeii-kit.glb tools/pompeii-kit-far.glb --ratio 0.25 --error 0.004 && gltf-transform meshopt tools/pompeii-kit-far.glb public/assets/pompeii-kit-far.glb && rm tools/pompeii-kit.glb tools/pompeii-kit-far.glb"
   },
   "devDependencies": {

@@ -6,7 +6,7 @@ import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
-import { loadVilla, loadAmphitheatre, loadBaths, seeThrough } from './villa.js';
+import { loadVilla, loadAmphitheatre, loadBaths, loadPalaestra, seeThrough } from './villa.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart, journeyPhaseTime } from './phases.js';
 import { speedAt } from './speed.js';
@@ -85,8 +85,9 @@ const track = createTrack(scene, kit);
 // memory to spare); each can be offered once it is in. One that fails to
 // load is simply never offered.
 // (While testing one district, DISTRICTS.only, only its own set piece loads.)
-const SET_PIECES = [['baths', loadBaths], ['villa', loadVilla], ['amphitheatre', loadAmphitheatre]]
-  .filter(([kind]) => !DISTRICTS.only || kind === DISTRICTS.only || !['baths', 'villa', 'amphitheatre'].includes(DISTRICTS.only));
+const SET_PIECES = [['baths', loadBaths], ['villa', loadVilla], ['amphitheatre', loadAmphitheatre], ['palaestra', loadPalaestra]];
+const testing = SET_PIECES.some(([kind]) => kind === DISTRICTS.only);
+for (let i = SET_PIECES.length - 1; i >= 0; i--) if (testing && SET_PIECES[i][0] !== DISTRICTS.only) SET_PIECES.splice(i, 1);
 (async () => {
   for (const [kind, load] of SET_PIECES) {
     try {
@@ -588,6 +589,17 @@ const CRASH_REASONS = {
   'hot pool (alveus)': 'You fell into the hot pool',
   'wooden tub': 'You ran into a bathing tub',
   firewood: 'You tripped over the firewood',
+  'toppled bronze athlete': 'You ran into a toppled bronze statue',
+  'stone bench': 'You ran into a stone bench',
+  'fallen branch': 'You tripped over a fallen branch',
+  'javelin rack': 'You ran into a rack of javelins',
+  'fallen plane tree': 'You ran into a fallen plane tree',
+  "wrestlers' sand heap": "You ran into the wrestlers' sand",
+  "water-seller's cart": "You ran into a water-seller's cart",
+  'oil amphorae': 'You ran into the oil amphorae',
+  'fallen marble basin': 'You ran into a fallen marble basin',
+  hurdle: 'You tripped over a hurdle',
+  'fallen roof tiles': 'You tripped over fallen roof tiles',
   'lion cage': 'You ran into a beast cage',
   'fallen awning mast': 'You tripped over a fallen awning mast',
   'weapons rack': 'You ran into a rack of arms',

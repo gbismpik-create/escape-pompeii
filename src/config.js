@@ -19,7 +19,7 @@ export const DISTRICTS = {
   offerChance: 0.6,
   weights: { forum: 3, theatre: 2, baths: 3, amphitheatre: 3, palaestra: 3 },
   seenWeight: 0.25, // a district already seen this run: its weight times this
-  only: 'amphitheatre', // tests only: always offer this district (null in the real game)
+  only: 'palaestra', // tests only: always offer this district (null in the real game)
   autoTake: true, // tests only: he turns down the way to it by himself (false in the real game)
   forumChunks: [3, 6], // how long the Forum lasts (chunks of TRACK.chunkLength)
   names: {
@@ -651,23 +651,23 @@ export const BATHS = {
   },
 };
 
-// The Great Palaestra (a district): the walled exercise ground beside the
-// amphitheatre, a calm, wide stretch between the tight streets. Five lanes
-// across the field (DISTRICTS.gateOpen / narrowBefore, as in the Forum),
-// porticoes down both sides, plane trees, the swimming pool beside the
-// track, and the amphitheatre seen over its east wall.
+// The Great Palaestra (a district; the model: tools/build-great-palaestra.mjs,
+// its statues tools/build-palaestra-statues.mjs, loaded by villa.js): down a
+// street to the west gate, along the shaded avenue of plane trees beside the
+// near colonnade (statues of athletes on their pedestals, the pool across
+// the court), out by the east gate towards the amphitheatre.
+// Model space: +z along the way, the west gate at z = 0, the street beyond
+// the east gate ends at z = 155; lanes 0..2 at x = -1.8, 0, 1.8 (-1: across).
 export const PALAESTRA = {
-  chunks: 5, // 150 m: the gateway in, three middles, the gateway out
-  poolChunk: 2, // which chunk has the swimming pool
-  treeRows: [[17.5, 2], [12.5, 5.5]], // [metres from the middle, first tree] of each double row
-  treeSpacing: 7.5,
-  rowShare: 0.9, // calmer: rows only on the open field between the gateway and the narrowing (about half as many as in a street)...
-  obstacles: { fullRowChance: 0, lane: { Basket: 2, Rubble: 2, AmphoraStack: 1 } }, // ...none right across
-  fallShare: 0.5, // and half as many tiles and stones falling
-  // [metres across (path x), metres along] where the amphitheatre's north
-  // gate stands, only to look at (beyond the wall on the pool's side; its
-  // trees and stalls stay clear of the palaestra)
-  amphitheatreAt: [100, 7.5],
+  file: 'assets/great-palaestra.glb',
+  statuesFile: 'assets/palaestra-statues.glb',
+  chunks: 6, // 180 m
+  gateAt: 25, // metres into the run where the west gate is (so the street beyond the east gate ends with the run)
+  laneHalfWidth: 0.8, // its obstacles' hitboxes, across one lane
+  jumpHeight: 0.35, // 'jump' ones (the fallen branch, the hurdle); 'slide' ones are OBSTACLES.slideGap
+  stumbleOnly: [],
+  fallShare: 0.5, // half as many tiles and stones falling (open sky, far from roofs)
+  groundDrop: -3, // the plain ground sinks below its pool while he is inside
 };
 
 // The Amphitheatre (a district; the model: tools/build-amphitheatre.mjs,
