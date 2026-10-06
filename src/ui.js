@@ -1,7 +1,7 @@
 // On-screen HTML on top of the canvas: the distance display and the
 // game-over overlay.
 
-import { ROUTE_MAP, COINS } from './config.js';
+import { ROUTE_MAP, COINS, POWERUPS } from './config.js';
 
 const hud = document.createElement('div');
 hud.id = 'hud';
@@ -300,6 +300,58 @@ export function flyCoin(type, x, y) {
     f.busy = false;
     bump(type);
   };
+}
+
+// ---- Power-ups: an icon for each one working, under the coin counters,
+// with a ring that drains as it runs out (the aegis stays full) ----
+const POWERUP_ICONS = {
+  // Mercury's purse: a leather pouch with little wings
+  magnet: `<path class="wing" d="M8 17c-4-1-6-4-6-7 2 2 4 2 6 3zM28 17c4-1 6-4 6-7-2 2-4 2-6 3z"/><path class="leather" d="M14 11h8l-1 3c4 2 6 6 5 10-1 4-5 6-8 6s-7-2-8-6c-1-4 1-8 5-10z"/><path class="gold" d="M13.5 13.5h9" stroke-width="2"/>`,
+  // Fortuna's favour: a gilded wheel
+  double: `<circle class="gold-line" cx="18" cy="18" r="10" stroke-width="2.6"/><path class="gold-line" d="M18 8v20M8 18h20M11 11l14 14M25 11 11 25" stroke-width="1.6"/><circle class="gold" cx="18" cy="18" r="3"/>`,
+  // Aegis of Minerva: a gold shield with the Gorgon's face
+  aegis: `<circle class="gold" cx="18" cy="18" r="11"/><circle class="gold-dark" cx="18" cy="18" r="4.2"/><path class="gold-dark-line" d="M18 11.5v-3M23 13l2.4-2.4M24.5 18h3M13 13l-2.4-2.4M11.5 18h-3M14 23l-2 2.4M22 23l2 2.4" stroke-width="1.6"/>`,
+  // Wings of Pegasus: two white wings
+  wings: `<path class="wing" d="M17 20C13 13 7 10 3 10c2 3 1 6 3 8-1 1 0 3 2 3 1 2 3 3 5 2 2 1 3 0 4-3zM19 20c4-7 10-10 14-10-2 3-1 6-3 8 1 1 0 3-2 3-1 2-3 3-5 2-2 1-3 0-4-3z"/><circle class="gold" cx="18" cy="20" r="2"/>`,
+};
+const powerupBar = document.createElement('div');
+powerupBar.id = 'powerups';
+powerupBar.innerHTML = Object.entries(POWERUP_ICONS).map(([type, art]) => `<div class="powerup" data-type="${type}" hidden><svg viewBox="0 0 36 36" aria-hidden="true">
+  <circle class="track" cx="18" cy="18" r="16.5"/><circle class="ring" cx="18" cy="18" r="16.5" pathLength="100"/>${art}</svg></div>`).join('');
+coinCounter.appendChild(powerupBar);
+const powerupIcons = Object.fromEntries([...powerupBar.children].map((el) => [el.dataset.type, { el, ring: el.querySelector('.ring'), shown: '' }]));
+
+// list: [{ type, fraction }] of the power-ups working now (fraction 1 → 0).
+export function updatePowerups(list) {
+  for (const [type, icon] of Object.entries(powerupIcons)) {
+    const on = list.find((p) => p.type === type);
+    const key = on ? String(Math.round(on.fraction * 100)) : 'off';
+    if (key === icon.shown) continue; // only touch the page when it changes
+    if (icon.shown === 'off' || icon.shown === '') icon.el.animate?.([{ transform: 'scale(1.4)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
+    icon.shown = key;
+    icon.el.hidden = !on;
+    if (on) icon.ring.style.strokeDashoffset = String(100 - on.fraction * 100);
+  }
+}
+
+// The aegis shatters: a gold flash over the screen and shards flying out
+// from the runner (x, y: screen pixels).
+const aegisFlash = document.createElement('div');
+aegisFlash.id = 'aegis-flash';
+document.body.appendChild(aegisFlash);
+export function shatterAegis(x, y) {
+  aegisFlash.style.background = `radial-gradient(circle at ${x}px ${y}px, ${POWERUPS.aegis.flashColor}cc 0%, ${POWERUPS.aegis.flashColor}55 30%, transparent 70%)`;
+  aegisFlash.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 650, easing: 'ease-out' });
+  for (let i = 0; i < 14; i++) {
+    const shard = document.createElement('div');
+    shard.className = 'aegis-shard';
+    document.body.appendChild(shard);
+    const a = (i / 14) * Math.PI * 2 + Math.random() * 0.4, r = 90 + Math.random() * 110;
+    shard.animate([
+      { transform: `translate(${x}px, ${y}px) rotate(0deg) scale(1)`, opacity: 1 },
+      { transform: `translate(${x + Math.cos(a) * r}px, ${y + Math.sin(a) * r}px) rotate(${(Math.random() - 0.5) * 720}deg) scale(0.4)`, opacity: 0 },
+    ], { duration: 600 + Math.random() * 250, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' }).onfinish = () => shard.remove();
+  }
 }
 
 // The coins line on the game-over and end screens.

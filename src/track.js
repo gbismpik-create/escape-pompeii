@@ -6,6 +6,7 @@ import { createBeach } from './beach.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
 import { createObstacles } from './obstacles.js';
 import { createCoins } from './coins.js';
+import { createPowerups } from './powerups.js';
 import { createStatues } from './statues.js';
 import { isLowEnd } from './device.js';
 import { addAshCover } from './ashShader.js';
@@ -535,6 +536,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   const ground = createGround(scene);
   const obstacles = createObstacles(world, slotCount, kit, frameAt);
   let coins = null; // once coins.glb has loaded (addCoins)
+  let powerups = null; // once powerups.glb has loaded (addPowerups)
   const statues = createStatues(world, kit, path3);
   const materials = Object.values(kit.materials);
 
@@ -830,6 +832,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     // Coins go with the rows: none where there are no rows (set pieces, the gate).
     chunk.coinRows = { rows, options: { ...rowOptions, allowAt: (d) => rulesAt(d) !== null } };
     coins?.fill(chunk.slot, chunk, rows, chunk.coinRows.options);
+    powerups?.fill(chunk.slot, chunk, chunk.coinRows.options); // after the coins, so it keeps clear of them
     if (!finale && finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, on the path.
       finishMarks.matrix.copy(frameAt(finishDistance));
@@ -844,6 +847,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     statues.release(chunk.slot);
     obstacles.fill(chunk.slot, chunk, { empty: true });
     coins?.release(chunk.slot);
+    powerups?.release(chunk.slot);
     free.push(chunk);
   }
 
@@ -961,7 +965,9 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
       // The side street was laid empty; the passage has its own obstacles.
       const run = chosen.run;
       const rows = obstacles.fill(chosen.slot, chosen, { floorAt, rulesAt: (d) => theatreRules(d - run.start) });
-      coins?.fill(chosen.slot, chosen, rows, { floorAt, allowAt: (d) => theatreRules(d - run.start) !== null });
+      const options = { floorAt, allowAt: (d) => theatreRules(d - run.start) !== null };
+      coins?.fill(chosen.slot, chosen, rows, options);
+      powerups?.fill(chosen.slot, chosen, options);
       cursor.angle = pose(cursor.distance, cursor.position);
     } else if (theatreRun) {
       // The theatre was down another way.
@@ -1054,6 +1060,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     steamVents = [];
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
     coins?.reset();
+    powerups?.reset();
     statues.reset();
     planNextJunction(0);
     nextJunction = TURNS.enabled ? Math.max(nextJunction, nextJunctionAfter(0, TURNS.firstAfter)) : Infinity;
@@ -1111,6 +1118,15 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     },
     get coins() {
       return coins;
+    },
+
+    // The power-up pickups (powerups.js), once powerups.glb has loaded.
+    addPowerups(models) {
+      powerups = createPowerups(world, models, frameAt, obstacles, coins);
+      for (const chunk of path) if (chunk.coinRows) powerups.fill(chunk.slot, chunk, chunk.coinRows.options);
+    },
+    get powerups() {
+      return powerups;
     },
 
     // The obstacle touching the player's hitbox, or null. Collisions work in

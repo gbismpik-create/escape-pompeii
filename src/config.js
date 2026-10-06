@@ -868,6 +868,35 @@ export const COINS = {
   },
 };
 
+// Power-up pickups (powerups.js), sculpted in tools/build-powerups.mjs.
+// About one every `spacing` metres, floating in a free lane (kept clear of
+// obstacles and coins like the coins are). Base durations only, no upgrades yet.
+export const POWERUPS = {
+  file: 'assets/powerups.glb',
+  firstAt: 250, // metres into a run before the first
+  spacing: [350, 450], // metres between one and the next
+  height: 1.0, // metres above the floor
+  scale: 1,
+  spinSpeed: 1.6, // radians a second
+  bobHeight: 0.08,
+  bobSpeed: 2.4,
+  pickupRadius: 0.7,
+  clearAround: 4, // metres ahead and behind kept free of obstacles in its lane
+  coinClear: 2.5, // metres from any coin
+  drawDistance: 120,
+  weights: { magnet: 1, double: 1, aegis: 1, wings: 1 }, // how often each comes
+  // Mercury's purse: coins within `lanes` lanes and `reach` metres ahead fly to him.
+  magnet: { model: 'Purse_Mercury', duration: 8, lanes: 3, reach: 14, pullSharpness: 9 },
+  // Fortuna's favour: every silver coin counts double.
+  double: { model: 'Wheel_Fortuna', duration: 10, silverValue: 2 },
+  // Aegis of Minerva: the next crash that would end the run doesn't (an
+  // obstacle, a wall at a T-junction: he turns instead). It shatters in a
+  // gold flash; for `grace` seconds after, nothing can hit him.
+  aegis: { model: 'Shield_Aegis', grace: 1.2, flashColor: '#ffcf5a' },
+  // Wings of Pegasus: jumps go higher and stay in the air longer.
+  wings: { model: 'Wings_Pegasus', duration: 8, jumpHeight: 1.45, airTime: 1.35 },
+};
+
 export const OBSTACLES = {
   // Obstacles come in rows across the 3 lanes. Spacing is measured in
   // seconds of running, so rows spread out as speed rises and the player

@@ -88,7 +88,10 @@ export function createCoins(world, models, frameAt, obstacles) {
   let lastGold = -Infinity;
   let speedMultiplier = 1; // the phase's, for fitting jump arcs to the jump
   const collected = { silver: 0, gold: 0 };
-  const laid = { silver: 0, gold: 0, patterns: {} }; // this run's coins laid, by type and pattern (tests and tools)
+  const laid = { silver: 0, gold: 0, patterns: {} };
+  // Power-ups (powerups.js): a magnet pulling coins in, and what a silver coin is worth.
+  let magnet = null; // { reach, halfWidth, pullSharpness } while Mercury's purse works
+  let silverValue = 1; // this run's coins laid, by type and pattern (tests and tools)
 
   const goldGap = (d) => {
     const k = THREE.MathUtils.clamp((speedAt(d) - PLAYER.startSpeed) / (PLAYER.maxSpeed - PLAYER.startSpeed), 0, 1);
@@ -250,6 +253,14 @@ export function createCoins(world, models, frameAt, obstacles) {
       for (const mesh of Object.values(meshes)) mesh.count = 0;
     },
 
+    // Power-ups: magnet { reach, halfWidth, pullSharpness } or null; what a silver coin counts for.
+    setMagnet(m) {
+      magnet = m;
+    },
+    setSilverValue(v) {
+      silverValue = v;
+    },
+
     // The phase's speed multiplier, so jump arcs match the jump.
     setSpeedMultiplier(m) {
       speedMultiplier = m;
@@ -302,6 +313,7 @@ export function createCoins(world, models, frameAt, obstacles) {
     update(dt, time, player) {
       const pd = -player.object.position.z, px = player.object.position.x;
       const lowY = player.hitbox.min.y, highY = player.hitbox.max.y, r = COINS.pickupRadius;
+      const chest = (lowY + highY) / 2, pull = magnet ? 1 - Math.exp(-magnet.pullSharpness * dt) : 0;
       const picked = [];
       const counts = { silver: 0, gold: 0 };
       const angle = time * COINS.spinSpeed;
@@ -309,15 +321,26 @@ export function createCoins(world, models, frameAt, obstacles) {
         if (!list) continue;
         for (const c of list) {
           if (c.taken) continue;
+          // Mercury's purse: coins near enough fly to him (and keep flying
+          // once caught, even if the purse runs out).
+          if (magnet && !c.pulled && c.d - pd > -1 && c.d - pd < magnet.reach && Math.abs(c.x - px) <= magnet.halfWidth) {
+            c.pulled = { x: c.x, y: c.floor + c.y, d: c.d };
+          }
+          if (c.pulled) {
+            const q = c.pulled, k = c.pulled.k = Math.max(pull, c.pulled.k ?? 0, 1 - Math.exp(-14 * dt));
+            q.x += (px - q.x) * k; q.y += (chest - q.y) * k; q.d += (pd - q.d) * k;
+            c.x = q.x; c.d = q.d; c.y = q.y - c.floor;
+          }
           const ahead = c.d - pd;
           // Pickup: only coins just around the runner are checked.
           if (ahead > -r && ahead < COINS.pickupAhead) {
             const y = c.floor + c.y, dy = Math.max(0, lowY - y, y - highY);
             if (Math.hypot(c.x - px, ahead, dy) < r) {
               c.taken = true;
-              collected[c.type]++;
-              const position = new THREE.Vector3().setFromMatrixPosition(c.base);
-              picked.push({ type: c.type, position: position.applyMatrix4(world.matrixWorld) });
+              const value = c.type === 'silver' ? silverValue : 1; // Fortuna's favour doubles silver
+              collected[c.type] += value;
+              const position = c.pulled ? frameAt(c.d, frame).multiply(offset.makeTranslation(c.x, c.floor + c.y, 0)) : c.base;
+              picked.push({ type: c.type, value, position: new THREE.Vector3().setFromMatrixPosition(position).applyMatrix4(world.matrixWorld) });
               continue;
             }
           }
@@ -326,7 +349,8 @@ export function createCoins(world, models, frameAt, obstacles) {
           if (i >= COINS.maxPerType) continue;
           bob.makeTranslation(0, COINS.bobHeight * Math.sin(time * COINS.bobSpeed + c.phase), 0);
           spin.makeRotationY(angle + c.phase);
-          mesh.setMatrixAt(i, matrix.copy(c.base).multiply(bob).multiply(spin).multiply(models[c.type].matrix ?? IDENTITY));
+          const base = c.pulled ? frameAt(c.d, frame).multiply(offset.makeTranslation(c.x, c.floor + c.y, 0)) : c.base;
+          mesh.setMatrixAt(i, matrix.copy(base).multiply(bob).multiply(spin).multiply(models[c.type].matrix ?? IDENTITY));
           if (c.type === 'gold') {
             // A short flash once a second, each coin at its own moment.
             const t = ((time + c.phase) % COINS.glintEvery) / COINS.glintLength;

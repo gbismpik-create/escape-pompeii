@@ -1,8 +1,9 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER, COINS } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER, COINS, POWERUPS } from './config.js';
 import { createPlayer, followHeight } from './player.js';
 import { loadCoins } from './coins.js';
+import { loadPowerups, createEffects } from './powerups.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
@@ -14,7 +15,7 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin, updatePowerups, shatterAegis,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange, showDistrict,
 } from './ui.js';
 import { createAudio } from './audio.js';
@@ -96,6 +97,11 @@ for (let i = SET_PIECES.length - 1; i >= 0; i--) if (testing && SET_PIECES[i][0]
   } catch (error) {
     showProblem(`The coins did not load (${error.message})`);
   }
+  try {
+    track.addPowerups(await loadPowerups(environment.envMap));
+  } catch (error) {
+    showProblem(`The power-ups did not load (${error.message})`);
+  }
   for (const [kind, load] of SET_PIECES) {
     try {
       track.addSetPiece(kind, await load(environment.envMap));
@@ -115,7 +121,7 @@ environment.addVolcano(kit);
 setLoading(false);
 const shield = createShield();
 const player = createPlayer(scene, character, shield);
-if (import.meta.env.DEV) window.__game = { track, player }; // for tests in the dev server only
+if (import.meta.env.DEV) window.__game = { track, player, get effects() { return effects; } }; // for tests in the dev server only
 // Where the lanes are steps (the theatre's tiers), the floor comes from the track.
 player.setFloor((x, z) => track.floorAt(-z, x));
 player.setLanes((z) => track.lanesAt(-z));
@@ -345,6 +351,10 @@ function updateJunction() {
     track.take('straight');
   } else if (!j.ways.includes('straight') && -player.hitbox.min.z >= j.wall) {
     // The front of his hitbox reached the house fronts across the end.
+    if (aegisSaves()) {
+      turn(j.ways[0]); // the aegis takes the blow and he turns down the street
+      return;
+    }
     audio.impact();
     gameOver('You ran into a wall');
   }
@@ -462,10 +472,38 @@ function showEndScreen() {
 // A coin picked up: its sound, and it flies from where it was on screen
 // into its counter.
 const onScreen = new THREE.Vector3();
-function collectCoin(type, position) {
+function collectCoin(type, position, value = 1) {
   audio.coin(type);
   onScreen.copy(position).project(camera); // → -1..1 across the view
-  flyCoin(type, (onScreen.x + 1) / 2 * window.innerWidth, (1 - onScreen.y) / 2 * window.innerHeight);
+  const x = (onScreen.x + 1) / 2 * window.innerWidth, y = (1 - onScreen.y) / 2 * window.innerHeight;
+  for (let i = 0; i < value; i++) setTimeout(() => flyCoin(type, x, y), i * 60); // Fortuna's favour: two coins fly
+}
+
+// ---- Power-ups (powerups.js): pick one up, and apply what is working ----
+const effects = createEffects();
+const MAGNET = { reach: POWERUPS.magnet.reach, halfWidth: (POWERUPS.magnet.lanes / 2) * LANES.width, pullSharpness: POWERUPS.magnet.pullSharpness };
+function updatePowerupEffects(dt) {
+  effects.tick(dt);
+  const picked = track.powerups?.update(dt, runTime, player);
+  if (picked) {
+    effects.activate(picked);
+    audio.coin('gold'); // (its own sound can come later)
+  }
+  track.coins?.setMagnet(effects.isOn('magnet') ? MAGNET : null);
+  track.coins?.setSilverValue(effects.isOn('double') ? POWERUPS.double.silverValue : 1);
+  if (effects.isOn('wings')) player.setJumpBoost(POWERUPS.wings.jumpHeight, POWERUPS.wings.airTime);
+  else player.setJumpBoost();
+  updatePowerups(effects.list());
+}
+// A crash that would end the run: the aegis, if he has it, takes it instead.
+const runnerOnScreen = new THREE.Vector3();
+function aegisSaves() {
+  if (!effects.absorbCrash()) return false;
+  runnerOnScreen.copy(player.object.position).setY(player.object.position.y + 1).project(camera); // his chest, on screen
+  shatterAegis((runnerOnScreen.x + 1) / 2 * window.innerWidth, (1 - runnerOnScreen.y) / 2 * window.innerHeight);
+  audio.impact();
+  shake = STUMBLE.cameraShake;
+  return true;
 }
 
 // Which district the runner is in; its name shows on entering.
@@ -515,6 +553,9 @@ function restart() {
   runTime = 0;
   debugPhaseSkip = 0;
   setCoins(0, 0);
+  effects.reset();
+  player.setJumpBoost();
+  updatePowerups([]);
   journeyLength = JOURNEY.length;
   phaseProgress = 0;
   setJourney(mode === 'escape' ? JOURNEY.length : null);
@@ -646,7 +687,7 @@ const CRASH_REASONS = {
 };
 
 function checkCollisions() {
-  if (player.inStumbleGrace) return;
+  if (player.inStumbleGrace || effects.inGrace) return;
   const hit = track.findCollision(player.hitbox);
   if (!hit) return;
 
@@ -662,6 +703,7 @@ function checkCollisions() {
     return;
   }
   if (!isSideClip(player.previousHitbox, player.hitbox, obstacle)) {
+    if (aegisSaves()) return; // he runs on through it
     audio.impact();
     gameOver(CRASH_REASONS[hit.type]);
     return;
@@ -731,7 +773,8 @@ renderer.setAnimationLoop((timestamp) => {
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     // Coins: spin, bob and glint, and the ones he runs through are his (no counter on screen yet).
     track.coins?.setSpeedMultiplier(speedMultiplier);
-    for (const { type, position } of track.coins?.update(dt, runTime, player) ?? []) collectCoin(type, position);
+    updatePowerupEffects(dt);
+    for (const { type, value, position } of track.coins?.update(dt, runTime, player) ?? []) collectCoin(type, position, value);
     followFinish();
     recordRoute();
     track.gate.update(dt, currentDistance(), currentSpeed(), gateEffects);

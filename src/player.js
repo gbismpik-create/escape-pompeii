@@ -35,6 +35,10 @@ export function createPlayer(scene, model, shield = createShield()) {
   // On his feet (running on the floor, however it rises and falls), as
   // opposed to in the air after a jump or a real drop.
   let onGround = true;
+  // Wings of Pegasus: how much higher a jump goes, and how much longer it
+  // stays in the air. The air time of a jump is 2·√(2h/g), so for both,
+  // gravity becomes g · height / airTime².
+  let jumpHeight = PLAYER.jumpHeight, gravity = PLAYER.gravity;
   let stumbleTimeLeft = 0;
   // The floor under him: 0 on a street, a step's height where the lanes are
   // steps. floorAt(x, z) is set by main.js (from the track).
@@ -79,6 +83,12 @@ export function createPlayer(scene, model, shield = createShield()) {
     // Turning at a junction: the model faces yaw radians off the street.
     setTurn(yaw) {
       legionary.setTurn?.(yaw);
+    },
+
+    // Wings of Pegasus: jumps `height` times as high, `airTime` times as long (1, 1 = normal).
+    setJumpBoost(height = 1, airTime = 1) {
+      jumpHeight = PLAYER.jumpHeight * height;
+      gravity = (PLAYER.gravity * height) / (airTime * airTime);
     },
 
     // Where the floor is (path space x, z → height), for lanes that are steps.
@@ -142,7 +152,7 @@ export function createPlayer(scene, model, shield = createShield()) {
         if (onGround) feetY = Math.max(feetY, floor);
         onGround = false;
         // Starting speed needed to reach jumpHeight under gravity: v = √(2·g·h)
-        velocityY = Math.sqrt(2 * PLAYER.gravity * PLAYER.jumpHeight);
+        velocityY = Math.sqrt(2 * gravity * jumpHeight);
         slideTimeLeft = 0; // jumping cancels a slide
       }
 
@@ -186,8 +196,8 @@ export function createPlayer(scene, model, shield = createShield()) {
       if (onGround) {
         feetY = followHeight(feetY, floor, moved, dt, PLAYER.followSharpness);
       } else {
-        feetY += velocityY * dt - 0.5 * PLAYER.gravity * dt * dt;
-        velocityY -= PLAYER.gravity * dt;
+        feetY += velocityY * dt - 0.5 * gravity * dt * dt;
+        velocityY -= gravity * dt;
         if (feetY <= floor && velocityY <= 0) {
           // Landing on (or just below the edge of) the floor: back on his
           // feet; a step he landed against is eased onto.

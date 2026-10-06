@@ -889,3 +889,68 @@ body {
 #finish .coins {
   margin: -0.2rem 0 0;
 }
+
+/* ---- Power-ups working: under the coin counters ---- */
+#powerups {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+#powerups .powerup[hidden] {
+  display: none;
+}
+
+#powerups svg {
+  display: block;
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+#powerups .track {
+  fill: rgba(0, 0, 0, 0.4);
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 3;
+}
+
+#powerups .ring {
+  fill: none;
+  stroke: #ffd772;
+  stroke-width: 3;
+  stroke-dasharray: 100;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 18px 18px;
+}
+
+#powerups .gold { fill: #f2c454; stroke: #a8741c; stroke-width: 0.6; }
+#powerups .gold-line { fill: none; stroke: #f2c454; }
+#powerups .gold-dark { fill: #b07a22; }
+#powerups .gold-dark-line { fill: none; stroke: #b07a22; stroke-linecap: round; }
+#powerups .leather { fill: #8a5530; stroke: #4e2c16; stroke-width: 0.8; }
+#powerups .wing { fill: #f6f2e8; stroke: #b8b2a6; stroke-width: 0.6; }
+
+/* The aegis shattering: a gold flash, shards flying out */
+#aegis-flash {
+  position: fixed;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.aegis-shard {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 9px;
+  margin: -4px 0 0 -7px;
+  clip-path: polygon(0 40%, 60% 0, 100% 70%, 30% 100%);
+  background: linear-gradient(135deg, #fff1b8, #e0a42e 60%, #8a5a14);
+  pointer-events: none;
+  z-index: 3;
+}
