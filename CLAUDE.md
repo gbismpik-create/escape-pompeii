@@ -30,10 +30,10 @@ Arrow keys / WASD and touch swipes: left/right = change lane, up = jump, down = 
 - Explain any new concept briefly (I'm learning Three.js)
 
 ## Current milestone
-Two more districts: the baths (indoor, low vaults, pools as a splash, steam vents that hide the next obstacle) and the Great Palaestra by the amphitheatre (5 lanes, calmer, plane trees). At most one district per junction, picked by weight, preferring ones not seen this run.
+Coins and economy
 
 ## Later (do NOT build yet)
-Artifacts collection, power-ups, mobile app wrapper, ads, multiple cities.
+Artifacts collection, mobile app wrapper, multiple cities.
 
 From the GAME_DESIGN.md build order:
 - Rescued followers

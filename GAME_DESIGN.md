@@ -44,6 +44,13 @@ Historically, Pliny the Elder commanded the fleet at Misenum. He sailed across t
 3. Break out into vineyards and green fields under the darkening sky: cypress trees, farm carts, frightened animals, the first ash settling on the grass.
 4. Reach the beach at Stabiae: galleys offshore and boats on the sand. Final sprint across the beach with the surge glowing behind you, then board a boat.
 5. End screen with your route, the people you saved, and a short, respectful epilogue: Pliny died at Stabiae, and his nephew Pliny the Younger wrote the eyewitness letters we still read.
+Coins and economy
+• Two coins: the silver denarius (value 1, common) and the gold aureus (rare, worth 25 silver).
+• Silver buys power-up upgrades, characters and outfits; gold buys revives and premium characters.
+• Gold converts both ways: 1 gold → 25 silver; 100 silver → 1 gold, at most 5 a day.
+• Four power-ups: Mercury's purse (magnet), Fortuna's favour (double silver), Aegis of Minerva (survive one crash), Wings of Pegasus (higher, longer jumps).
+• Premium hero: Pliny the Elder.
+• Coins look the same in every district.
 Build order after the prototype
 Build these one at a time and play each before starting the next.
 [ ] Shield action (uses the existing legionary and animations)
