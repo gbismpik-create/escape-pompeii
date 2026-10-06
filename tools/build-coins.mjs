@@ -40,7 +40,7 @@ const COINS = {
 
 // ------------------------------------------------------------------ sculpting
 // A laureate head in profile facing right (+x), with the neck cut off in a curve below, as on the coins.
-// who: 'titus' (round, full face, thick hair) or 'vespasian' (older: heavy jaw and jowls, lined brow, thinning hair).
+// who: 'titus' (round, full face, thick hair) or 'vespasian' (older, lean and firm: strong chin and brow, aquiline nose).
 function portrait(who) {
   const S = new Sculpture(), Fh = frame(Math.PI / 2, 0, 0.05), at = (l) => Fh.at([0, 0, 0], l);
   head(S, [0, 0, 0], Fh, { curls: who === 'titus' ? 170 : 150, wreath: true });
@@ -51,11 +51,13 @@ function portrait(who) {
     S.ell(at([0, -0.035, 0.03]), [0.072, 0.07, 0.066], Fh, 0.03);                                    // fuller cheeks
     S.ell(at([0, -0.088, 0.035]), [0.06, 0.03, 0.05], Fh, 0.03);                                     // rounded jaw
   } else {
-    S.ell(at([0, -0.09, 0.03]), [0.068, 0.04, 0.06], Fh, 0.035);                                     // heavy jaw
-    S.ell(at([0.05, -0.078, 0.03]), [0.022, 0.028, 0.03], Fh, 0.025);                                // a jowl (the side we see)
-    S.ell(at([0, -0.115, 0.02]), [0.04, 0.025, 0.04], Fh, 0.03);                                     // double chin
-
-    S.cone(at([0, 0.018, 0.093]), at([0, -0.036, 0.122]), 0.009, 0.014, 0.008);                      // a bigger, hooked nose
+    // a seasoned soldier-emperor: lean, firm jaw, strong chin, a proud aquiline nose, a strong brow
+    S.cone(at([0.055, -0.03, -0.01]), at([0.02, -0.095, 0.062]), 0.012, 0.011, 0.012);                // the jaw line, clean and firm
+    S.ell(at([0, -0.104, 0.074]), [0.021, 0.018, 0.017], Fh, 0.01);                                   // a strong chin, forward
+    S.ell(at([0.045, -0.035, 0.05]), [0.02, 0.026, 0.016], Fh, 0.012, 'skin', 'sub');                // lean cheek under the cheekbone
+    S.cone(at([-0.04, 0.026, 0.086]), at([0.04, 0.026, 0.086]), 0.009, 0.009, 0.01);                  // a strong brow
+    S.cone(at([0, 0.017, 0.094]), at([0, -0.034, 0.118]), 0.0085, 0.012, 0.007);                     // a proud aquiline nose
+    S.sphere(at([0, -0.004, 0.106]), 0.006, 0.006);                                                    // its bridge
   }
   return S;
 }
