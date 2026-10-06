@@ -1,4 +1,4 @@
-import { AUDIO, CHARACTER, PLAYER, FALLING } from './config.js';
+import { AUDIO, CHARACTER, PLAYER, FALLING, COINS } from './config.js';
 import { loadArrayBuffer } from './assets.js';
 import { loadMuted, saveMuted, loadVolumes, saveVolumes } from './storage.js';
 
@@ -28,6 +28,8 @@ export function createAudio() {
   let muted = loadMuted();
   const levels = loadVolumes(); // { music, effects }, 0–1
   let gameOver = false;
+  let chimeStep = 0; // silver coins in a row: each chime a semitone higher
+  let lastChime = -Infinity;
 
   // Start downloading now; a missing file just means that sound is silent.
   // Every sound is a list of variations (usually just one).
@@ -233,6 +235,39 @@ export function createAudio() {
       source.connect(filter).connect(level).connect(groups.effects);
       source.start(now);
       source.stop(now + 1.5);
+    },
+
+    // A coin picked up, made on the spot from sine waves (no sound file).
+    // Silver: a light chime, two bright partials that die away quickly; each
+    // coin in a line is a semitone higher than the last. Gold: a deeper
+    // clink, partials spaced like a struck bell's (not whole multiples), so
+    // it sounds like metal, ringing on for over a second.
+    coin(type) {
+      if (!ctx || ctx.state !== 'running') return;
+      const S = COINS.sound, now = ctx.currentTime;
+      const out = gain(1, groups.effects);
+      const tone = (frequency, level, decay, start = now) => {
+        const osc = ctx.createOscillator();
+        const env = ctx.createGain();
+        osc.frequency.value = frequency;
+        env.gain.setValueAtTime(0, start);
+        env.gain.linearRampToValueAtTime(level, start + 0.004); // a sharp strike
+        env.gain.setTargetAtTime(0, start + 0.004, decay / 4);
+        osc.connect(env).connect(out);
+        osc.start(start);
+        osc.stop(start + decay + 0.1);
+      };
+      if (type === 'silver') {
+        chimeStep = now - lastChime > S.chimeReset ? 0 : Math.min(S.chimeSteps, chimeStep + 1);
+        lastChime = now;
+        const f = S.chimePitch * 2 ** (chimeStep / 12);
+        tone(f, S.chimeVolume, 0.35);
+        tone(f * 2.01, S.chimeVolume * 0.35, 0.18); // a touch of shimmer above
+      } else {
+        const f = S.goldPitch * vary(0.02);
+        tone(f * 3.1, S.goldVolume * 0.7, 0.06); // the clink: a short bright tick on top
+        for (const [ratio, level] of [[1, 1], [2.32, 0.5], [4.25, 0.25], [6.63, 0.12]]) tone(f * ratio, S.goldVolume * level, S.goldRing / ratio ** 0.5);
+      }
     },
 
     impact() {

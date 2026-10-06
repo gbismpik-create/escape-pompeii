@@ -592,7 +592,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem; /* room for the coins line on a 390 × 844 phone */
   width: 100%;
   max-width: 26rem;
 }
@@ -765,3 +765,127 @@ body {
   }
 }
 
+
+/* ---- Coins: counters top right (under the settings and sound buttons) ---- */
+#coins {
+  position: fixed;
+  top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+#coins .count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 1.05rem;
+}
+
+#coins .count.gold span {
+  color: #ffd772;
+}
+
+.coin-icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.coin-icon .face {
+  fill: #d9dbe0;
+  stroke: #8d9097;
+  stroke-width: 1.2;
+}
+
+.coin-icon .rim {
+  fill: none;
+  stroke: #a9acb3;
+  stroke-width: 0.8;
+}
+
+.coin-icon .head {
+  fill: #b4b7be;
+}
+
+.coin-icon.gold .face {
+  fill: #f2c454;
+  stroke: #a8741c;
+}
+
+.coin-icon.gold .rim {
+  stroke: #c8902c;
+}
+
+.coin-icon.gold .head {
+  fill: #d29a2c;
+}
+
+/* A coin flying into its counter, and the spark where it was taken: both
+   placed with transform from the top-left corner (see flyCoin in ui.js). */
+.coin-flyer,
+.coin-spark {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+}
+
+.coin-flyer .coin-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px; /* centred on its point */
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.coin-spark {
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--spark) 0%, var(--spark) 18%, transparent 65%);
+  mix-blend-mode: screen;
+}
+
+/* The coins line on the game-over and end screens. */
+#game-over .coins,
+#finish .coins {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0 0 0.6em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#game-over .coins .pair,
+#finish .coins .pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#game-over .coins .score,
+#finish .coins .score {
+  color: #ffd772;
+}
+
+#finish .coins {
+  margin: -0.2rem 0 0;
+}

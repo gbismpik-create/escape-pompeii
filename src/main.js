@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER, COINS } from './config.js';
 import { createPlayer, followHeight } from './player.js';
 import { loadCoins } from './coins.js';
 import { createShield } from './shield.js';
@@ -14,7 +14,7 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange, showDistrict,
 } from './ui.js';
 import { createAudio } from './audio.js';
@@ -385,11 +385,16 @@ function phaseTime() {
   return journeyPhaseTime(phaseProgress) + debugPhaseSkip;
 }
 let best = loadBest();
-// The best distance only means something in Endless mode.
+// The best score only means something in Endless mode.
 const showModeBest = () => showBest(mode === 'endless' ? best : 0);
 showModeBest();
 
 const currentDistance = () => Math.floor(-player.object.position.z);
+// This run's coins, and the score: metres run plus the coins' worth.
+const runCoins = () => {
+  const { silver, gold } = track.coins?.collected ?? { silver: 0, gold: 0 };
+  return { silver, gold, score: currentDistance() + silver * COINS.score.silver + gold * COINS.score.gold };
+};
 
 function gameOver(reason = '') {
   isGameOver = true;
@@ -399,17 +404,18 @@ function gameOver(reason = '') {
   audio.setGameOver(true);
   timeSinceGameOver = 0;
   const distance = currentDistance();
+  const coins = runCoins();
   if (mode === 'escape') {
-    showGameOver(distance, best, false, reason, { length: journeyLength, bestTime });
+    showGameOver(distance, best, false, reason, { length: journeyLength, bestTime }, coins);
     return;
   }
-  const isNewBest = distance > best;
+  const isNewBest = coins.score > best;
   if (isNewBest) {
-    best = distance;
+    best = coins.score;
     saveBest(best);
     showModeBest();
   }
-  showGameOver(distance, best, isNewBest, reason);
+  showGameOver(distance, best, isNewBest, reason, null, coins);
 }
 
 // Crossed the finish line: stop taking moves and slow to a stop.
@@ -449,7 +455,17 @@ function showEndScreen() {
     unlocked,
     route,
     epilogue: JOURNEY.epilogue,
+    coins: runCoins(),
   });
+}
+
+// A coin picked up: its sound, and it flies from where it was on screen
+// into its counter.
+const onScreen = new THREE.Vector3();
+function collectCoin(type, position) {
+  audio.coin(type);
+  onScreen.copy(position).project(camera); // → -1..1 across the view
+  flyCoin(type, (onScreen.x + 1) / 2 * window.innerWidth, (1 - onScreen.y) / 2 * window.innerHeight);
 }
 
 // Which district the runner is in; its name shows on entering.
@@ -498,6 +514,7 @@ function restart() {
   player.setTurn(0);
   runTime = 0;
   debugPhaseSkip = 0;
+  setCoins(0, 0);
   journeyLength = JOURNEY.length;
   phaseProgress = 0;
   setJourney(mode === 'escape' ? JOURNEY.length : null);
@@ -714,7 +731,7 @@ renderer.setAnimationLoop((timestamp) => {
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
     // Coins: spin, bob and glint, and the ones he runs through are his (no counter on screen yet).
     track.coins?.setSpeedMultiplier(speedMultiplier);
-    track.coins?.update(dt, runTime, player);
+    for (const { type, position } of track.coins?.update(dt, runTime, player) ?? []) collectCoin(type, position);
     followFinish();
     recordRoute();
     track.gate.update(dt, currentDistance(), currentSpeed(), gateEffects);

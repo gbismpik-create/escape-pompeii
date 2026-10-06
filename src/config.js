@@ -849,6 +849,23 @@ export const COINS = {
   // Gold: at most one every goldGap metres, from goldGap[0] at the start
   // speed to goldGap[1] at top speed.
   goldGap: [300, 120],
+  // Collecting: the coin flies into its counter (top right) with a spark.
+  flyTime: 0.25, // seconds
+  sparkColor: { silver: '#ffffff', gold: '#ffc94a' },
+  // Score = metres + these per coin.
+  score: { silver: 1, gold: 25 },
+  // Sounds, made with Web Audio (no files). Silver: a light chime that rises
+  // a semitone with each coin in a line, back to the start after
+  // chimeReset seconds without one. Gold: a deeper clink that rings on.
+  sound: {
+    chimePitch: 1568, // Hz (G6) for the first coin of a line
+    chimeSteps: 12, // it rises at most this many semitones
+    chimeReset: 1, // seconds
+    chimeVolume: 0.22,
+    goldPitch: 740, // Hz
+    goldVolume: 0.3,
+    goldRing: 1.4, // seconds the ring lasts
+  },
 };
 
 export const OBSTACLES = {

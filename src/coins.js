@@ -297,11 +297,12 @@ export function createCoins(world, models, frameAt, obstacles) {
 
     // Each frame: draws the coins in view and collects the ones the runner
     // touches. player: { object, hitbox }. Returns the coins picked up this
-    // frame ({ silver, gold }); collected holds the run's totals.
+    // frame ([{ type, position }], position in world space, for the flight to
+    // the counter); collected holds the run's totals.
     update(dt, time, player) {
       const pd = -player.object.position.z, px = player.object.position.x;
       const lowY = player.hitbox.min.y, highY = player.hitbox.max.y, r = COINS.pickupRadius;
-      const picked = { silver: 0, gold: 0 };
+      const picked = [];
       const counts = { silver: 0, gold: 0 };
       const angle = time * COINS.spinSpeed;
       for (const list of active) {
@@ -314,8 +315,9 @@ export function createCoins(world, models, frameAt, obstacles) {
             const y = c.floor + c.y, dy = Math.max(0, lowY - y, y - highY);
             if (Math.hypot(c.x - px, ahead, dy) < r) {
               c.taken = true;
-              picked[c.type]++;
               collected[c.type]++;
+              const position = new THREE.Vector3().setFromMatrixPosition(c.base);
+              picked.push({ type: c.type, position: position.applyMatrix4(world.matrixWorld) });
               continue;
             }
           }

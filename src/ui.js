@@ -1,7 +1,7 @@
 // On-screen HTML on top of the canvas: the distance display and the
 // game-over overlay.
 
-import { ROUTE_MAP } from './config.js';
+import { ROUTE_MAP, COINS } from './config.js';
 
 const hud = document.createElement('div');
 hud.id = 'hud';
@@ -235,6 +235,77 @@ const ashFade = document.createElement('div');
 ashFade.id = 'ash-fade';
 document.body.appendChild(ashFade);
 
+// ---- Coins: counters top right, under the buttons ----
+// A small coin: a disc with a rim and a head in profile, silver or gold.
+export function coinIcon(type) {
+  return `<svg class="coin-icon ${type}" viewBox="0 0 20 20" aria-hidden="true">
+  <circle cx="10" cy="10" r="9" class="face" /><circle cx="10" cy="10" r="7.2" class="rim" />
+  <path class="head" d="M8 5.5c2.2-.9 4.4.4 4.6 2.6l1 1.3-1 .4.2 1.6c0 .9-.8 1.3-1.8 1.2l-.2 2.2H7.4c.6-1.2.3-2.2-.6-3.2-1.6-1.9-.9-5.2 1.2-6.1z" />
+</svg>`;
+}
+const coinCounter = document.createElement('div');
+coinCounter.id = 'coins';
+coinCounter.innerHTML = ['silver', 'gold'].map((type) => `<div class="count ${type}">${coinIcon(type)}<span>0</span></div>`).join('');
+document.body.appendChild(coinCounter);
+const counters = Object.fromEntries(['silver', 'gold'].map((type) => {
+  const el = coinCounter.querySelector(`.${type}`);
+  return [type, { el, icon: el.querySelector('svg'), number: el.querySelector('span'), shown: 0 }];
+}));
+
+// The counters: shown numbers (a coin in flight counts when it lands).
+export function setCoins(silver, gold) {
+  for (const [type, n] of [['silver', silver], ['gold', gold]]) {
+    counters[type].shown = n;
+    counters[type].number.textContent = String(n);
+  }
+}
+function bump(type) {
+  const c = counters[type];
+  c.number.textContent = String(++c.shown);
+  c.el.animate([{ transform: 'scale(1.25)' }, { transform: 'scale(1)' }], { duration: 180, easing: 'ease-out' });
+}
+
+// A picked-up coin flies from where it was (x, y: screen pixels) into its
+// counter, and a spark flashes where it was taken. Small pooled elements,
+// moved with the Web Animations API: only transform and opacity change, so
+// the browser animates them without laying the page out again.
+const flyers = [];
+function flyer() {
+  let f = flyers.find((e) => !e.busy);
+  if (!f) {
+    f = { coin: document.createElement('div'), spark: document.createElement('div'), busy: false };
+    f.coin.className = 'coin-flyer';
+    f.spark.className = 'coin-spark';
+    document.body.append(f.spark, f.coin);
+    flyers.push(f);
+  }
+  return f;
+}
+export function flyCoin(type, x, y) {
+  const f = flyer(), target = counters[type].icon.getBoundingClientRect();
+  f.busy = true;
+  f.coin.innerHTML = coinIcon(type);
+  f.spark.style.setProperty('--spark', COINS.sparkColor[type]);
+  const ms = COINS.flyTime * 1000;
+  const tx = target.left + target.width / 2 - x, ty = target.top + target.height / 2 - y;
+  f.spark.animate([
+    { transform: `translate(${x}px, ${y}px) scale(0.3)`, opacity: 1 },
+    { transform: `translate(${x}px, ${y}px) scale(1.4)`, opacity: 0 },
+  ], { duration: 260, easing: 'ease-out' });
+  const flight = f.coin.animate([
+    { transform: `translate(${x}px, ${y}px) scale(1.3)`, opacity: 1 },
+    { transform: `translate(${x + tx}px, ${y + ty}px) scale(0.8)`, opacity: 1 },
+  ], { duration: ms, easing: 'cubic-bezier(0.5, 0, 0.9, 0.6)' }); // speeds up into the counter
+  flight.onfinish = () => {
+    f.busy = false;
+    bump(type);
+  };
+}
+
+// The coins line on the game-over and end screens.
+const coinsLine = (silver, gold, score) =>
+  `<span class="pair">${coinIcon('silver')}${silver}</span><span class="pair">${coinIcon('gold')}${gold}</span><span class="score">Score ${score.toLocaleString('en-US')}</span>`;
+
 const overlay = document.createElement('div');
 overlay.id = 'game-over';
 overlay.hidden = true;
@@ -242,6 +313,7 @@ overlay.innerHTML = `
   <h1>Game over</h1>
   <p class="reason"></p>
   <p class="distance"></p>
+  <p class="coins"></p>
   <p class="best"></p>
   <p class="hint">Tap or press R to run again</p>
   <button type="button" class="menu" data-control>Menu</button>
@@ -290,7 +362,7 @@ export function setLoading(loading) {
 }
 
 export function showBest(best) {
-  hudBest.textContent = best > 0 ? `Best ${best} m` : '';
+  hudBest.textContent = best > 0 ? `Best score ${best.toLocaleString('en-US')}` : '';
 }
 
 // Both take 0–1. Setting opacity is cheap: the browser blends these layers
@@ -304,16 +376,18 @@ export function setAshFade(amount) {
 }
 
 // journey: { length, bestTime } in Escape mode (shows how far along you
-// got instead of the best distance), or null in Endless mode.
-export function showGameOver(distance, best, isNewBest, reason = '', journey = null) {
+// got instead of the best score), or null in Endless mode.
+// coins: { silver, gold, score } this run.
+export function showGameOver(distance, best, isNewBest, reason = '', journey = null, coins = { silver: 0, gold: 0, score: distance }) {
   overlay.querySelector('.reason').textContent = reason;
   overlay.querySelector('.distance').textContent = `You ran ${distance.toLocaleString('en-US')} m`;
+  overlay.querySelector('.coins').innerHTML = coinsLine(coins.silver, coins.gold, coins.score);
   if (journey) {
     const percent = Math.min(99, Math.floor((distance / journey.length) * 100));
     overlay.querySelector('.best').textContent =
       `${percent}% of the way to the sea` + (journey.bestTime ? ` · Best time ${formatTime(journey.bestTime)}` : '');
   } else {
-    overlay.querySelector('.best').textContent = isNewBest ? 'New best!' : `Best: ${best} m`;
+    overlay.querySelector('.best').textContent = isNewBest ? 'New best score!' : `Best score: ${best.toLocaleString('en-US')}`;
   }
   overlay.hidden = false;
 }
@@ -363,6 +437,7 @@ finish.innerHTML = `
       <div class="stat"><dt>Distance</dt><dd class="distance"></dd></div>
       <div class="stat"><dt>Saved</dt><dd class="saved"></dd></div>
     </dl>
+    <p class="coins"></p>
     <p class="best"></p>
     <p class="unlocked" hidden>Endless mode unlocked</p>
     <canvas class="route" aria-label="Map of your route from Pompeii to the sea"></canvas>
@@ -436,7 +511,8 @@ function drawRoute(canvas, route) {
   label('Stabiae', ex, ey, '#cfe6ee');
 }
 
-export function showFinish({ distance, time, saved, bestTime, isNewBest, unlocked, route, epilogue }) {
+export function showFinish({ distance, time, saved, bestTime, isNewBest, unlocked, route, epilogue, coins }) {
+  finish.querySelector('.coins').innerHTML = coinsLine(coins.silver, coins.gold, coins.score);
   finish.querySelector('.distance').textContent = `${distance.toLocaleString('en-US')} m`;
   finish.querySelector('.time').textContent = formatTime(time);
   finish.querySelector('.saved').textContent = String(saved);
