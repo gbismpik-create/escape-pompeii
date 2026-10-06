@@ -48,10 +48,19 @@ export const PLAYER = {
   // With jumpHeight 2.2 and gravity 50 a jump lasts about 0.6 s.
   gravity: 50,
   fastFallSpeed: 30, // downward speed when pressing down mid-air (units/s)
-  stepUpSpeed: 7, // m/s he rises onto a higher step (lanes as steps, e.g. the theatre's tiers)
+  // Following the floor when it rises or falls (ramps, steps, the theatre's
+  // and amphitheatre's tiers): a slope up to followSlope (metres up per
+  // metre run) is followed exactly; anything steeper, a step, is eased over
+  // with followSharpness (higher = quicker), so he flows up and down steps
+  // instead of popping. Only a drop deeper than dropToFall is a real fall.
+  followSlope: 0.35,
+  followSharpness: 14,
+  dropToFall: 1.0,
 
   slideDuration: 0.8, // seconds
   slideHeight: 0.8, // player (and hitbox) height while sliding
+  // The camera follows the floor the same way, a little more softly.
+  cameraFollowSharpness: 9,
 };
 
 // Graphics quality. 'auto' gives phones, tablets and very weak computers the

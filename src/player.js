@@ -7,6 +7,17 @@ import { createShield } from './shield.js';
 // both have root, update(), stumble() and reset().
 // shield: shield.js; while it is raised he runs slower, and jumping or
 // sliding lowers it.
+// Moves a height (his feet, or the camera's floor) towards the floor's:
+// a slope up to PLAYER.followSlope is followed exactly (moved: metres run
+// this frame), anything steeper (a step) is eased over, the same at any
+// frame rate.
+export function followHeight(value, target, moved, dt, sharpness) {
+  const gap = target - value;
+  const exact = Math.min(Math.abs(gap), PLAYER.followSlope * Math.abs(moved));
+  const eased = Math.abs(gap) * (1 - Math.exp(-sharpness * dt));
+  return value + Math.sign(gap) * Math.max(exact, eased);
+}
+
 export function createPlayer(scene, model, shield = createShield()) {
   const size = PLAYER.size;
   const legionary = model;
@@ -21,6 +32,9 @@ export function createPlayer(scene, model, shield = createShield()) {
   const previousHitbox = new THREE.Box3();
 
   let lane, feetY, velocityY, jumped, slideTimeLeft, slideOnLanding;
+  // On his feet (running on the floor, however it rises and falls), as
+  // opposed to in the air after a jump or a real drop.
+  let onGround = true;
   let stumbleTimeLeft = 0;
   // The floor under him: 0 on a street, a step's height where the lanes are
   // steps. floorAt(x, z) is set by main.js (from the track).
@@ -38,6 +52,7 @@ export function createPlayer(scene, model, shield = createShield()) {
     floor = 0;
     velocityY = 0;
     jumped = false; // in the air from a jump (not just dropping off a step)
+    onGround = true;
     slideTimeLeft = 0;
     slideOnLanding = false; // set by a fast drop, so the player rolls into a slide
     stumbleTimeLeft = 0;
@@ -47,7 +62,7 @@ export function createPlayer(scene, model, shield = createShield()) {
   }
   reset();
 
-  const isGrounded = () => feetY <= floor + 1e-4;
+  const isGrounded = () => onGround;
 
   return {
     object,
@@ -122,6 +137,10 @@ export function createPlayer(scene, model, shield = createShield()) {
       if (action === 'jump' && (isGrounded() || !jumped)) {
         shield.lower(); // the leap needs both arms: the shield comes down
         jumped = true;
+        // Mid-way up a step he leaps from the step's top, so the jump is as
+        // high as on flat ground.
+        if (onGround) feetY = Math.max(feetY, floor);
+        onGround = false;
         // Starting speed needed to reach jumpHeight under gravity: v = √(2·g·h)
         velocityY = Math.sqrt(2 * PLAYER.gravity * PLAYER.jumpHeight);
         slideTimeLeft = 0; // jumping cancels a slide
@@ -156,19 +175,24 @@ export function createPlayer(scene, model, shield = createShield()) {
       lane = THREE.MathUtils.clamp(lane, -sideLimit(), sideLimit());
       object.position.x += (lane * LANES.width - object.position.x) * t;
 
-      // Vertical motion: gravity changes velocity, velocity changes height.
-      // The ½·g·dt² term makes the arc exact, so jumps reach the same height
-      // at any frame rate.
-      // Steps: onto a higher one he rises quickly (a step up); off a lower
-      // one he simply drops, under gravity.
+      // Vertical motion. On his feet he follows the floor (followHeight:
+      // ramps exactly, steps eased), so going up or down tiers looks like
+      // running, not hopping. Only off a real drop does he fall.
+      // In the air, gravity changes velocity, velocity changes height. The
+      // ½·g·dt² term makes the arc exact, so jumps reach the same height at
+      // any frame rate.
       floor = floorAt(object.position.x, object.position.z);
-      if (feetY < floor && velocityY <= 0) {
-        feetY = Math.min(floor, feetY + PLAYER.stepUpSpeed * dt);
-      } else if (!isGrounded() || velocityY > 0) {
+      if (onGround && feetY - floor > PLAYER.dropToFall) onGround = false;
+      if (onGround) {
+        feetY = followHeight(feetY, floor, moved, dt, PLAYER.followSharpness);
+      } else {
         feetY += velocityY * dt - 0.5 * PLAYER.gravity * dt * dt;
         velocityY -= PLAYER.gravity * dt;
         if (feetY <= floor && velocityY <= 0) {
-          feetY = floor;
+          // Landing on (or just below the edge of) the floor: back on his
+          // feet; a step he landed against is eased onto.
+          onGround = true;
+          feetY = Math.max(feetY, floor - PLAYER.dropToFall);
           velocityY = 0;
           jumped = false;
           if (slideOnLanding) {

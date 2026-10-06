@@ -1,7 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA } from './config.js';
-import { createPlayer } from './player.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER } from './config.js';
+import { createPlayer, followHeight } from './player.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
@@ -718,7 +718,8 @@ renderer.setAnimationLoop((timestamp) => {
     checkCollisions();
     if (!isGameOver) updateJunction();
     updateTurnEase(dt);
-    cameraFloor += (player.floor - cameraFloor) * (1 - Math.exp(-dt * 5));
+    // (Ramps followed exactly, steps eased: see followHeight in player.js.)
+    cameraFloor = followHeight(cameraFloor, player.floor, speedAt(currentDistance()) * speedMultiplier * dt, dt, PLAYER.cameraFollowSharpness);
     const speed = speedAt(currentDistance()) * speedMultiplier;
     fallingTarget.shieldRaised = shield.isRaised;
     fallingTarget.velocityZ = -speed * shield.speedFactor;
