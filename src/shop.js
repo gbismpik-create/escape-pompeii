@@ -18,7 +18,7 @@ const price = (p) => (p.gold ? `${coinIcon('gold')} ${n(p.gold)}` : `${coinIcon(
 // What a power-up does at a level, in a few words.
 function effectAt(type, level) {
   const at = powerupAt(type, level);
-  if (type === 'aegis') return at.crashes > 1 ? `${at.crashes} crashes` : `1 crash, ${at.grace.toFixed(1)} s safe`;
+  if (type === 'aegis') return at.crashes > 1 ? `${at.crashes} crashes` : `${at.grace.toFixed(1)} s safe after`;
   return `${at.duration} s`;
 }
 
