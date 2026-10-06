@@ -211,6 +211,9 @@ export function createLegionary() {
     },
 
     // Turning at a junction (see character.js).
+    // The shop's characters need the loaded model (character.js); this built-in one keeps its looks.
+    setLook() {},
+
     setTurn(yaw) {
       body.rotation.y = yaw;
     },

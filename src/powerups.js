@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { POWERUPS, LANES, PLAYER, TRACK } from './config.js';
 import { loadGLTF } from './assets.js';
 import { laneToX } from './lanes.js';
+import { powerupAt } from './wallet.js';
 
 // Power-ups: four pickups floating over the street, about one every 400 m
 // (models from tools/build-powerups.mjs).
@@ -148,31 +149,40 @@ export function createPowerups(world, models, frameAt, obstacles, coins) {
 }
 
 // What is working now. Timed ones count down; the aegis waits for a crash.
-export function createEffects() {
+// levelOf(type): the power-up's level (the wallet's), which sets how long it
+// lasts and how many crashes the aegis takes (see powerupAt in wallet.js).
+export function createEffects(levelOf = () => 1) {
   const left = { magnet: 0, double: 0, wings: 0 };
-  let aegis = false;
-  let grace = 0; // seconds after the aegis shattered when nothing hits him
+  const full = { magnet: 1, double: 1, wings: 1 }; // the duration each was started with
+  let aegis = 0; // crashes the aegis will still take
+  let aegisMax = 1;
+  let grace = 0; // seconds after the aegis shattered (or a revive) when nothing hits him
   return {
     reset() {
       for (const type of Object.keys(left)) left[type] = 0;
-      aegis = false;
+      aegis = 0;
       grace = 0;
     },
     // A pickup taken: starts (or restarts) its effect.
     activate(type) {
-      if (type === 'aegis') aegis = true;
-      else left[type] = POWERUPS[type].duration;
+      const at = powerupAt(type, levelOf(type));
+      if (type === 'aegis') aegis = aegisMax = at.crashes;
+      else left[type] = full[type] = at.duration;
+    },
+    // Nothing can hit him for this long (after a revive).
+    protect(seconds) {
+      grace = Math.max(grace, seconds);
     },
     tick(dt) {
       for (const type of Object.keys(left)) left[type] = Math.max(0, left[type] - dt);
       grace = Math.max(0, grace - dt);
     },
-    isOn: (type) => (type === 'aegis' ? aegis : left[type] > 0),
+    isOn: (type) => (type === 'aegis' ? aegis > 0 : left[type] > 0),
     // A crash that would end the run: true if the aegis takes it instead.
     absorbCrash() {
       if (!aegis) return false;
-      aegis = false;
-      grace = POWERUPS.aegis.grace;
+      aegis--;
+      grace = powerupAt('aegis', levelOf('aegis')).grace;
       return true;
     },
     get inGrace() {
@@ -180,8 +190,8 @@ export function createEffects() {
     },
     // For the HUD: [{ type, fraction }], fraction 1 → 0 as it runs out (the aegis stays full).
     list() {
-      const out = Object.entries(left).filter(([, t]) => t > 0).map(([type, t]) => ({ type, fraction: t / POWERUPS[type].duration }));
-      if (aegis) out.push({ type: 'aegis', fraction: 1 });
+      const out = Object.entries(left).filter(([, t]) => t > 0).map(([type, t]) => ({ type, fraction: t / full[type] }));
+      if (aegis) out.push({ type: 'aegis', fraction: aegis / aegisMax }); // a level-5 aegis shows half full after one crash
       return out;
     },
   };

@@ -954,3 +954,299 @@ body {
   pointer-events: none;
   z-index: 3;
 }
+
+/* ---- Shop (shop.js): from the start screen; fits a phone held upright ---- */
+#start .shop-open {
+  margin-top: 0.2rem;
+  padding: 0.55rem 1.8rem;
+  border: 1px solid #d8b25a;
+  border-radius: 999px;
+  background: rgba(20, 16, 13, 0.7);
+  color: #f1ead8;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#shop {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: calc(max(12px, env(safe-area-inset-top)) + 4px) 12px max(12px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: rgba(14, 11, 9, 0.88);
+  color: #f1ead8;
+  font-family: system-ui, sans-serif;
+}
+
+#shop[hidden],
+#shop .panel[hidden],
+#revive[hidden] {
+  display: none;
+}
+
+#shop .card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 26rem;
+}
+
+#shop header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.2rem 0.5rem;
+}
+
+#shop h2 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+#shop .wallet {
+  grid-column: 1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#shop .wallet .gap {
+  width: 0.6rem;
+}
+
+#shop .close {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+#shop .tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+#shop .tabs button {
+  padding: 0.55rem 0.2rem;
+  border: 1px solid rgba(216, 178, 90, 0.4);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#shop .tabs button.on {
+  background: #9a2026;
+  border-color: #d8b25a;
+  font-weight: 700;
+}
+
+#shop .panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+#shop .note {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+#shop .row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid rgba(216, 178, 90, 0.25);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+#shop .row .text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+#shop .row b {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+#shop .row span {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+#shop .pips {
+  display: flex;
+  gap: 4px;
+  opacity: 1 !important;
+}
+
+#shop .pips i {
+  width: 14px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+#shop .pips i.on {
+  background: #ffd772;
+}
+
+#shop .row button {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 6.2rem;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #d8b25a;
+  border-radius: 10px;
+  background: #9a2026;
+  color: #f6eedb;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#shop .row button small {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-weight: 600;
+}
+
+#shop .row button:disabled {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(241, 234, 216, 0.55);
+  cursor: default;
+}
+
+#shop .coin-icon {
+  width: 18px;
+  height: 18px;
+}
+
+#shop .powerup-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+
+#shop .powerup-icon .gold { fill: #f2c454; stroke: #a8741c; stroke-width: 0.6; }
+#shop .powerup-icon .gold-line { fill: none; stroke: #f2c454; }
+#shop .powerup-icon .gold-dark { fill: #b07a22; }
+#shop .powerup-icon .gold-dark-line { fill: none; stroke: #b07a22; stroke-linecap: round; }
+#shop .powerup-icon .leather { fill: #8a5530; stroke: #4e2c16; stroke-width: 0.8; }
+#shop .powerup-icon .wing { fill: #f6f2e8; stroke: #b8b2a6; stroke-width: 0.6; }
+
+/* ---- Revive offer after a crash ---- */
+#revive {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(14, 11, 9, 0.55);
+  color: #f1ead8;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+}
+
+#revive .card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(84vw, 320px);
+  padding: 1.2rem;
+  border: 1px solid #d8b25a;
+  border-radius: 16px;
+  background: rgba(26, 21, 17, 0.95);
+}
+
+#revive h2,
+#revive p {
+  margin: 0;
+}
+
+#revive .why {
+  opacity: 0.8;
+}
+
+#revive button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 2px solid #d8b25a;
+  border-radius: 12px;
+  background: #9a2026;
+  color: #f6eedb;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#revive .no {
+  border-width: 1px;
+  border-color: rgba(241, 234, 216, 0.5);
+  background: transparent;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+#revive .timer {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+#revive .timer .left {
+  height: 100%;
+  background: #ffd772;
+  transform-origin: left;
+}
+
+#revive .have {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+#revive .coin-icon {
+  width: 20px;
+  height: 20px;
+}

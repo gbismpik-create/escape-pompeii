@@ -304,7 +304,7 @@ export function flyCoin(type, x, y) {
 
 // ---- Power-ups: an icon for each one working, under the coin counters,
 // with a ring that drains as it runs out (the aegis stays full) ----
-const POWERUP_ICONS = {
+export const POWERUP_ICONS = {
   // Mercury's purse: a leather pouch with little wings
   magnet: `<path class="wing" d="M8 17c-4-1-6-4-6-7 2 2 4 2 6 3zM28 17c4-1 6-4 6-7-2 2-4 2-6 3z"/><path class="leather" d="M14 11h8l-1 3c4 2 6 6 5 10-1 4-5 6-8 6s-7-2-8-6c-1-4 1-8 5-10z"/><path class="gold" d="M13.5 13.5h9" stroke-width="2"/>`,
   // Fortuna's favour: a gilded wheel
@@ -352,6 +352,48 @@ export function shatterAegis(x, y) {
       { transform: `translate(${x + Math.cos(a) * r}px, ${y + Math.sin(a) * r}px) rotate(${(Math.random() - 0.5) * 720}deg) scale(0.4)`, opacity: 0 },
     ], { duration: 600 + Math.random() * 250, easing: 'cubic-bezier(0.2, 0.7, 0.4, 1)' }).onfinish = () => shard.remove();
   }
+}
+
+// A power-up's icon on its own (the shop uses them).
+export const powerupIcon = (type) => `<svg class="powerup-icon" viewBox="0 0 36 36" aria-hidden="true">${POWERUP_ICONS[type]}</svg>`;
+
+// ---- Revive: after a crash, pay gold to run on ----
+const revive = document.createElement('div');
+revive.id = 'revive';
+revive.hidden = true;
+revive.dataset.control = '';
+revive.innerHTML = `
+  <div class="card">
+    <h2>Run on?</h2>
+    <p class="why"></p>
+    <button type="button" class="yes"></button>
+    <button type="button" class="no">No thanks</button>
+    <div class="timer"><div class="left"></div></div>
+    <p class="have"></p>
+  </div>`;
+document.body.appendChild(revive);
+let reviveTimer = null;
+// cost: gold; have: gold in the wallet; seconds: how long the offer waits.
+// onAnswer(true) for a revive, onAnswer(false) for no (or when time runs out).
+export function showRevive(reason, cost, have, seconds, onAnswer) {
+  revive.querySelector('.why').textContent = reason;
+  revive.querySelector('.yes').innerHTML = `Revive for ${coinIcon('gold')} ${cost}`;
+  revive.querySelector('.have').innerHTML = `You have ${coinIcon('gold')} ${have}`;
+  revive.hidden = false;
+  const left = revive.querySelector('.left');
+  reviveTimer?.cancel();
+  reviveTimer = left.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: seconds * 1000, easing: 'linear' });
+  let answered = false;
+  const answer = (yes) => {
+    if (answered) return;
+    answered = true;
+    reviveTimer?.cancel();
+    revive.hidden = true;
+    onAnswer(yes);
+  };
+  reviveTimer.onfinish = () => answer(false);
+  revive.querySelector('.yes').onclick = () => answer(true);
+  revive.querySelector('.no').onclick = () => answer(false);
 }
 
 // The coins line on the game-over and end screens.

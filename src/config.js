@@ -897,6 +897,38 @@ export const POWERUPS = {
   wings: { model: 'Wings_Pegasus', duration: 8, jumpHeight: 1.45, airTime: 1.35 },
 };
 
+// The wallet and the shop (wallet.js, shop.js). Coins collected in runs go
+// into the wallet; the shop spends them on power-up levels and characters.
+export const SHOP = {
+  // Power-up levels 2-5 cost this much silver each (level 1 is free).
+  levelCosts: [500, 1500, 4000, 10000],
+  // At level 5; levels in between are evenly spaced from POWERUPS' base values.
+  topLevel: { magnet: 20, double: 25, wings: 18, aegisCrashes: 2, aegisGrace: 2 },
+  // Characters change looks only, never speed or jump. price: { silver } or { gold }.
+  // tint: the legionary's materials recoloured (a placeholder until each has
+  // its own model); body: a model shown instead of the legionary's.
+  characters: [
+    { id: 'legionary', name: 'Legionary', note: 'A soldier of the garrison', price: null },
+    { id: 'baker', name: 'Baker', note: 'Flour on his tunic', price: { silver: 3000 },
+      tint: { cloth: '#ece4d2', iron: ['#d8cdb4', 0], brass: ['#a88a5c', 0], leather: '#8a6a48' } },
+    { id: 'fuller', name: 'Fuller', note: 'A cloth worker, in ochre', price: { silver: 6000 },
+      tint: { cloth: '#c9952f', iron: ['#b8ad98', 0], brass: ['#7a5a36', 0] } },
+    { id: 'murmillo', name: 'Gladiator', note: 'A murmillo, in bronze', price: { silver: 15000 },
+      tint: { cloth: '#e6dcc6', iron: ['#b07a3a', 0.85], brass: ['#d4a24a', 0.9] } },
+    { id: 'vestal', name: 'Vestal Virgin', note: 'Priestess of Vesta, all in white', price: { silver: 25000 },
+      tint: { cloth: '#f4f1ea', iron: ['#efeae0', 0], brass: ['#f4f1ea', 0], leather: '#e6dccb', hair: '#3a2a1e' } },
+    { id: 'senator', name: 'Senator', note: 'A toga with a purple stripe', price: { gold: 60 },
+      tint: { cloth: '#f0ebe0', iron: ['#e8e2d4', 0], brass: ['#6a1f52', 0], leather: '#6a1f52' } },
+    { id: 'pliny', name: 'Pliny the Elder', note: 'Admiral of the fleet at Misenum', price: { gold: 120 }, body: 'pliny' },
+  ],
+  // The money changer. Silver into gold is limited each day.
+  exchange: { goldToSilver: 25, silverPerGold: 100, goldPerDay: 5 },
+  // Revive after a crash: the gold it costs, the 1st, 2nd... time in a run
+  // (no more after the last). The offer waits offerTime seconds; after a
+  // revive nothing can hit him for `grace` seconds.
+  revive: { costs: [1, 2, 4, 8], offerTime: 5, grace: 2 },
+};
+
 export const OBSTACLES = {
   // Obstacles come in rows across the 3 lanes. Spacing is measured in
   // seconds of running, so rows spread out as speed rises and the player

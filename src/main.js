@@ -1,9 +1,12 @@
 import './style.css';
 import * as THREE from 'three';
-import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER, COINS, POWERUPS } from './config.js';
+import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER, COINS, POWERUPS, SHOP } from './config.js';
 import { createPlayer, followHeight } from './player.js';
 import { loadCoins } from './coins.js';
 import { loadPowerups, createEffects } from './powerups.js';
+import { createWallet } from './wallet.js';
+import { setupShop } from './shop.js';
+import { wearCharacter } from './characters.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
@@ -15,7 +18,7 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin, updatePowerups, shatterAegis,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin, updatePowerups, shatterAegis, showRevive,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange, showDistrict,
 } from './ui.js';
 import { createAudio } from './audio.js';
@@ -60,7 +63,10 @@ updateStartSound(audio.muted);
 onMuteButton(toggleMute);
 
 // The settings panel pauses the game while it is open.
-let isPaused = false;
+let isPaused = false; // the sound settings are open
+let isShopOpen = false;
+// The game holds still: settings or the shop open, or a revive offered.
+const holding = () => isPaused || isShopOpen || isReviving;
 setupSettings(audio.levels, {
   onChange: (levels) => audio.setLevels(levels),
   onOpenChange: (open) => (isPaused = open),
@@ -356,7 +362,7 @@ function updateJunction() {
       return;
     }
     audio.impact();
-    gameOver('You ran into a wall');
+    crashed('You ran into a wall', () => turn(j.ways[0])); // revived, he turns down the street
   }
 }
 
@@ -413,6 +419,7 @@ function gameOver(reason = '') {
   player.settle();
   audio.setGameOver(true);
   timeSinceGameOver = 0;
+  wallet.save(); // the coins of this run are in the wallet
   const distance = currentDistance();
   const coins = runCoins();
   if (mode === 'escape') {
@@ -443,6 +450,7 @@ function showEndScreen() {
   timeSinceGameOver = 0;
   player.settle();
   audio.setGameOver(true);
+  wallet.save(); // the coins of this run are in the wallet
   const time = runTime;
   const isNewBest = !bestTime || time < bestTime;
   if (isNewBest) {
@@ -474,13 +482,21 @@ function showEndScreen() {
 const onScreen = new THREE.Vector3();
 function collectCoin(type, position, value = 1) {
   audio.coin(type);
+  wallet.add(type, value); // saved at the end of the run
   onScreen.copy(position).project(camera); // → -1..1 across the view
   const x = (onScreen.x + 1) / 2 * window.innerWidth, y = (1 - onScreen.y) / 2 * window.innerHeight;
   for (let i = 0; i < value; i++) setTimeout(() => flyCoin(type, x, y), i * 60); // Fortuna's favour: two coins fly
 }
 
 // ---- Power-ups (powerups.js): pick one up, and apply what is working ----
-const effects = createEffects();
+const wallet = createWallet();
+const effects = createEffects((type) => wallet.level(type));
+// The shop (start screen) and the character he runs as.
+setupShop(wallet, {
+  onOpenChange: (open) => (isShopOpen = open),
+  onWear: (id) => wearCharacter(character, id, environment.envMap),
+});
+wearCharacter(character, wallet.selected, environment.envMap);
 const MAGNET = { reach: POWERUPS.magnet.reach, halfWidth: (POWERUPS.magnet.lanes / 2) * LANES.width, pullSharpness: POWERUPS.magnet.pullSharpness };
 function updatePowerupEffects(dt) {
   effects.tick(dt);
@@ -495,6 +511,30 @@ function updatePowerupEffects(dt) {
   else player.setJumpBoost();
   updatePowerups(effects.list());
 }
+// A crash that ends the run, unless he pays to revive: 1, 2, 4, 8 gold in
+// one run (SHOP.revive). The game holds still while the offer is up.
+// onRevived: anything to do on running on (at a wall: turn).
+let revivesUsed = 0;
+let isReviving = false;
+function crashed(reason, onRevived = () => {}) {
+  const cost = wallet.reviveCost(revivesUsed);
+  if (cost === null || wallet.gold < cost) {
+    gameOver(reason);
+    return;
+  }
+  isReviving = true;
+  showRevive(reason, cost, wallet.gold, SHOP.revive.offerTime, (yes) => {
+    isReviving = false;
+    if (yes && wallet.pay({ gold: cost })) {
+      revivesUsed++;
+      effects.protect(SHOP.revive.grace);
+      onRevived();
+    } else {
+      gameOver(reason);
+    }
+  });
+}
+
 // A crash that would end the run: the aegis, if he has it, takes it instead.
 const runnerOnScreen = new THREE.Vector3();
 function aegisSaves() {
@@ -553,6 +593,7 @@ function restart() {
   runTime = 0;
   debugPhaseSkip = 0;
   setCoins(0, 0);
+  revivesUsed = 0;
   effects.reset();
   player.setJumpBoost();
   updatePowerups([]);
@@ -597,20 +638,20 @@ function openMenu() {
 showStart(endlessUnlocked, JOURNEY.length);
 showMenuButtons(endlessUnlocked);
 setupStartModes((chosen) => {
-  if (!isStarted && !isPaused) startRun(chosen);
+  if (!isStarted && !holding()) startRun(chosen);
 });
 setupMenuButtons(() => {
-  if (isGameOver && !isPaused) openMenu();
+  if (isGameOver && !holding()) openMenu();
 });
 setupRunAgain(() => {
-  if (isGameOver && !isPaused && timeSinceGameOver >= GAME.restartDelay) restart();
+  if (isGameOver && !holding() && timeSinceGameOver >= GAME.restartDelay) restart();
 });
 
 function handleAction(action) {
   if (action === 'toggleMute') {
     toggleMute();
-  } else if (isPaused) {
-    // Settings are open: the game ignores everything else.
+  } else if (holding()) {
+    // Settings, the shop or a revive offer are up: the game ignores everything else.
   } else if (!isStarted) {
     if (action === 'modeEscape') startRun('escape');
     else if (action === 'modeEndless' && endlessUnlocked) startRun('endless');
@@ -705,7 +746,7 @@ function checkCollisions() {
   if (!isSideClip(player.previousHitbox, player.hitbox, obstacle)) {
     if (aegisSaves()) return; // he runs on through it
     audio.impact();
-    gameOver(CRASH_REASONS[hit.type]);
+    crashed(CRASH_REASONS[hit.type]);
     return;
   }
   player.stumble((obstacle.min.x + obstacle.max.x) / 2);
@@ -725,8 +766,8 @@ renderer.setAnimationLoop((timestamp) => {
 
   for (const action of consumeActions()) handleAction(action);
 
-  if (isPaused) {
-    // Settings open: everything holds still.
+  if (holding()) {
+    // Settings or the shop open, or a revive offered: everything holds still.
   } else if (!isStarted) {
     player.tick(dt); // idling on the start screen
   } else if (isGameOver) {
@@ -829,7 +870,7 @@ renderer.setAnimationLoop((timestamp) => {
   audio.setRumble(environment.phase.rumbleVolume);
   audio.setRoar(isGameOver ? 0 : isCaught ? 1 : surge.proximity * calm); // fades out on the game-over screen
   const { tensionDrone, tensionHeartbeat, tensionHigh } = environment.phase;
-  const running = isStarted && !isGameOver && !isCaught && !isPaused;
+  const running = isStarted && !isGameOver && !isCaught && !holding();
   audio.updateTension(
     { drone: tensionDrone, heartbeat: tensionHeartbeat, high: tensionHigh },
     speedAt(currentDistance()) * environment.phase.speedMultiplier,

@@ -113,6 +113,64 @@ function createCharacter(gltf, envMap) {
   let current = null;
   let stumbleTimeLeft = 0;
 
+  // ---- Looks (the shop's characters). A tint recolours the legionary's
+  // materials (placeholders); a body is another model shown instead of his,
+  // moved as a whole (it has no skeleton): a running bob, a lean, a crouch.
+  const materials = {};
+  model.traverse((o) => {
+    if (o.isMesh && !materials[o.material.name]) {
+      const m = o.material;
+      materials[m.name] = { material: m, original: { color: m.color.clone(), vertexColors: m.vertexColors, metalness: m.metalness, roughness: m.roughness } };
+    }
+  });
+  let body = null; // { object, phase }
+  function setLook({ tint = null, bodyModel = null } = {}) {
+    for (const { material, original } of Object.values(materials)) {
+      material.color.copy(original.color);
+      material.metalness = original.metalness;
+      material.roughness = original.roughness;
+      if (material.vertexColors !== original.vertexColors) {
+        material.vertexColors = original.vertexColors;
+        material.needsUpdate = true; // the shader is rebuilt with or without vertex colours
+      }
+    }
+    for (const [name, value] of Object.entries(tint ?? {})) {
+      const entry = materials[name];
+      if (!entry) continue;
+      const [color, metalness] = Array.isArray(value) ? value : [value];
+      const m = entry.material;
+      m.color.set(color);
+      if (metalness !== undefined) {
+        m.metalness = metalness;
+        m.roughness = metalness > 0.3 ? 0.35 : 0.8;
+      }
+      if (m.vertexColors) {
+        m.vertexColors = false; // the painted colours would tint the new one
+        m.needsUpdate = true;
+      }
+    }
+    if (body) root.remove(body.object);
+    body = bodyModel ? { object: bodyModel, phase: 0 } : null;
+    if (body) {
+      body.object.rotation.y = CHARACTER.facing;
+      body.object.traverse((o) => o.isMesh && (o.castShadow = true));
+      root.add(body.object);
+    }
+    model.visible = !body;
+  }
+  // The whole-body motion of a body without a skeleton.
+  function moveBody(dt, moved, grounded, sliding) {
+    if (!body) return;
+    const o = body.object;
+    body.phase += (moved / CHARACTER.runCycleLength) * Math.PI * 4; // two bobs a cycle, one per step
+    const k = 1 - Math.exp(-12 * dt);
+    const bob = grounded && !sliding ? Math.abs(Math.sin(body.phase)) * 0.06 : 0;
+    o.position.y += (bob - o.position.y) * k;
+    o.scale.y += ((sliding ? 0.55 : 1) - o.scale.y) * k; // crouched under a beam
+    o.rotation.x += ((sliding ? -0.35 : grounded ? -0.08 : -0.25) - o.rotation.x) * k; // leaning into the run
+    o.rotation.z = Math.sin(body.phase / 2) * 0.03;
+  }
+
   // Advances the animation by dt. The mixer only rewrites a bone when its
   // animated value changes, so last frame's slide correction is taken off
   // first (otherwise it would pile up while the slide pose is held), then
@@ -164,6 +222,7 @@ function createCharacter(gltf, envMap) {
 
   return {
     root,
+    setLook,
 
     // Dim the armour's reflections as the sky darkens (from the phase).
     setEnvIntensity(value) {
@@ -182,6 +241,7 @@ function createCharacter(gltf, envMap) {
     // for a moment and swings round (main.js eases yaw back to 0).
     setTurn(yaw) {
       model.rotation.y = CHARACTER.facing + yaw;
+      if (body) body.object.rotation.y = CHARACTER.facing + yaw;
     },
 
     // Game over: settle into the Idle animation (breathing, looking about).
@@ -208,6 +268,7 @@ function createCharacter(gltf, envMap) {
       const speed = dt > 0 ? moved / dt : 0;
       actions.run.timeScale = (speed * runDuration) / CHARACTER.runCycleLength;
       step(dt);
+      moveBody(dt, moved, grounded, sliding);
 
       // Lane change: lean into the turn and look where he is going.
       const k = 1 - Math.exp(-LEGIONARY.poseBlendSpeed * dt);

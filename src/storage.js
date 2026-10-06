@@ -95,3 +95,23 @@ export function saveEndlessUnlocked() {
     // Not saved: it unlocks again on the next finish.
   }
 }
+
+// The wallet (wallet.js): coins, power-up levels, characters, the money
+// changer's count for the day. Saved as one JSON value.
+const WALLET_KEY = 'escape-pompeii.wallet';
+
+export function loadWallet() {
+  try {
+    return JSON.parse(localStorage.getItem(WALLET_KEY)) ?? null;
+  } catch {
+    return null; // nothing saved, or storage unavailable: a new wallet
+  }
+}
+
+export function saveWallet(wallet) {
+  try {
+    localStorage.setItem(WALLET_KEY, JSON.stringify(wallet));
+  } catch {
+    // Not saved: the coins are kept until the page closes.
+  }
+}
