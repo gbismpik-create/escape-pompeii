@@ -4,8 +4,8 @@
 // meshed in full detail, then flattened into low relief and baked into each coin's textures: a normal map (which way
 // the surface faces at every point, so the light picks out the relief) and a colour map (polished high points, toned
 // recesses). The coin itself is a ~600-triangle disc: two faces, a raised rim and the edge.
-//   Denarius: laureate head of Titus right, legend IMP T CAESAR VESPASIANVS AVG round the rim; reverse Pax holding an
-//             olive branch. Bright silver, slightly worn (soft relief, rounded rim).
+//   Denarius: laureate head of Titus right, legend IMP T CAESAR VESPASIANVS AVG round the rim; reverse PAX AVGVST, the
+//             emperor in armour in the pose of the Augustus of Prima Porta. Bright silver, slightly worn (soft relief, rounded rim).
 //   Aureus:   laureate head of Vespasian right; reverse Victory crowning a trophy. Warm polished gold, crisp edges.
 // Each coin stands upright facing +z (front) and −z (back), centred on the origin.
 // Output: tools/coins.glb (then meshopt → public/assets/coins.glb, see npm run build:coins). Run: cd tools && node build-coins.mjs
@@ -97,6 +97,53 @@ function olive(S, base, dir, length) {   // a branch with pairs of narrow leaves
   }
   for (let i = 0; i < 4; i++) S.sphere(add(lerp3(base, tip, 0.3 + i * 0.15), [0, i % 2 ? 0.03 : -0.03, 0.02]), 0.016, 0.006, 'cloth');
 }
+// The emperor in the pose of the Augustus of Prima Porta: weight on the right leg like the Doryphoros, the right arm
+// raised to address his troops, a muscled cuirass with a belt and two rows of leather strips (pteruges), a short
+// tunic, the general's cloak rolled round the hips and hanging over the left forearm, a spear in the left hand.
+const AUGUSTUS = { ...POSES.doryphoros, drape: null, headYaw: -0.35, headPitch: 0.06, headOpts: { curls: 190, wreath: true },
+  arms: { r: { elbow: T(-0.43, 1.6, 0.1), wrist: T(-0.55, 1.83, 0.16), hand: T(-0.1, 1, 0.15), palm: T(0.2, 0.1, 1), grip: 0.12 },
+          l: { elbow: T(0.27, 1.13, 0.0), wrist: T(0.36, 1.13, 0.22), hand: T(0.15, 0.1, 1), palm: T(-1, 0, 0), grip: 0.95 } } };
+function augustusFigure() {
+  const pose = { ...AUGUSTUS, plinth: false }, S = figure(pose), P = pose.pelvis, C = pose.chest;
+  // the cuirass: a smooth shell over the torso (the muscles show through it), its lower edge flaring over the hips
+  const shell = (x, y, z) => {
+    const t = clamp((y - (P[1] - 0.02)) / (C[1] + 0.16 - (P[1] - 0.02))), rx = lerp(0.19, 0.205, t) + 0.02 * Math.sin(t * Math.PI), rz = lerp(0.135, 0.13, t) + 0.015 * Math.sin(t * Math.PI);
+    const cx = lerp(P[0], C[0], t), cz = lerp(P[2], C[2], t) + 0.005;
+    return Math.max((Math.hypot((x - cx) / rx, (z - cz) / rz) - 1) * Math.min(rx, rz), (P[1] - 0.03) - y, y - (C[1] + 0.17 - 0.8 * (x - C[0]) ** 2));
+  };
+  S.custom(shell, [P[0], (P[1] + C[1]) / 2, P[2]], 0.5, 0.02, 'cloth'); S.ops[S.ops.length - 1].prio = 0.02;
+  // the muscled breastplate: pectorals, the ribcage arch and the abdominal panels sculpted on the shell
+  for (const q of [-1, 1]) S.ell(add(C, [q * 0.078, 0.035, 0.122]), [0.088, 0.062, 0.04], frame(q * 0.25, 0, 0), 0.02, 'cloth');
+  for (const q of [-1, 1]) for (let j = 0; j < 3; j++) S.ell(lerp3(add(C, [q * 0.04, -0.07, 0.125]), add(P, [q * 0.038, 0.12, 0.13]), j / 2.5), [0.036, 0.034, 0.022], null, 0.018, 'cloth');
+  S.ell(add(P, [0, 0.13, 0.12]), [0.06, 0.035, 0.03], null, 0.02, 'cloth');
+  // shoulder straps, the belt (cingulum) and a figure in relief on the breastplate (a rosette here)
+  for (const s of [-1, 1]) S.cone(add(C, [s * 0.09, 0.17, -0.02]), add(C, [s * 0.11, 0.1, 0.12]), 0.03, 0.026, 0.01, 'cloth');
+  S.custom(sdTorus(add(P, [0, 0.08, 0.006]), 0.19, 0.017, frame(0, 0, 0)), add(P, [0, 0.08, 0]), 0.22, 0.008, 'cloth');
+  S.custom(sdTorus(add(C, [0, -0.02, 0.135]), 0.045, 0.01, frame(0, 0, Math.PI / 2)), add(C, [0, -0.02, 0.135]), 0.06, 0.004, 'cloth');
+  // pteruges: two rows of rounded leather strips round the hips, the lower row longer
+  for (const [row, y0, len, n, r] of [[0, P[1] - 0.02, 0.1, 15, 0.215], [1, P[1] - 0.09, 0.14, 17, 0.235]]) {
+    for (let k = 0; k < n; k++) {
+      const a = -Math.PI * 0.95 + (k + row * 0.5) / n * Math.PI * 1.9, d = [Math.sin(a), 0, Math.cos(a)];
+      const top = add(P, [d[0] * r * 0.92, y0 - P[1], d[2] * r * 0.72 + 0.01]), bot = add(top, [d[0] * 0.025, -len, d[2] * 0.02]);
+      S.box(lerp3(top, bot, 0.5), [0.022, len / 2, 0.007], 0.004, frameAlong(sub(bot, top), d), 0.004, 'cloth');
+    }
+  }
+  // the tunic under them, to just above the knee, with a few folds
+  const tunic = (x, y, z) => { const rx = 0.2 + 0.05 * clamp((P[1] - 0.1 - y) / 0.3), rz = 0.14 + 0.03 * clamp((P[1] - 0.1 - y) / 0.3); return Math.max((Math.hypot((x - P[0]) / rx, (z - P[2]) / rz) - 1) * Math.min(rx, rz), (0.63 + 0.015 * Math.sin(x * 30)) - y, y - (P[1] - 0.05)) + 0.004 * Math.sin(Math.atan2(x - P[0], z - P[2]) * 14); };
+  S.custom(tunic, [P[0], P[1] - 0.2, P[2]], 0.35, 0.015, 'cloth');
+  // the cloak: rolled round the hips from the right side to the left arm, then hanging over the forearm in folds
+  const A = pose.arms.l, roll = [add(P, [-0.2, -0.04, 0.1]), add(P, [0.0, -0.1, 0.17]), add(P, [0.2, -0.02, 0.12]), lerp3(A.elbow, A.wrist, 0.3)];
+  const rf = roll.slice(1).map((q, i) => sdRoundCone(roll[i], q, 0.05, 0.055));
+  S.custom((x, y, z) => { let d = 1e9; for (const f of rf) d = smin(d, f(x, y, z), 0.04); return d + 0.005 * Math.sin((x - y) * 70); }, add(P, [0, -0.05, 0.1]), 0.45, 0.02, 'cloth');
+  const hang = lerp3(A.elbow, A.wrist, 0.5);
+  S.custom((x, y, z) => sdEllipsoid(add(hang, [0.03, -0.3, 0.02]), [0.07, 0.32, 0.09])(x, y, z) + 0.008 * Math.sin(Math.atan2(x - hang[0], z - hang[2]) * 7 + y * 4), add(hang, [0, -0.28, 0]), 0.36, 0.03, 'cloth');
+  // the spear held upright in the left hand, its point above his head
+  const sx = A.wrist[0] + 0.05, sz = A.wrist[2] + 0.02;
+  S.cone([sx, 0.02, sz], [sx, 1.95, sz], 0.014, 0.012, 0.004, 'cloth');
+  S.custom((x, y, z) => sdEllipsoid([sx, 2.02, sz], [0.03, 0.1, 0.012])(x, y, z), [sx, 2.02, sz], 0.11, 0.004, 'cloth');
+  return S;
+}
+
 // Victory advancing right, a common Flavian type: the left arm raised holding out a laurel wreath, the right hand
 // carrying a palm branch over her shoulder, wings spread behind her (the wings and palm are drawn in relief: see
 // victoryDrawn).
@@ -419,10 +466,10 @@ const figureLayer = (S, coin, view) => async () => {
 };
 
 const D = COINS.denarius, A = COINS.aureus;
-const paxView = { cx: -0.12, cy: 0.9, span: 2.75, z0: -0.12 }, vicView = { cx: -0.05, cy: 1.16, span: 3.05, z0: -0.15 };
+const paxView = { cx: -0.04, cy: 1.2, span: 3.0, z0: -0.15 }, vicView = { cx: -0.05, cy: 1.16, span: 3.05, z0: -0.15 };
 const denarius = await buildCoin(D, [
   { name: 'Titus', layers: [portraitLayer('titus', D, 0.6), () => legend('IMP T CAESAR VESPASIANVS AVG', D, D.legendHeight, [0.42, 0.42]), () => beads(D, D.legendHeight * 0.9)] },
-  { name: 'Pax', layers: [figureLayer(robedFigure(PAX, (S, p) => olive(S, p.arms.r.wrist, [-0.55, 0.75, 0.1], 0.42)), D, paxView),
+  { name: 'Pax', layers: [figureLayer(augustusFigure(), D, paxView),
     () => groundLine(D, -paxView.cy / paxView.span * D.diameter - 0.004, D.relief * 0.35), () => legend('PAX AVGVST', D, D.legendHeight, [0.6, 0.6]), () => beads(D, D.legendHeight * 0.9)] },
 ]);
 const aureus = await buildCoin(A, [
