@@ -22,19 +22,20 @@ globalThis.FileReader = class { readAsArrayBuffer(b) { b.arrayBuffer().then(x =>
 globalThis.OffscreenCanvas = function (w, h) { const c = createCanvas(w, h); c.convertToBlob = async (o = {}) => new Blob([c.toBuffer(o.type === 'image/jpeg' ? 'image/jpeg' : 'image/png', 90)], { type: o.type || 'image/png' }); return c; };
 globalThis.OffscreenCanvas.prototype = Object.getPrototypeOf(createCanvas(1, 1));
 
-const RES = +(process.env.RES || 512);   // texture pixels across one face
+const RES = +(process.env.RES || 1024);  // texture pixels across one face
+const PXS = RES / 512;                       // blur radii below were tuned at 512 px
 const T0 = Date.now(), lap = (n) => console.log(`  ${n} ${((Date.now() - T0) / 1000).toFixed(0)}s`);
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x)), lerp = (a, b, t) => a + (b - a) * t, smooth = (t) => { t = clamp(t); return t * t * (3 - 2 * t); };
 const white = () => [1, 1, 1];
 
 // ------------------------------------------------------------------ the coins
 const COINS = {
-  denarius: { name: 'Coin_Denarius', diameter: 0.30, thickness: 0.032, rim: 0.011, rimHeight: 0.0045, bevel: 0.006, segments: 40,
-    relief: 0.009, legendHeight: 0.0035, soften: 2.2, normalStrength: 1.6,
-    metal: [0.93, 0.93, 0.91], toned: [0.42, 0.42, 0.44], roughness: 0.34 },
-  aureus: { name: 'Coin_Aureus', diameter: 0.35, thickness: 0.036, rim: 0.012, rimHeight: 0.005, bevel: 0.0015, segments: 40,
-    relief: 0.01, legendHeight: 0, soften: 0.7, normalStrength: 1.6,
-    metal: [1.0, 0.72, 0.3], toned: [0.6, 0.33, 0.1], roughness: 0.2 },
+  denarius: { name: 'Coin_Denarius', diameter: 0.30, thickness: 0.03, rim: 0.012, rimHeight: 0.004, bevel: 0.006, segments: 72,
+    relief: 0.009, legendHeight: 0.0032, soften: 1.2, normalStrength: 1.25, beads: 84, wear: 0.35,
+    metal: [0.9, 0.9, 0.88], toned: [0.3, 0.31, 0.34], polish: [1.0, 1.0, 0.98], roughness: [0.42, 0.2], seed: 3 },
+  aureus: { name: 'Coin_Aureus', diameter: 0.35, thickness: 0.034, rim: 0.013, rimHeight: 0.0045, bevel: 0.0025, segments: 72,
+    relief: 0.01, legendHeight: 0.0034, soften: 0.7, normalStrength: 1.25, beads: 92, wear: 0.12,
+    metal: [1.0, 0.74, 0.34], toned: [0.55, 0.3, 0.08], polish: [1.0, 0.86, 0.5], roughness: [0.3, 0.12], seed: 7 },
 };
 
 // ------------------------------------------------------------------ sculpting
@@ -42,7 +43,7 @@ const COINS = {
 // who: 'titus' (round, full face, thick hair) or 'vespasian' (older: heavy jaw and jowls, lined brow, thinning hair).
 function portrait(who) {
   const S = new Sculpture(), Fh = frame(Math.PI / 2, 0, 0.05), at = (l) => Fh.at([0, 0, 0], l);
-  head(S, [0, 0, 0], Fh, { curls: who === 'titus' ? 170 : 90, wreath: true });
+  head(S, [0, 0, 0], Fh, { curls: who === 'titus' ? 170 : 150, wreath: true });
   // neck and the top of the shoulders, leaning forward a little
   S.cone(at([0, -0.07, -0.02]), at([0, -0.2, -0.05]), 0.058, 0.066, 0.03);
   S.ell(at([0, -0.24, -0.06]), [0.1, 0.06, 0.12], Fh, 0.04);
@@ -51,9 +52,9 @@ function portrait(who) {
     S.ell(at([0, -0.088, 0.035]), [0.06, 0.03, 0.05], Fh, 0.03);                                     // rounded jaw
   } else {
     S.ell(at([0, -0.09, 0.03]), [0.068, 0.04, 0.06], Fh, 0.035);                                     // heavy jaw
-    for (const s of [-1, 1]) S.ell(at([s * 0.05, -0.075, 0.035]), [0.024, 0.03, 0.03], Fh, 0.02);  // jowls
+    S.ell(at([0.05, -0.078, 0.03]), [0.022, 0.028, 0.03], Fh, 0.025);                                // a jowl (the side we see)
     S.ell(at([0, -0.115, 0.02]), [0.04, 0.025, 0.04], Fh, 0.03);                                     // double chin
-    for (const y of [0.052, 0.064]) S.cone(at([-0.035, y, 0.088]), at([0.035, y, 0.088]), 0.0022, 0.0022, 0.002, 'skin', 'sub');   // lines across the brow
+
     S.cone(at([0, 0.018, 0.093]), at([0, -0.036, 0.122]), 0.009, 0.014, 0.008);                      // a bigger, hooked nose
   }
   return S;
@@ -69,9 +70,14 @@ function robedFigure(pose, extra) {
     const t = clamp((1.45 - y) / 1.4), rx = lerp(0.2, 0.3, t), rz = lerp(0.13, 0.2, t);
     const cx = lerp(C[0], P[0] + (pose.robeSway ?? 0), smooth(t * 1.4)), cz = lerp(C[2], P[2], t);
     const d = (Math.hypot((x - cx) / rx, (z - cz) / rz) - 1) * Math.min(rx, rz);
-    return Math.max(d, y - 1.47, 0.03 - y) + 0.006 * Math.sin(Math.atan2(x - cx, z - cz) * 13 + y * 2.5);
+    const a = Math.atan2(x - cx, z - cz), deep = smooth((1.1 - y) / 0.9);   // folds deepen towards the hem
+    return Math.max(d, y - 1.47, 0.03 - y) + (0.005 + 0.011 * deep) * Math.sin(a * 11 + y * 1.4) + 0.005 * Math.sin(a * 23 + y * 3.1 + 1);
   };
   S.custom(robe, [P[0], 0.75, P[2]], 0.85, 0.03, 'cloth');
+  // a mantle (palla) slung from the left shoulder across to the right hip, in heavy folds
+  const sw = [add(C, [0.17, 0.14, 0.02]), add(C, [0.02, -0.08, 0.12]), add(P, [-0.16, 0.0, 0.12]), add(P, [-0.2, -0.2, 0.06])];
+  const swf = sw.slice(1).map((q, i) => sdRoundCone(sw[i], q, 0.06, 0.07));
+  S.custom((x, y, z) => { let d = 1e9; for (const f of swf) d = smin(d, f(x, y, z), 0.05); return d + 0.006 * Math.sin((x + y) * 60); }, add(C, [0, -0.25, 0.08]), 0.6, 0.02, 'cloth');
   extra?.(S, pose);
   return S;
 }
@@ -89,37 +95,75 @@ function olive(S, base, dir, length) {   // a branch with pairs of narrow leaves
   }
   for (let i = 0; i < 4; i++) S.sphere(add(lerp3(base, tip, 0.3 + i * 0.15), [0, i % 2 ? 0.03 : -0.03, 0.02]), 0.016, 0.006, 'cloth');
 }
-// Victory: striding to the right with spread wings, the right arm raised to set a wreath on a trophy of arms.
-const VICTORY = { ...POSES.emperor, drape: null, headYaw: 0.5, headOpts: { curls: 120 }, robeSway: 0.05,
-  arms: { r: { elbow: T(-0.3, 1.62, 0.08), wrist: T(-0.12, 1.9, 0.1), hand: T(0.5, 0.8, 0.1), palm: T(0, -1, 0), grip: 0.7 },
-          l: { elbow: T(0.27, 1.1, 0.06), wrist: T(0.32, 0.88, 0.16), hand: T(0, -1, 0.1), palm: T(-1, 0, 0), grip: 0.85 } } };
-const TROPHY_X = 0.75;
+// Victory advancing right, a common Flavian type: the left arm raised holding out a laurel wreath, the right hand
+// carrying a palm branch over her shoulder, wings spread behind her (the wings and palm are drawn in relief: see
+// victoryDrawn).
+const VICTORY = { ...POSES.emperor, drape: null, headYaw: 0.55, headPitch: 0.05, headOpts: { curls: 140 }, robeSway: 0.06,
+  legs: { r: { knee: T(-0.08, 0.515, 0.012), ankle: T(-0.075, 0.086, -0.005), toe: T(-0.15, 0, 1) }, l: { knee: T(0.16, 0.53, 0.09), ankle: T(0.24, 0.11, 0.06), toe: T(0.4, -0.05, 1) } },
+  arms: { l: { elbow: T(0.36, 1.48, 0.1), wrist: T(0.52, 1.68, 0.14), hand: T(0.5, 0.8, 0.1), palm: T(0, -1, 0), grip: 0.7 },
+          r: { elbow: T(-0.27, 1.1, 0.08), wrist: T(-0.28, 1.0, 0.2), hand: T(-0.2, 0.9, 0.3), palm: T(1, 0, 0), grip: 0.95 } } };
 function victoryExtras(S, pose) {
-  const C = pose.chest;
-  // wings: long feathered blades rising from the shoulder blades, spread up and out
-  for (const s of [-1, 1]) {
-    const root = add(C, [s * 0.1, 0.12, -0.06]);
-    for (let k = 0; k < 6; k++) {
-      const ang = s * (0.45 + k * 0.16), len = 0.82 - k * 0.08, dir = [Math.sin(ang), Math.cos(ang), -0.05];
-      S.cone(root, add(root, mul(norm(dir), len)), 0.065 - k * 0.005, 0.02, 0.025, 'cloth');
+  const w = add(pose.arms.l.wrist, [0.1, 0.12, 0.02]);
+  S.custom(sdTorus(w, 0.085, 0.018, frame(0, 0, Math.PI / 2)), w, 0.11, 0.005, 'cloth');                  // the wreath
+  for (let i = 0; i < 2; i++) S.cone(add(w, [0.02, -0.08, 0]), add(w, [0.05 + i * 0.05, -0.28, 0.01]), 0.008, 0.005, 0.004, 'cloth');   // its ribbons
+}
+// Relief drawn on a canvas in the figure's own metres (for feathers and palm leaves, which sculpt poorly).
+// draw(g, P, m) gets the context, P(x, y) → pixel and m = pixels per metre; grey level = height (white = `height`).
+function drawnLayer(view, height, draw) {
+  const c = createCanvas(RES, RES), g = c.getContext('2d'), m = RES / view.span;
+  const P = (x, y) => [((x - view.cx) / view.span + 0.5) * RES, (0.5 - (y - view.cy) / view.span) * RES];
+  g.fillStyle = '#000'; g.fillRect(0, 0, RES, RES);
+  draw(g, P, m);
+  const d = g.getImageData(0, 0, RES, RES).data, out = new Float32Array(RES * RES);
+  for (let i = 0; i < out.length; i++) out[i] = (d[i * 4] / 255) * height;
+  return blur(out, 0.7 * PXS);
+}
+// A domed leaf or feather: an ellipse brightest along its middle.
+function domed(g, x, y, len, wid, ang, level = 1, from = 0.35) {
+  g.save(); g.translate(x, y); g.rotate(ang); g.scale(1, wid / len);
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, len);
+  const v = (k) => `rgb(${Math.round(255 * level * k)},${Math.round(255 * level * k)},${Math.round(255 * level * k)})`;
+  gr.addColorStop(0, v(1)); gr.addColorStop(0.7, v(0.75)); gr.addColorStop(1, v(from));
+  g.fillStyle = gr; g.beginPath(); g.arc(0, 0, len, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+// Victory's two wings (rising behind her shoulders, the far one lower) and the palm branch.
+function victoryDrawn(view, height) {
+  return drawnLayer(view, height, (g, P, m) => {
+    const C = VICTORY.chest;
+    // A wing: a solid plate (its silhouette), rows of small coverts near the leading edge, a fan of long
+    // primaries at the tip and secondaries along the trailing edge, each feather domed and outlined.
+    const wing = (root, ang, Lw, Ww, level, mirror) => {
+      const d = [Math.cos(ang), Math.sin(ang)], n = [-d[1] * mirror, d[0] * mirror];          // along the wing; across, towards the trailing edge
+      const W = (t, w) => [root[0] + d[0] * t * Lw + n[0] * w * Ww, root[1] + d[1] * t * Lw + n[1] * w * Ww];
+      const lead = (t) => -0.12 * Math.sin(t * Math.PI), trail = (t) => 0.85 * Math.sin(Math.min(1, t * 1.15) * Math.PI * 0.75) * (1 - 0.35 * t);
+      const shape = []; for (let k = 0; k <= 30; k++) shape.push(W(k / 30, lead(k / 30))); for (let k = 30; k >= 0; k--) shape.push(W(k / 30, trail(k / 30)));
+      g.fillStyle = `rgb(${Math.round(150 * level)},${Math.round(150 * level)},${Math.round(150 * level)})`; g.beginPath(); shape.forEach((p, k) => { const [x, y] = P(...p); k ? g.lineTo(x, y) : g.moveTo(x, y); }); g.fill();
+      const feather = (p, a, L, w, lv) => {
+        const [x, y] = P(p[0] + Math.cos(a) * L * 0.5, p[1] + Math.sin(a) * L * 0.5);
+        domed(g, x, y, L * 0.5 * m, w * m, -a, level * lv, 0.45);
+        g.save(); g.translate(x, y); g.rotate(-a); g.scale(1, w / (L * 0.5)); g.strokeStyle = `rgba(0,0,0,0.55)`; g.lineWidth = 1.2 * PXS / (w / (L * 0.5)) ** 0.5; g.beginPath(); g.arc(0, 0, L * 0.5 * m, 0, Math.PI * 2); g.restore(); g.stroke();
+        g.strokeStyle = `rgba(255,255,255,${0.35 * level})`; g.lineWidth = 0.9 * PXS; const [x0, y0] = P(...p), [x1, y1] = P(p[0] + Math.cos(a) * L * 0.92, p[1] + Math.sin(a) * L * 0.92); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();   // the quill
+      };
+      // secondaries along the trailing edge, hanging back and down, inner ones first so outer ones overlap them
+      for (let k = 0; k < 9; k++) { const t = 0.12 + k * 0.065, base = W(t, trail(t) * 0.35), a = Math.atan2(n[1], n[0]) - mirror * 0.25 + mirror * k * 0.05; feather(base, a, Ww * (trail(t) * 0.75 + 0.2), 0.035, 0.85); }
+      // primaries fanned out at the tip
+      for (let k = 0; k < 8; k++) { const t = 0.6 + k * 0.035, base = W(t, 0.15), a = ang + mirror * (0.95 - k * 0.12); feather(base, a, Lw * (0.26 + k * 0.028), 0.04, 0.9); }
+      // coverts: overlapping scales in rows near the leading edge
+      for (let row = 0; row < 3; row++) for (let k = 0; k < 11 - row * 2; k++) { const t = 0.08 + k * (0.075 + row * 0.01), base = W(t, 0.05 + row * 0.16), a = Math.atan2(n[1], n[0]) + mirror * 0.4; feather(base, a, 0.11 + row * 0.035, 0.03, 1); }
+    };
+    wing([C[0] - 0.12, C[1] + 0.1], Math.PI * 0.66, 0.78, 0.4, 0.62, 1);     // far wing, rising up and out to the left
+    wing([C[0] + 0.1, C[1] + 0.12], Math.PI * 0.45, 0.74, 0.38, 0.75, -1);      // near wing, up behind the raised arm
+    // the palm branch from her right hand up over the shoulder: a stem and pairs of narrow leaflets
+    const h = VICTORY.arms.r.wrist, base = [h[0] - 0.02, h[1] + 0.02], tip = [h[0] - 0.3, h[1] + 0.78];
+    const [bx, by] = P(...base), [tx, ty] = P(...tip);
+    g.strokeStyle = 'rgb(210,210,210)'; g.lineWidth = 0.022 * m; g.lineCap = 'round'; g.beginPath(); g.moveTo(bx, by); g.quadraticCurveTo((bx + tx) / 2 - 0.05 * m, (by + ty) / 2, tx, ty); g.stroke();
+    for (let i = 3; i < 22; i++) for (const s of [-1, 1]) {
+      const t = i / 22, x = lerp(base[0], tip[0], t), y = lerp(base[1], tip[1], t), dir = Math.atan2(-(tip[1] - base[1]), tip[0] - base[0]);
+      const L = 0.2 * Math.sin(t * Math.PI) + 0.05, ang = dir + s * 0.75, [px, py] = P(x, y);
+      domed(g, px + Math.cos(ang) * L * 0.5 * m, py + Math.sin(ang) * L * 0.5 * m, L * 0.5 * m, 0.02 * m, ang, 0.85);
     }
-    // the wing's body, filling between the long feathers
-    const mid = norm([Math.sin(s * 0.85), Math.cos(0.85), -0.05]);
-    S.ell(add(root, mul(mid, 0.36)), [0.2, 0.38, 0.035], frameAlong(mid, [0, 0, 1]), 0.05, 'cloth');
-  }
-  // the laurel wreath in the raised hand, held over the trophy
-  const w = add(pose.arms.r.wrist, [0.13, 0.08, 0.02]);
-  S.custom(sdTorus(w, 0.075, 0.016, frame(0, 0, Math.PI / 2)), w, 0.1, 0.005, 'cloth');
-  // the trophy: a post with a crossbar, a cuirass, a crested helmet and two oval shields, on a low mound
-  const X = TROPHY_X, Y = (y) => [X, y, -0.02];
-  S.cone(Y(0.02), Y(1.62), 0.035, 0.03, 0.01, 'cloth');
-  S.cone(add(Y(1.36), [-0.32, 0, 0]), add(Y(1.36), [0.32, 0, 0]), 0.026, 0.026, 0.01, 'cloth');
-  S.ell(Y(1.2), [0.17, 0.22, 0.1], null, 0.03, 'cloth');                                               // cuirass
-  S.ell(Y(1.04), [0.19, 0.06, 0.11], null, 0.03, 'cloth');                                              // its skirt of straps
-  S.sphere(Y(1.6), 0.1, 0.02, 'cloth');                                                                 // helmet
-  S.ell(add(Y(1.72), [-0.02, 0, 0]), [0.12, 0.05, 0.03], null, 0.02, 'cloth');                          // crest
-  for (const s of [-1, 1]) S.ell(add(Y(1.12), [s * 0.36, 0, 0.04]), [0.12, 0.2, 0.035], null, 0.02, 'cloth');   // shields
-  S.ell(Y(0.0), [0.32, 0.08, 0.18], null, 0.05, 'cloth');                                               // mound
+  });
 }
 
 // ------------------------------------------------------------------ baking the relief
@@ -151,10 +195,25 @@ async function bakeHeights(S, view, { h, target, clip }) {
 // Squash a height map into low relief: tall parts compressed more than shallow ones (as die engravers did),
 // scaled so the highest point stands `relief` metres above the field.
 // The fine detail (curls, eyes, laurel leaves, folds) is then added back on top, so squashing doesn't flatten it.
-function lowRelief(H, top, relief, detail = 1.4) {
-  const out = new Float32Array(H.length), k = 3 / top, lin = Float32Array.from(H, (h) => h * relief / top), soft = blur(lin, 5);
-  for (let i = 0; i < H.length; i++) out[i] = Math.max(0, relief * (1 - Math.exp(-H[i] * k)) / (1 - Math.exp(-3)) + detail * (lin[i] - soft[i]));
+function lowRelief(H, top, relief, detail = 1.6) {
+  const out = new Float32Array(H.length), k = 3 / top, lin = Float32Array.from(H, (h) => h * relief / top), soft = blur(lin, 4 * PXS);
+  // inside the silhouette, how far from its edge (px): the relief rolls down to the field over `ramp` px
+  const dist = distanceInside(H, (h) => h > 1e-6), ramp = 11 * PXS;
+  for (let i = 0; i < H.length; i++) {
+    if (H[i] <= 1e-6) { out[i] = 0; continue; }
+    const body = relief * (1 - Math.exp(-H[i] * k)) / (1 - Math.exp(-3)), roll = 0.06 + 0.94 * Math.sin(Math.min(1, dist[i] / ramp) * Math.PI / 2);
+    out[i] = Math.max(0, body * roll + detail * (lin[i] - soft[i]) * smooth((dist[i] - 3 * PXS) / (6 * PXS)));   // no detail ridge along the outline
+  }
   return out;
+}
+// Chamfer distance (in px) from each pixel inside a mask to the nearest pixel outside it.
+function distanceInside(H, inside) {
+  const D = new Float32Array(H.length), BIG = 1e6;
+  for (let i = 0; i < H.length; i++) D[i] = inside(H[i]) ? BIG : 0;
+  const at = (x, y) => (x < 0 || y < 0 || x >= RES || y >= RES ? 0 : D[y * RES + x]);
+  for (let y = 0; y < RES; y++) for (let x = 0; x < RES; x++) { const i = y * RES + x; if (!D[i]) continue; D[i] = Math.min(D[i], at(x - 1, y) + 1, at(x, y - 1) + 1, at(x - 1, y - 1) + 1.414, at(x + 1, y - 1) + 1.414); }
+  for (let y = RES - 1; y >= 0; y--) for (let x = RES - 1; x >= 0; x--) { const i = y * RES + x; if (!D[i]) continue; D[i] = Math.min(D[i], at(x + 1, y) + 1, at(x, y + 1) + 1, at(x + 1, y + 1) + 1.414, at(x - 1, y + 1) + 1.414); }
+  return D;
 }
 function blur(H, r) {   // separable box blur, run three times (≈ gaussian); r in pixels
   if (r <= 0) return H;
@@ -165,19 +224,54 @@ function blur(H, r) {   // separable box blur, run three times (≈ gaussian); r
   }
   return a;
 }
-// Raised letters running clockwise round the rim from the lower left, tops towards the edge.
-function legend(text, coin, height) {
+// Raised letters running clockwise round the rim from the lower left, tops towards the edge, spaced by their own
+// widths (as a die engraver punched them). Each letter is rounded: higher in the middle of its strokes.
+// gap: [start, end] angles from straight down, clockwise (leave room for the portrait's neck).
+function legend(text, coin, height, gap = [0.2, 0.2]) {
   const c = createCanvas(RES, RES), g = c.getContext('2d'), R = RES / 2, pxPerM = RES / coin.diameter;
-  const outer = (coin.diameter / 2 - coin.rim - 0.003) * pxPerM, size = 0.019 * pxPerM, radius = outer - size * 0.82;
-  g.fillStyle = '#fff'; g.font = `bold ${Math.round(size)}px "Liberation Serif"`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  const start = Math.PI * 0.72, end = Math.PI * 2.28, step = (end - start) / (text.length - 1);
-  [...text].forEach((ch, i) => {
-    const a = start + i * step;   // angle from straight down, clockwise on the face
-    g.save(); g.translate(R - Math.sin(a) * radius, R + Math.cos(a) * radius); g.rotate(a + Math.PI); g.scale(0.82, 1.15); g.fillText(ch, 0, size * 0.42); g.restore();
+  const outer = (coin.diameter / 2 - coin.rim - 0.0075) * pxPerM, size = 0.0205 * pxPerM, radius = outer - size * 0.86;
+  g.fillStyle = '#fff'; g.font = `bold ${Math.round(size)}px "TeX Gyre Termes"`; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  const chars = [...text], wide = chars.map((ch) => (ch === ' ' ? size * 0.45 : g.measureText(ch).width * 0.86 + size * 0.06));
+  const total = wide.reduce((a, b) => a + b, 0), from = Math.PI * 0 + gap[0], span = Math.PI * 2 - gap[0] - gap[1];
+  const k = Math.min(span / (total / radius), 1.15);           // fill the arc, letters at most 15% wider spaced than set
+  let a = from + (span - (total / radius) * k) / 2;
+  chars.forEach((ch, i) => {
+    const w = (wide[i] / radius) * k, mid = a + w / 2; a += w;
+    if (ch === ' ') return;
+    g.save(); g.translate(R - Math.sin(mid) * radius, R + Math.cos(mid) * radius); g.rotate(mid + Math.PI); g.scale(0.86, 1.12); g.fillText(ch, 0, size * 0.38); g.restore();
   });
-  const d = g.getImageData(0, 0, RES, RES).data, out = new Float32Array(RES * RES);
-  for (let i = 0; i < out.length; i++) out[i] = (d[i * 4] / 255) * height;
-  return blur(out, 0.6);
+  const d = g.getImageData(0, 0, RES, RES).data, mask = new Float32Array(RES * RES);
+  for (let i = 0; i < mask.length; i++) mask[i] = d[i * 4] / 255;
+  const dist = distanceInside(mask, (m) => m > 0.5), out = new Float32Array(RES * RES), stroke = 1.6 * PXS;
+  for (let i = 0; i < out.length; i++) out[i] = mask[i] > 0.5 ? height * (0.55 + 0.45 * smooth(dist[i] / stroke)) : 0;
+  return blur(out, 0.5 * PXS);
+}
+// The beaded border just inside the rim: a ring of small domes.
+function beads(coin, height) {
+  const out = new Float32Array(RES * RES), pxPerM = RES / coin.diameter, R = RES / 2, rr = (coin.diameter / 2 - coin.rim - 0.0034) * pxPerM, br = 0.0017 * pxPerM;
+  for (let b = 0; b < coin.beads; b++) {
+    const a = (b / coin.beads) * Math.PI * 2, cx = R + Math.cos(a) * rr, cy = R + Math.sin(a) * rr;
+    for (let y = Math.floor(cy - br - 1); y <= cy + br + 1; y++) for (let x = Math.floor(cx - br - 1); x <= cx + br + 1; x++) {
+      if (x < 0 || y < 0 || x >= RES || y >= RES) continue;
+      const q = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / br; if (q < 1) out[y * RES + x] = Math.max(out[y * RES + x], height * Math.sqrt(1 - q * q));
+    }
+  }
+  return out;
+}
+// Life on the field: fine hairline scratches and a few small knocks (silver more than gold), as heights below 0.
+function wearMarks(coin) {
+  const out = new Float32Array(RES * RES); let sd = coin.seed * 7919;
+  const rnd = () => { sd = (sd * 16807) % 2147483647; return (sd - 1) / 2147483646; };
+  const n = Math.round(60 * coin.wear + 10);
+  for (let i = 0; i < n; i++) {
+    let x = rnd() * RES, y = rnd() * RES; const a = rnd() * Math.PI, L = (0.01 + rnd() * 0.05) * RES, depth = -0.00012 * (0.5 + rnd());
+    for (let t = 0; t < L; t += 0.5) { const xi = Math.round(x + Math.cos(a) * t), yi = Math.round(y + Math.sin(a) * t + Math.sin(t * 0.05) * 3); if (xi >= 0 && yi >= 0 && xi < RES && yi < RES) out[yi * RES + xi] = Math.min(out[yi * RES + xi], depth); }
+  }
+  for (let i = 0; i < Math.round(8 * coin.wear + 2); i++) {
+    const cx = rnd() * RES, cy = rnd() * RES, r = (0.004 + rnd() * 0.006) * RES;
+    for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++) { if (x < 0 || y < 0 || x >= RES || y >= RES) continue; const q = Math.hypot(x - cx, y - cy) / r; if (q < 1) out[y * RES + x] = Math.min(out[y * RES + x], -0.0003 * (1 - q * q)); }
+  }
+  return blur(out, 0.6 * PXS);
 }
 // A raised line for the ground the figures stand on (the exergue line).
 function groundLine(coin, yMetres, height) {
@@ -188,27 +282,43 @@ function groundLine(coin, yMetres, height) {
 
 // From a height map (metres above the field) to the coin's textures.
 // normal: tangent-space, glTF convention (green = up the picture). colour: polished high points, toned recesses,
-// a little wear on the silver; outside the field (rim, edge) plain metal.
+// worn crowns on the silver, mottled toning across the field. roughness/metal (glTF: G = roughness, B = metal):
+// recesses duller, high points bright. Outside the field (rim, edge) plain metal, a little worn.
 function textures(H, coin) {
-  const pxM = coin.diameter / RES, nrm = createCanvas(RES, RES), col = createCanvas(RES, RES);
-  const ni = nrm.getContext('2d').createImageData(RES, RES), ci = col.getContext('2d').createImageData(RES, RES);
-  const cav = blur(H, 6), at = (x, y) => H[clamp(y, 0, RES - 1) * RES + clamp(x, 0, RES - 1)];
-  const lin = (c) => Math.pow(c, 1 / 2.2) * 255;
+  const pxM = coin.diameter / RES, nrm = createCanvas(RES, RES), col = createCanvas(RES, RES), mr = createCanvas(RES, RES);
+  const ni = nrm.getContext('2d').createImageData(RES, RES), ci = col.getContext('2d').createImageData(RES, RES), ri = mr.getContext('2d').createImageData(RES, RES);
+  const cav = blur(H, 6 * PXS), wide = blur(H, 18 * PXS), at = (x, y) => H[clamp(y, 0, RES - 1) * RES + clamp(x, 0, RES - 1)];
+  const enc = (c) => Math.pow(clamp(c), 1 / 2.2) * 255;
+  const rField = 1 - (2 * coin.rim) / coin.diameter;
+  const n2 = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, h = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7 + coin.seed * 17) * 43758.5453; return v - Math.floor(v); }, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); return lerp(lerp(h(xi, yi), h(xi + 1, yi), u), lerp(h(xi, yi + 1), h(xi + 1, yi + 1), u), v); };
+  const fbm = (x, y) => 0.5 * n2(x, y) + 0.3 * n2(x * 2.1, y * 2.1) + 0.2 * n2(x * 4.3, y * 4.3);
   for (let y = 0; y < RES; y++) for (let x = 0; x < RES; x++) {
     const i = y * RES + x;
-    const dx = (at(x + 1, y) - at(x - 1, y)) / (2 * pxM) * coin.normalStrength, dyUp = -(at(x, y + 1) - at(x, y - 1)) / (2 * pxM) * coin.normalStrength;
-    const n = norm([-dx, -dyUp, 1]);
+    // Sobel slope, so the normals are smooth at 1024 px
+    const sx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x - 1, y) - at(x - 1, y + 1)) / (8 * pxM);
+    const sy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1) - at(x - 1, y - 1) - 2 * at(x, y - 1) - at(x + 1, y - 1)) / (8 * pxM);
+    const n = norm([-sx * coin.normalStrength, sy * coin.normalStrength, 1]);
     ni.data[i * 4] = (n[0] * 0.5 + 0.5) * 255; ni.data[i * 4 + 1] = (n[1] * 0.5 + 0.5) * 255; ni.data[i * 4 + 2] = (n[2] * 0.5 + 0.5) * 255; ni.data[i * 4 + 3] = 255;
-    // recess: lower than its surroundings → toned; proud: higher → polished
-    const rel = (H[i] - cav[i]) / (coin.relief * 0.25), recess = clamp(-rel), proud = clamp(rel);
-    const fieldEdge = Math.hypot(x - RES / 2, y - RES / 2) / (RES / 2) > 1 - (2 * coin.rim) / coin.diameter;
-    let c = coin.metal.map((m, k) => lerp(m, coin.toned[k], fieldEdge ? 0 : recess * 0.85));
-    c = c.map((v) => v * (fieldEdge ? 1 : 0.94 + 0.08 * proud));
-    for (let k = 0; k < 3; k++) ci.data[i * 4 + k] = clamp(lin(clamp(c[k])), 0, 255);
+    const r = Math.hypot(x + 0.5 - RES / 2, y + 0.5 - RES / 2) / (RES / 2), onField = r < rField - 0.004;
+    const rel = (H[i] - cav[i]) / (coin.relief * 0.22), recess = clamp(-rel), proud = clamp(rel);
+    const high = clamp((H[i] - wide[i]) / (coin.relief * 0.35));                     // crowns that wear first
+    const mottle = fbm(x / RES * 7, y / RES * 7), dirt = clamp((mottle - 0.45) * 2.2) * 0.35;
+    let c = coin.metal.slice(), rough = coin.roughness[0] * 0.75;
+    if (onField) {
+      c = c.map((m, k) => lerp(m, coin.toned[k], clamp(recess * 0.9 + dirt * (1 - proud))));
+      c = c.map((m, k) => lerp(m, coin.polish[k], clamp(proud * 0.6 + high * coin.wear)));
+      rough = lerp(coin.roughness[0], coin.roughness[1], clamp(proud + high * 0.8)) + recess * 0.15 + dirt * 0.1;
+      if (H[i] < -1e-5) { c = c.map((m, k) => lerp(m, coin.toned[k], 0.5)); rough += 0.1; }   // scratches and knocks
+    } else {
+      c = c.map((m, k) => lerp(m, coin.toned[k], dirt * 0.5));
+      rough = coin.roughness[0] * 0.9 + dirt * 0.15;                                       // the rim and edge: handled, satin
+    }
+    for (let k = 0; k < 3; k++) ci.data[i * 4 + k] = enc(c[k]);
     ci.data[i * 4 + 3] = 255;
+    ri.data[i * 4] = 255; ri.data[i * 4 + 1] = clamp(rough) * 255; ri.data[i * 4 + 2] = 255; ri.data[i * 4 + 3] = 255;
   }
-  nrm.getContext('2d').putImageData(ni, 0, 0); col.getContext('2d').putImageData(ci, 0, 0);
-  return { nrm, col };
+  nrm.getContext('2d').putImageData(ni, 0, 0); col.getContext('2d').putImageData(ci, 0, 0); mr.getContext('2d').putImageData(ri, 0, 0);
+  return { nrm, col, mr };
 }
 // Front and back side by side in one texture: front on the left half, back on the right.
 function pair(a, b) { const c = createCanvas(RES * 2, RES), g = c.getContext('2d'); g.drawImage(a, 0, 0); g.drawImage(b, RES, 0); return c; }
@@ -222,30 +332,44 @@ function tex(canvas, png, linear) {
 }
 
 // ------------------------------------------------------------------ the low-poly coin
-// Rings of a disc: field (a fan), the inner wall of the rim, the rim's top, its bevel, then the edge round the
-// side. Each band has its own vertices so the creases stay sharp. UVs: the face's own picture (front on the left
-// half of the texture, back on the right, the back mirrored so it reads correctly from behind).
+// Rings of a disc: the field (a fan, its relief all in the textures), the inner wall of the rim sloping up, the
+// rim's rounded top, then the edge round the side, slightly barrel-shaped like a struck flan. Each band has its
+// own vertices so the crease at the field's edge stays sharp. UVs: the face's own picture (front on the left half
+// of the texture, back on the right, the back mirrored so it reads correctly from behind).
 function coinGeometry(coin) {
   const N = coin.segments, R = coin.diameter / 2, Ri = R - coin.rim, tz = coin.thickness / 2, fz = tz - coin.rimHeight, b = coin.bevel;
   const pos = [], nor = [], uv = [], idx = [];
   const faceUV = (x, y, side) => [side > 0 ? 0.25 + (x / coin.diameter) * 0.5 : 0.75 - (x / coin.diameter) * 0.5, 0.5 + y / coin.diameter];
-  const vert = (x, y, z, n, side) => { pos.push(x, y, z); nor.push(...n); uv.push(...faceUV(x, y, side)); return pos.length / 3 - 1; };
-  const ring = (r, z, nf, side) => Array.from({ length: N }, (_, i) => { const a = (i / N) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a); return vert(c * r, s * r, z, nf(c, s), side); });
-  const band = (A, B, side) => { for (let i = 0; i < N; i++) { const j = (i + 1) % N, q = side > 0 ? [A[i], A[j], B[j], B[i]] : [A[i], B[i], B[j], A[j]]; idx.push(q[0], q[1], q[2], q[0], q[2], q[3]); } };
+  const vert = (x, y, z, n, side, uvr = 1) => { pos.push(x, y, z); nor.push(...n); uv.push(...faceUV(x * uvr, y * uvr, side)); return pos.length / 3 - 1; };
+  // the flan is not quite round: a gentle wobble in the outer radius
+  const wob = (a) => 1 + 0.008 * Math.sin(a * 3 + coin.seed) + 0.005 * Math.sin(a * 5 + coin.seed * 2);
+  const ring = (r, z, nf, side, outer = false, uvr = 1) => Array.from({ length: N }, (_, i) => {
+    const a = (i / N) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a), k = outer ? wob(a) : 1;
+    return vert(c * r * k, s * r * k, z, nf(c, s), side, uvr / k);
+  });
+  const band = (A, B, side) => { for (let i = 0; i < N; i++) { const j = (i + 1) % N, q = side > 0 ? [A[i], B[i], B[j], A[j]] : [A[i], A[j], B[j], B[i]]; idx.push(q[0], q[1], q[2], q[0], q[2], q[3]); } };   // A: the inner ring, B: the outer; faces point out of the coin
+  // rim profile from the field edge outwards: [radius, height above the field plane, outward slope of the normal]
+  const wall = 0.0035, prof = [[Ri, 0], [Ri + wall * 0.55, coin.rimHeight * 0.75], [Ri + wall, coin.rimHeight], [R - b * 1.4, coin.rimHeight * 0.98], [R - b * 0.5, coin.rimHeight * 0.82], [R, coin.rimHeight - b * 0.9]];
   for (const side of [1, -1]) {
     const up = () => [0, 0, side];
     const centre = vert(0, 0, side * fz, up(), side), field = ring(Ri, side * fz, up, side);
     for (let i = 0; i < N; i++) { const j = (i + 1) % N; side > 0 ? idx.push(centre, field[i], field[j]) : idx.push(centre, field[j], field[i]); }
-    const inward = (c, s) => [-c, -s, 0];
-    band(ring(Ri, side * fz, inward, side), ring(Ri, side * tz, inward, side), side);           // inner wall of the rim
-    band(ring(Ri, side * tz, up, side), ring(R - b, side * tz, up, side), side);                 // the rim's top
-    const slope = (c, s) => norm([c, s, side]);
-    band(ring(R - b, side * tz, slope, side), ring(R, side * (tz - b), slope, side), side);      // rounded (silver) or crisp (gold) edge of the rim
+    let prev = null;
+    for (let k = 0; k < prof.length; k++) {
+      const [r, h] = prof[k], [r0, h0] = prof[Math.max(0, k - 1)], [r1, h1] = prof[Math.min(prof.length - 1, k + 1)];
+      const dr = r1 - r0, dh = h1 - h0, nl = Math.hypot(dr, dh);
+      const nf = (c, s) => norm([(-dh / nl) * c, (-dh / nl) * s, side * (dr / nl)]);
+      // rim UVs sit just outside the field picture, on plain metal
+      const cur = ring(r, side * (fz + h), nf, side, k >= 3, 1);
+      if (prev) band(prev, cur, side);
+      prev = cur;
+      if (k === 0) { /* the field's edge crease: the wall starts with its own vertices */ }
+    }
   }
-  // the edge: a plain band round the side, between the two bevels
+  // the edge round the side: three rings, bulging slightly
   const out = (c, s) => [c, s, 0];
-  const A = ring(R, tz - b, out, 1), B = ring(R, -(tz - b), out, 1);
-  for (let i = 0; i < N; i++) { const j = (i + 1) % N; idx.push(A[i], B[i], B[j], A[i], B[j], A[j]); }
+  const zEdge = tz - b * 0.9, rings = [zEdge, 0, -zEdge].map((z, k) => ring(R * (k === 1 ? 1.004 : 1), z, (c, s) => norm([c, s, k === 0 ? 0.25 : k === 2 ? -0.25 : 0]), 1, true, 0.985));
+  for (let k = 0; k < 2; k++) { const A = rings[k], B = rings[k + 1]; for (let i = 0; i < N; i++) { const j = (i + 1) % N; idx.push(A[i], B[i], B[j], A[i], B[j], A[j]); } }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -260,10 +384,12 @@ async function buildCoin(coin, faces) {
   for (const f of faces) {
     let H = new Float32Array(RES * RES);
     for (const layer of f.layers) { const L = await layer(); for (let i = 0; i < H.length; i++) H[i] = Math.max(H[i], L[i]); }
-    H = blur(H, coin.soften);
+    H = blur(H, coin.soften * PXS);
+    const marks = wearMarks({ ...coin, seed: coin.seed + maps.length });
+    for (let i = 0; i < H.length; i++) H[i] += marks[i];
     // nothing outside the field: the rim is real geometry
     const r0 = (coin.diameter / 2 - coin.rim) / coin.diameter * RES;
-    for (let y = 0; y < RES; y++) for (let x = 0; x < RES; x++) if (Math.hypot(x + 0.5 - RES / 2, y + 0.5 - RES / 2) > r0 - 1) H[y * RES + x] = 0;
+    for (let y = 0; y < RES; y++) for (let x = 0; x < RES; x++) if (Math.hypot(x + 0.5 - RES / 2, y + 0.5 - RES / 2) > r0 - 1) H[y * RES + x] = Math.min(0, H[y * RES + x]) * 0.5;
     maps.push(textures(H, coin));
     lap(`${coin.name} ${f.name}`);
   }
@@ -272,29 +398,35 @@ async function buildCoin(coin, faces) {
     name: coin.name, color: 0xffffff, metalness: 1, roughness: coin.roughness,
     map: tex(pair(maps[0].col, maps[1].col), false, false),
     normalMap: tex(pair(maps[0].nrm, maps[1].nrm), true, true), normalScale: new THREE.Vector2(1, -1),
+    metalnessMap: null, roughnessMap: null,
   });
+  // one texture for roughness (G) and metalness (B), as glTF stores them
+  const rm = tex(pair(maps[0].mr, maps[1].mr), false, true); material.roughnessMap = rm; material.metalnessMap = rm; material.roughness = 1;
   const m = new THREE.Mesh(geo, material); m.name = coin.name;
   console.log(`${coin.name}: ${geo.index.count / 3} triangles`);
   return m;
 }
 // A portrait layer: the head sculpted at life size, fitted into the field, flattened into relief.
 const portraitLayer = (who, coin, span) => async () => {
-  const { H, top } = await bakeHeights(portrait(who), { cx: 0.01, cy: -0.05, span, z0: -0.04 }, { h: 0.0022, target: 160000, clip: (x, y, z) => truncation(x, y) });
+  const { H, top } = await bakeHeights(portrait(who), { cx: 0.01, cy: -0.05, span, z0: -0.04 }, { h: +(process.env.HP || 0.0016), target: 400000, clip: (x, y, z) => truncation(x, y) });
   return lowRelief(H, top, coin.relief);
 };
 const figureLayer = (S, coin, view) => async () => {
-  const { H, top } = await bakeHeights(S, view, { h: 0.006, target: 160000 });
+  const { H, top } = await bakeHeights(S, view, { h: +(process.env.HF || 0.0045), target: 400000 });
   return lowRelief(H, top, coin.relief * 0.85);
 };
 
 const D = COINS.denarius, A = COINS.aureus;
+const paxView = { cx: -0.12, cy: 0.9, span: 2.75, z0: -0.12 }, vicView = { cx: -0.05, cy: 1.16, span: 3.05, z0: -0.15 };
 const denarius = await buildCoin(D, [
-  { name: 'Titus', layers: [portraitLayer('titus', D, 0.6), () => legend('IMP T CAESAR VESPASIANVS AVG', D, D.legendHeight)] },
-  { name: 'Pax', layers: [figureLayer(robedFigure(PAX, (S, p) => olive(S, p.arms.r.wrist, [-0.55, 0.75, 0.1], 0.42)), D, { cx: -0.12, cy: 0.9, span: 2.55, z0: -0.12 }), () => groundLine(D, -0.9 / 2.55 * D.diameter - 0.004, D.relief * 0.35)] },
+  { name: 'Titus', layers: [portraitLayer('titus', D, 0.6), () => legend('IMP T CAESAR VESPASIANVS AVG', D, D.legendHeight, [0.42, 0.42]), () => beads(D, D.legendHeight * 0.9)] },
+  { name: 'Pax', layers: [figureLayer(robedFigure(PAX, (S, p) => olive(S, p.arms.r.wrist, [-0.55, 0.75, 0.1], 0.42)), D, paxView),
+    () => groundLine(D, -paxView.cy / paxView.span * D.diameter - 0.004, D.relief * 0.35), () => legend('PAX AVGVST', D, D.legendHeight, [0.6, 0.6]), () => beads(D, D.legendHeight * 0.9)] },
 ]);
 const aureus = await buildCoin(A, [
-  { name: 'Vespasian', layers: [portraitLayer('vespasian', A, 0.52)] },
-  { name: 'Victory', layers: [figureLayer(robedFigure(VICTORY, victoryExtras), A, { cx: 0.3, cy: 0.98, span: 2.45, z0: -0.15 }), () => groundLine(A, -0.98 / 2.45 * A.diameter - 0.004, A.relief * 0.35)] },
+  { name: 'Vespasian', layers: [portraitLayer('vespasian', A, 0.56), () => legend('IMP CAESAR VESPASIANVS AVG', A, A.legendHeight, [0.42, 0.42]), () => beads(A, A.legendHeight * 0.9)] },
+  { name: 'Victory', layers: [figureLayer(robedFigure(VICTORY, victoryExtras), A, vicView), () => victoryDrawn(vicView, A.relief * 0.62),
+    () => groundLine(A, -vicView.cy / vicView.span * A.diameter - 0.004, A.relief * 0.35), () => legend('VICTORIA', A, A.legendHeight, [0.45, Math.PI + 0.42]), () => legend('AVGVSTI', A, A.legendHeight, [Math.PI + 0.42, 0.45]), () => beads(A, A.legendHeight * 0.9)] },
 ]);
 
 const scene = new THREE.Scene();
