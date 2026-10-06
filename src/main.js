@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, BACKDROP, STATUES, DISTRICTS, VILLA, PHASES, PUMICE, FINALE, ROUTE_MAP, BATHS, PALAESTRA, PLAYER } from './config.js';
 import { createPlayer, followHeight } from './player.js';
+import { loadCoins } from './coins.js';
 import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
@@ -89,6 +90,12 @@ const SET_PIECES = [['baths', loadBaths], ['villa', loadVilla], ['amphitheatre',
 const testing = SET_PIECES.some(([kind]) => kind === DISTRICTS.only);
 for (let i = SET_PIECES.length - 1; i >= 0; i--) if (testing && SET_PIECES[i][0] !== DISTRICTS.only) SET_PIECES.splice(i, 1);
 (async () => {
+  // The coins first: they are small, and every street has them.
+  try {
+    track.addCoins(await loadCoins(environment.envMap));
+  } catch (error) {
+    showProblem(`The coins did not load (${error.message})`);
+  }
   for (const [kind, load] of SET_PIECES) {
     try {
       track.addSetPiece(kind, await load(environment.envMap));
@@ -108,6 +115,7 @@ environment.addVolcano(kit);
 setLoading(false);
 const shield = createShield();
 const player = createPlayer(scene, character, shield);
+if (import.meta.env.DEV) window.__game = { track, player }; // for tests in the dev server only
 // Where the lanes are steps (the theatre's tiers), the floor comes from the track.
 player.setFloor((x, z) => track.floorAt(-z, x));
 player.setLanes((z) => track.lanesAt(-z));
@@ -704,6 +712,9 @@ renderer.setAnimationLoop((timestamp) => {
     audio.updateMovement(zBefore - player.object.position.z, player.isGrounded, player.isSliding);
     updatePumice();
     track.update(player.object.position.z, environment.fogDistance); // nothing is drawn beyond the fog
+    // Coins: spin, bob and glint, and the ones he runs through are his (no counter on screen yet).
+    track.coins?.setSpeedMultiplier(speedMultiplier);
+    track.coins?.update(dt, runTime, player);
     followFinish();
     recordRoute();
     track.gate.update(dt, currentDistance(), currentSpeed(), gateEffects);

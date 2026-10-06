@@ -177,8 +177,11 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
     // rulesAt(distance): a district's own pieces there, null for no row
     // there, or undefined for the usual ones.
     // lanesAt(distance): how many lanes there are (the Forum is wider).
+    // Returns the rows laid ({ distance, count, full, lanes }: full is a
+    // piece name or null, lanes one name or null per lane), for the coins.
     fill(chunkSlot, chunk, { empty = false, clear = [], openSquare = false, stepped = false, floorAt = () => 0, rulesAt = () => undefined, lanesAt = () => LANES.count } = {}) {
       const list = (active[chunkSlot] = []);
+      const rows = [];
 
       const chunkStart = chunk.distance;
       const chunkEnd = chunkStart + TRACK.chunkLength;
@@ -194,6 +197,7 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
         const count = lanesAt(distance);
         let row = randomRow(openSquare, rules, count);
         while (stepped && row.full) row = randomRow(openSquare, rules, count);
+        rows.push({ distance, count, full: row.full ?? null, lanes: row.full ? null : row.lanes });
         if (row.full) {
           place(row.full, 0, distance, list, floorAt(distance, 0), count / LANES.count);
         } else {
@@ -204,7 +208,16 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
         }
       }
       pack();
+      return rows;
     },
+
+    // Where the next row may come (the start of the next chunk's rows).
+    get nextRowDistance() {
+      return nextRowDistance;
+    },
+
+    // How a piece is passed: 'jump', 'slide' or 'block' (go round).
+    moveOf: (name) => MOVES[name],
 
     // The obstacle the player is touching ({ type, move, hitbox }), or null.
     findCollision(hitbox) {

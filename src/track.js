@@ -5,6 +5,7 @@ import { createGateCollapse } from './gate.js';
 import { createBeach } from './beach.js';
 import { forward, poseOn, theatreRoute, theatreFloor } from './path.js';
 import { createObstacles } from './obstacles.js';
+import { createCoins } from './coins.js';
 import { createStatues } from './statues.js';
 import { isLowEnd } from './device.js';
 import { addAshCover } from './ashShader.js';
@@ -533,6 +534,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
   const slotCount = TRACK.chunksBehind + 1 + TRACK.chunksAhead + 5;
   const ground = createGround(scene);
   const obstacles = createObstacles(world, slotCount, kit, frameAt);
+  let coins = null; // once coins.glb has loaded (addCoins)
   const statues = createStatues(world, kit, path3);
   const materials = Object.values(kit.materials);
 
@@ -803,24 +805,31 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
       const metres = DISTRICTS.laneChangeClear * speedAt(narrow) * MAX_SPEED_MULTIPLIER;
       clear.push([narrow - metres, narrow + metres]);
     }
-    obstacles.fill(chunk.slot, chunk, {
+    const rulesAt = district === 'gate' ? () => null // only the arch coming down
+      : FINALE.obstacles[district] ? () => FINALE.obstacles[district]
+      : district === 'beach' ? () => FINALE.beach.obstacles
+      : district === 'theatre' ? (d) => theatreRules(d - run.start)
+      : district === 'baths' ? () => null // only its own
+      : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
+      : district === 'palaestra' ? () => null // only its own
+      : district === 'amphitheatre' ? (d) => (d - run.start < AMPHITHEATRE.exitAt + 4 ? null : undefined) // only its own, until the street beyond
+      : () => undefined;
+    const rowOptions = {
       empty: kind === 'T' || kind === 'X' || kind === 'side',
       clear,
+      floorAt: (d, x) => floorAt(d, x, run),
+      lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
+    };
+    const rows = obstacles.fill(chunk.slot, chunk, {
+      ...rowOptions,
       openSquare: WIDE.includes(district),
       // On steps: each piece stands on its own step, and nothing spans the lanes.
       stepped: steppedAt(distance, distance + L),
-      floorAt: (d, x) => floorAt(d, x, run),
-      rulesAt: district === 'gate' ? () => null // only the arch coming down
-        : FINALE.obstacles[district] ? () => FINALE.obstacles[district]
-        : district === 'beach' ? () => FINALE.beach.obstacles
-        : district === 'theatre' ? (d) => theatreRules(d - run.start)
-        : district === 'baths' ? () => null // only its own
-        : district === 'villa' ? (d) => (d - run.start < VILLA.length + 3 ? null : undefined) // inside, only the house's own obstacles
-        : district === 'palaestra' ? () => null // only its own
-        : district === 'amphitheatre' ? (d) => (d - run.start < AMPHITHEATRE.exitAt + 4 ? null : undefined) // only its own, until the street beyond
-        : undefined,
-      lanesAt: (d) => (forumWide(run, d) ? DISTRICTS.forumLanes : LANES.count),
+      rulesAt,
     });
+    // Coins go with the rows: none where there are no rows (set pieces, the gate).
+    chunk.coinRows = { rows, options: { ...rowOptions, allowAt: (d) => rulesAt(d) !== null } };
+    coins?.fill(chunk.slot, chunk, rows, chunk.coinRows.options);
     if (!finale && finishDistance && distance <= finishDistance && finishDistance < distance + L) {
       // The finish marks, on the path.
       finishMarks.matrix.copy(frameAt(finishDistance));
@@ -834,6 +843,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     chunk.root.visible = false;
     statues.release(chunk.slot);
     obstacles.fill(chunk.slot, chunk, { empty: true });
+    coins?.release(chunk.slot);
     free.push(chunk);
   }
 
@@ -950,7 +960,8 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
       steps.push({ from: chosen.run.start, to: chosen.run.end, floor: theatreFloor });
       // The side street was laid empty; the passage has its own obstacles.
       const run = chosen.run;
-      obstacles.fill(chosen.slot, chosen, { floorAt, rulesAt: (d) => theatreRules(d - run.start) });
+      const rows = obstacles.fill(chosen.slot, chosen, { floorAt, rulesAt: (d) => theatreRules(d - run.start) });
+      coins?.fill(chosen.slot, chosen, rows, { floorAt, allowAt: (d) => theatreRules(d - run.start) !== null });
       cursor.angle = pose(cursor.distance, cursor.position);
     } else if (theatreRun) {
       // The theatre was down another way.
@@ -1042,6 +1053,7 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     bathsRun = null;
     steamVents = [];
     obstacles.reset(finish ? finish - JOURNEY.finishClearDistance : Infinity);
+    coins?.reset();
     statues.reset();
     planNextJunction(0);
     nextJunction = TURNS.enabled ? Math.max(nextJunction, nextJunctionAfter(0, TURNS.firstAfter)) : Infinity;
@@ -1090,6 +1102,16 @@ export function createTrack(scene, kit, villa = null, amph = null, bathsModel = 
     },
     obstacles,
     statues,
+
+    // The coins (coins.js), once coins.glb has loaded; chunks laid from then on get them.
+    addCoins(models) {
+      coins = createCoins(world, models, frameAt, obstacles);
+      // The street already laid gets its coins too.
+      for (const chunk of path) if (chunk.coinRows) coins.fill(chunk.slot, chunk, chunk.coinRows.rows, chunk.coinRows.options);
+    },
+    get coins() {
+      return coins;
+    },
 
     // The obstacle touching the player's hitbox, or null. Collisions work in
     // path space: x across the path, y up, z = -(metres along it). On the

@@ -807,6 +807,50 @@ export const STREET = {
   sideGroundColor: 0x8a7a62,
 };
 
+// Coins on the street (coins.js). Silver denarii in lines that show a safe
+// way through the obstacles; now and then a gold aureus. Patterns are laid
+// with the obstacle rows, chunk by chunk, and every coin is checked: running
+// (or jumping, or sliding) through it never means hitting an obstacle,
+// except the gold "risk pocket" right beside one.
+export const COINS = {
+  file: 'assets/coins.glb', // tools/build-coins.mjs
+  textureSize: 1024, // the coin textures are scaled down to this width when loaded (they are 2048)
+  maxPerType: 400, // pooled instances per coin type for the whole track
+  drawDistance: 90, // metres ahead that coins are drawn
+  // Looks
+  scale: 1, // size, relative to the models (denarius 0.30 m, aureus 0.35 m across)
+  height: 0.8, // metres above the floor
+  spacing: 1.5, // metres between coins in a line
+  spinSpeed: 2.2, // radians a second about the vertical
+  bobHeight: 0.05, // metres up and down
+  bobSpeed: 3, // radians a second
+  glintEvery: 1, // seconds between a gold coin's glints
+  glintLength: 0.18, // seconds a glint lasts
+  glintBrightness: 1.6, // extra brightness at the peak of a glint
+  // Pickup: a coin within this distance of the runner (his body from feet to
+  // head) is his; only coins this far ahead (and a little behind) are checked.
+  pickupRadius: 0.6,
+  pickupAhead: 2,
+  // Patterns. Each obstacle row may get one (patternChance); after every
+  // `breakEvery` patterns there is a gap of `breakGap` metres.
+  patternChance: 0.75,
+  patternGap: [2, 4], // metres between one pattern and the next
+  breakEvery: 3,
+  breakGap: [10, 15],
+  endBefore: 4, // metres a pattern stops short of a row it doesn't belong to (a lane switch, a line)
+  straight: [6, 12], // silver coins in a straight line in a free lane
+  laneSwitch: { coins: 8, length: 6 }, // silver coins easing over to the next lane
+  jumpArc: { coins: 5, top: 2.2, hard: 1.0 }, // over a jump obstacle; gold at the top if it is over `hard` metres high
+  slideLine: { coins: 5, height: 0.4 }, // under a slide obstacle
+  zigzag: [10, 14], // silver coins weaving across the lanes
+  pocketOffset: 0.35, // the gold pocket sits this far from its lane's middle, towards the obstacle beside it
+  // How often each pattern is tried, where it fits.
+  weights: { straight: 3, laneSwitch: 2, jumpArc: 3, slideLine: 3, zigzag: 1, pocket: 1 },
+  // Gold: at most one every goldGap metres, from goldGap[0] at the start
+  // speed to goldGap[1] at top speed.
+  goldGap: [300, 120],
+};
+
 export const OBSTACLES = {
   // Obstacles come in rows across the 3 lanes. Spacing is measured in
   // seconds of running, so rows spread out as speed rises and the player
