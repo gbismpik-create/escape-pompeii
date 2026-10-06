@@ -345,24 +345,34 @@ export function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
-// ---- End screen: reached the sea (Escape mode) ----
+// ---- End screen: reached Pliny's ships (Escape mode) ----
+// Built to fit a phone held upright: title, three numbers in a row, the map,
+// a short epilogue and two buttons. It takes its own touches (data-control),
+// so it can scroll on a small screen and a stray tap doesn't start a new run:
+// "Run again" (or R) does.
 const finish = document.createElement('div');
 finish.id = 'finish';
 finish.hidden = true;
+finish.setAttribute('data-control', '');
 finish.innerHTML = `
-  <h1>You escaped by sea</h1>
-  <p class="where">Stabiae, 79 AD</p>
-  <canvas class="route" aria-label="Map of your route from Pompeii to the sea"></canvas>
-  <dl class="stats">
-    <dt>Distance</dt><dd class="distance"></dd>
-    <dt>Time</dt><dd class="time"></dd>
-    <dt>People saved</dt><dd class="saved"></dd>
-    <dt>Best time</dt><dd class="best"></dd>
-  </dl>
-  <p class="unlocked" hidden>Endless mode unlocked</p>
-  <div class="epilogue"></div>
-  <p class="hint">Tap or press R to run again</p>
-  <button type="button" class="menu" data-control>Menu</button>
+  <div class="card">
+    <h1>Safe aboard Pliny's boat</h1>
+    <p class="where">Stabiae, 79 AD</p>
+    <dl class="stats">
+      <div class="stat"><dt>Time</dt><dd class="time"></dd></div>
+      <div class="stat"><dt>Distance</dt><dd class="distance"></dd></div>
+      <div class="stat"><dt>Saved</dt><dd class="saved"></dd></div>
+    </dl>
+    <p class="best"></p>
+    <p class="unlocked" hidden>Endless mode unlocked</p>
+    <canvas class="route" aria-label="Map of your route from Pompeii to the sea"></canvas>
+    <div class="epilogue"></div>
+    <div class="actions">
+      <button type="button" class="again">Run again</button>
+      <button type="button" class="menu">Menu</button>
+    </div>
+    <p class="hint">or press R</p>
+  </div>
 `;
 document.body.appendChild(finish);
 
@@ -375,8 +385,7 @@ function drawRoute(canvas, route) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   canvas.width = w * dpr;
   canvas.height = h * dpr;
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
+  canvas.style.aspectRatio = `${w} / ${h}`; // CSS sets the width (at most w px); the height follows
   const g = canvas.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
@@ -431,10 +440,22 @@ export function showFinish({ distance, time, saved, bestTime, isNewBest, unlocke
   finish.querySelector('.distance').textContent = `${distance.toLocaleString('en-US')} m`;
   finish.querySelector('.time').textContent = formatTime(time);
   finish.querySelector('.saved').textContent = String(saved);
-  finish.querySelector('.best').textContent = isNewBest ? `${formatTime(bestTime)}, new best!` : formatTime(bestTime);
+  const best = finish.querySelector('.best');
+  best.textContent = isNewBest ? 'New best time!' : `Best time ${formatTime(bestTime)}`;
+  best.classList.toggle('new', isNewBest);
   finish.querySelector('.unlocked').hidden = !unlocked;
   const text = finish.querySelector('.epilogue');
   text.replaceChildren(...epilogue.map((paragraph) => Object.assign(document.createElement('p'), { textContent: paragraph })));
   finish.hidden = false;
+  finish.scrollTop = 0;
   drawRoute(finish.querySelector('.route'), route);
+}
+
+// The end screen's "Run again" button.
+export function setupRunAgain(onRunAgain) {
+  const button = finish.querySelector('.again');
+  button.addEventListener('click', () => {
+    button.blur();
+    onRunAgain();
+  });
 }

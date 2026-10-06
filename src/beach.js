@@ -80,6 +80,14 @@ export function createBeach(world, kit, frameAt) {
     return galley;
   });
 
+  // Pliny's boat, afloat off the shore; he is put aboard once his model loads (setPliny).
+  const P = B.pliny;
+  const plinyBoat = pieceGroup(kit.near.Boat_Small);
+  plinyBoat.position.set(P.boat[0], SEA_LEVEL - 0.2, -P.boat[1]);
+  plinyBoat.rotation.y = TURN + P.boat[2];
+  group.add(plinyBoat);
+  let pliny = null;
+
   let sailing = null; // the boat pulling away, or null
   let time = 0;
 
@@ -91,6 +99,18 @@ export function createBeach(world, kit, frameAt) {
       group.visible = true;
       laneBoats.forEach((boat, lane) => boat.position.set((lane - (LANES.count - 1) / 2) * LANES.width, 0, -B.boatAt));
       sailing = null;
+    },
+
+    // Pliny the Elder: stands at the stern of his boat facing the beach, so he
+    // looks towards the runner coming down to the boats.
+    setPliny(model) {
+      pliny = model;
+      pliny.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
+      // the boat's deck is about 0.52 m up; the stern is towards the beach (+z here)
+      const stern = new THREE.Vector3(0, 0.55, -P.standAt).applyAxisAngle(new THREE.Vector3(0, 1, 0), plinyBoat.rotation.y);
+      pliny.position.copy(plinyBoat.position).add(stern);
+      pliny.rotation.y = Math.atan2(-pliny.position.x, 12 - pliny.position.z); // face a point on the beach where the runner arrives
+      group.add(pliny);
     },
 
     hide() {
@@ -114,6 +134,10 @@ export function createBeach(world, kit, frameAt) {
         g.rotation.z = 0.025 * Math.sin(time * 0.7 + i * 2);
         g.position.y = -0.6 + 0.12 * Math.sin(time * 0.9 + i);
       });
+      // his boat rides the swell, and he with it
+      plinyBoat.position.y = SEA_LEVEL - 0.2 + 0.05 * Math.sin(time * 1.4 + 1);
+      plinyBoat.rotation.z = 0.035 * Math.sin(time * 1.1 + 2);
+      if (pliny) pliny.position.y = plinyBoat.position.y + 0.55, pliny.rotation.z = plinyBoat.rotation.z * 0.6;
       if (!sailing) return 0;
       const moved = sailSpeed * dt;
       sailing.position.z -= moved;

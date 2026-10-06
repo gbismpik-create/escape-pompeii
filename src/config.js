@@ -226,11 +226,10 @@ export const JOURNEY = {
   finishLineColor: 0xe9e0c8,
   // The end screen's epilogue: a paragraph each.
   epilogue: [
-    'Pliny the Elder, commander of the Roman fleet at Misenum, crossed the bay with his galleys to bring people away ' +
-      'from the coast below Vesuvius. Unable to land there, he put in at Stabiae. He died on the shore there.',
-    'His nephew, Pliny the Younger, watched the eruption from Misenum. Years later he described it in two letters ' +
-      'to the historian Tacitus — the only eyewitness account that survives.',
-    "Many of Pompeii's people escaped, as you did. More than a thousand did not; they are remembered there still.",
+    'Pliny the Elder, admiral of the fleet at Misenum, sailed across the bay to rescue people from this coast. ' +
+      'At Stabiae the sea and the wind kept his ships from leaving, and he died there on the shore.',
+    'His nephew, Pliny the Younger, told the story in two letters to the historian Tacitus: the only eyewitness account we have.',
+    'Many people escaped Pompeii, as you did. More than a thousand did not.',
   ],
 };
 
@@ -613,6 +612,13 @@ export const FINALE = {
     galleys: [[-22, 30, 0.5], [13, 44, -0.35], [-5, 62, 0.15]],
     // More boats drawn up on the sand either side: [x, metres past the finish, turn].
     sideBoats: [[-6.5, 0, 0.25], [7, -1.5, -0.3], [-11, -3, 0.7], [12, 1, -0.1], [-17, -2, 1.3]],
+    // Pliny the Elder (tools/build-pliny.mjs) waiting in his boat just off the
+    // shore, to the right of the lane boats, beckoning the runner in.
+    pliny: {
+      file: 'assets/pliny.glb',
+      boat: [3.3, 8.5, -0.35], // [x, metres past the finish, turn]: afloat beyond the waterline, between the masts
+      standAt: 1.4, // metres from the boat's middle towards its stern, where he stands
+    },
   },
 };
 

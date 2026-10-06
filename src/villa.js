@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { VILLA, AMPHITHEATRE, BATHS, PALAESTRA, GRAPHICS } from './config.js';
+import { VILLA, AMPHITHEATRE, BATHS, PALAESTRA, GRAPHICS, FINALE } from './config.js';
 import { loadGLTF } from './assets.js';
 import { isLowEnd } from './device.js';
 
@@ -149,4 +149,14 @@ export async function loadPalaestra(envMap) {
   ]);
   if (statues) place.meshes.push(...statues.meshes);
   return place;
+}
+
+// Pliny the Elder (tools/build-pliny.mjs), who waits for the runner in his
+// boat at Stabiae: one sculpted mesh painted with vertex colours.
+export async function loadPliny(envMap) {
+  const gltf = await loadGLTF(FINALE.beach.pliny.file);
+  gltf.scene.traverse((o) => {
+    if (o.isMesh) o.material = gameMaterial(o.material, envMap, true);
+  });
+  return gltf.scene;
 }

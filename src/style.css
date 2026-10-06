@@ -110,108 +110,6 @@ body {
   cursor: pointer;
 }
 
-#finish {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  padding: 0 24px;
-  background: linear-gradient(180deg, rgba(20, 34, 40, 0.82), rgba(30, 26, 22, 0.85));
-  color: #f1ead8;
-  font-family: system-ui, sans-serif;
-  text-align: center;
-}
-
-#finish {
-  overflow-y: auto; /* the epilogue may not fit a small phone */
-  justify-content: safe center;
-  padding: calc(max(12px, env(safe-area-inset-top)) + 56px) 16px max(16px, env(safe-area-inset-bottom)); /* clear of the settings and sound buttons */
-}
-
-#finish h1 {
-  margin: 0;
-}
-
-#finish .where {
-  margin: -0.3rem 0 0;
-  font-style: italic;
-  opacity: 0.75;
-}
-
-#finish .route {
-  max-width: 100%;
-  border: 1px solid rgba(216, 178, 90, 0.35);
-  border-radius: 10px;
-  background: radial-gradient(ellipse at 50% 40%, rgba(70, 58, 44, 0.65), rgba(20, 24, 26, 0.75));
-}
-
-#finish .epilogue {
-  max-width: 34rem;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 0.95rem;
-  line-height: 1.45;
-  opacity: 0.92;
-}
-
-#finish .epilogue p {
-  margin: 0.45rem 0;
-}
-
-#finish[hidden],
-#finish .unlocked[hidden] {
-  display: none;
-}
-
-#finish h1 {
-  margin: 0 0 0.3em;
-  font-size: clamp(1.9rem, 8vw, 2.8rem);
-}
-
-#finish .stats {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 0.35rem 1.4rem;
-  margin: 0 0 0.6rem;
-  font-size: 1.1rem;
-}
-
-#finish dt {
-  text-align: right;
-  opacity: 0.75;
-}
-
-#finish dd {
-  margin: 0;
-  text-align: left;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-#finish .unlocked {
-  margin: 0;
-  padding: 0.35em 0.9em;
-  border-radius: 999px;
-  background: #d8b25a;
-  color: #2a1d10;
-  font-weight: 700;
-}
-
-#finish .fact {
-  max-width: 30rem;
-  margin: 0.4rem 0;
-  font-size: 0.95rem;
-  line-height: 1.45;
-  opacity: 0.85;
-}
-
-#finish .hint {
-  margin: 0.4rem 0 0;
-  opacity: 0.7;
-}
-
 #hud {
   position: fixed;
   top: max(12px, env(safe-area-inset-top)); /* clear of phone notches */
@@ -660,3 +558,210 @@ body {
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
+
+/* ---- End screen: reached Pliny's ships (Escape mode) ----
+   A card that fits a phone: the title, three numbers in a row, the route
+   map, a short epilogue and two buttons. If a small phone still can't hold
+   it all, the card scrolls (it takes its own touches, see data-control). */
+#finish {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y; /* the page blocks gestures; this card may scroll */
+  -webkit-overflow-scrolling: touch;
+  padding: calc(max(12px, env(safe-area-inset-top)) + 56px) 16px max(20px, env(safe-area-inset-bottom)); /* clear of the settings and sound buttons */
+  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(14, 26, 32, 0.9), rgba(26, 22, 19, 0.94));
+  color: #f1ead8;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+}
+
+#finish[hidden],
+#finish .unlocked[hidden],
+#finish .menu[hidden] {
+  display: none;
+}
+
+#finish .card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 26rem;
+}
+
+#finish h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, min(7vw, 6.5vh), 2.4rem);
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+#finish .where {
+  margin: -0.4rem 0 0;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+#finish .stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+}
+
+#finish .stat {
+  display: flex;
+  flex-direction: column-reverse; /* the number above its label */
+  gap: 0.1rem;
+  padding: 0.55rem 0.3rem;
+  border: 1px solid rgba(216, 178, 90, 0.35);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+#finish .stat dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+#finish .stat dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+#finish .best {
+  margin: -0.2rem 0 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+#finish .best.new {
+  color: #d8b25a;
+  font-weight: 700;
+  opacity: 1;
+}
+
+#finish .unlocked {
+  margin: 0;
+  padding: 0.3em 0.9em;
+  border-radius: 999px;
+  background: #d8b25a;
+  color: #2a1d10;
+  font-weight: 700;
+}
+
+#finish .route {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  border: 1px solid rgba(216, 178, 90, 0.35);
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(70, 58, 44, 0.65), rgba(20, 24, 26, 0.75));
+}
+
+#finish .epilogue {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem 0.9rem;
+  border-left: 3px solid #9a2026;
+  border-radius: 0 10px 10px 0;
+  background: rgba(0, 0, 0, 0.28);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+#finish .epilogue p {
+  margin: 0 0 0.5rem;
+}
+
+#finish .epilogue p:last-child {
+  margin: 0;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+#finish .actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+#finish .again,
+#finish .menu {
+  min-height: 44px; /* a comfortable finger target */
+  padding: 0.55rem 1.6rem;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#finish .again {
+  border: 2px solid #d8b25a;
+  background: #9a2026;
+  color: #f6eedb;
+}
+
+#finish .menu {
+  margin: 0;
+  border: 1px solid rgba(241, 234, 216, 0.6);
+  background: transparent;
+  color: inherit;
+}
+
+#finish .hint {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.55;
+}
+
+/* Phones: no keyboard, so no "press R". Short phones: a smaller map. */
+@media (hover: none) {
+  #finish .hint {
+    display: none;
+  }
+}
+@media (max-height: 700px) {
+  #finish .route {
+    max-width: 240px;
+  }
+}
+
+/* Short screens (a phone held sideways): the map goes beside the epilogue. */
+@media (max-height: 520px) and (min-width: 640px) {
+  #finish {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  #finish .card {
+    gap: 0.5rem;
+    max-width: 44rem;
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    align-items: start;
+    text-align: left;
+  }
+  #finish h1, #finish .where, #finish .stats, #finish .best, #finish .unlocked, #finish .actions, #finish .hint {
+    grid-column: 1 / -1;
+    justify-self: center;
+    text-align: center;
+  }
+}
+

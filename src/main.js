@@ -6,14 +6,14 @@ import { createShield } from './shield.js';
 import { loadCharacter } from './character.js';
 import { createTrack } from './track.js';
 import { loadKit } from './kit.js';
-import { loadVilla, loadAmphitheatre, loadBaths, loadPalaestra, seeThrough } from './villa.js';
+import { loadVilla, loadAmphitheatre, loadBaths, loadPalaestra, loadPliny, seeThrough } from './villa.js';
 import { createEnvironment } from './environment.js';
 import { nextPhaseStart, journeyPhaseTime } from './phases.js';
 import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange, showDistrict,
 } from './ui.js';
 import { createAudio } from './audio.js';
@@ -95,6 +95,12 @@ for (let i = SET_PIECES.length - 1; i >= 0; i--) if (testing && SET_PIECES[i][0]
     } catch (error) {
       showProblem(`${kind} did not load (${error.message})`);
     }
+  }
+  // Pliny, waiting at the boats (the run ends without him if he fails to load)
+  try {
+    track.beach.setPliny(await loadPliny(environment.envMap));
+  } catch (error) {
+    console.warn('Pliny did not load', error);
   }
 })();
 
@@ -529,6 +535,9 @@ setupStartModes((chosen) => {
 });
 setupMenuButtons(() => {
   if (isGameOver && !isPaused) openMenu();
+});
+setupRunAgain(() => {
+  if (isGameOver && !isPaused && timeSinceGameOver >= GAME.restartDelay) restart();
 });
 
 function handleAction(action) {
