@@ -665,8 +665,12 @@ body {
 
 #finish .route {
   display: block;
-  width: 100%;
-  max-width: 300px;
+  /* As wide as there is room for: the rest of the card takes about 680 px of
+     height on an iPhone (less elsewhere), so the map gets what is left above
+     the home bar, between 150 and 300 px wide (its height follows, 190 / 300
+     of that). */
+  width: min(100%, 300px, max(150px, (100vh - 680px - env(safe-area-inset-bottom)) * 1.58));
+  width: min(100%, 300px, max(150px, (100dvh - 680px - env(safe-area-inset-bottom)) * 1.58));
   height: auto;
   border: 1px solid rgba(216, 178, 90, 0.35);
   border-radius: 10px;
@@ -733,15 +737,19 @@ body {
   opacity: 0.55;
 }
 
-/* Phones: no keyboard, so no "press R". Short phones: a smaller map. */
+/* Phones: no keyboard, so no "press R". Short phones: tighter text. */
 @media (hover: none) {
   #finish .hint {
     display: none;
   }
 }
-@media (max-height: 700px) {
-  #finish .route {
-    max-width: 240px;
+@media (max-height: 900px) {
+  #finish .card {
+    gap: 0.5rem;
+  }
+  #finish .epilogue {
+    font-size: 0.88rem;
+    line-height: 1.4;
   }
 }
 
@@ -757,6 +765,9 @@ body {
     grid-template-columns: 300px 1fr;
     align-items: start;
     text-align: left;
+  }
+  #finish .route {
+    width: 100%; /* its own column beside the epilogue */
   }
   #finish h1, #finish .where, #finish .stats, #finish .best, #finish .unlocked, #finish .actions, #finish .hint {
     grid-column: 1 / -1;
