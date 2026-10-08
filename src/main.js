@@ -4,7 +4,7 @@ import { RENDERER, CAMERA, GAME, DEBUG, STUMBLE, SURGE, JOURNEY, TURNS, LANES, B
 import { createPlayer, followHeight } from './player.js';
 import { loadCoins } from './coins.js';
 import { loadPowerups, createEffects } from './powerups.js';
-import { createWallet } from './wallet.js';
+import { createWallet, powerupAt } from './wallet.js';
 import { setupShop } from './shop.js';
 import { wearCharacter } from './characters.js';
 import { createShield } from './shield.js';
@@ -18,7 +18,7 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin, updatePowerups, shatterAegis, showRevive,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin, updatePowerups, shatterAegis, showRevive, showPowerupNote, hidePowerupNote,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange, showDistrict,
 } from './ui.js';
 import { createAudio } from './audio.js';
@@ -414,6 +414,7 @@ const runCoins = () => {
 
 function gameOver(reason = '') {
   isGameOver = true;
+  hidePowerupNote();
   shield.lower();
   isCaught = false;
   player.settle();
@@ -503,6 +504,7 @@ function updatePowerupEffects(dt) {
   const picked = track.powerups?.update(dt, runTime, player);
   if (picked) {
     effects.activate(picked);
+    showPowerupNote(picked, powerupAt(picked, wallet.level(picked)));
     audio.coin('gold'); // (its own sound can come later)
   }
   track.coins?.setMagnet(effects.isOn('magnet') ? MAGNET : null);
@@ -579,6 +581,7 @@ function recordPlace(name) {
 }
 
 function restart() {
+  hidePowerupNote();
   district = null;
   route = { points: [], places: [] };
   routeSampledAt = -Infinity;

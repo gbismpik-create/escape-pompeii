@@ -944,6 +944,57 @@ body {
 #powerups .leather { fill: #8a5530; stroke: #4e2c16; stroke-width: 0.8; }
 #powerups .wing { fill: #f6f2e8; stroke: #b8b2a6; stroke-width: 0.6; }
 
+/* A power-up picked up: a note low on the screen (below the runner, so it
+   never hides what is coming) with its name and what it gives. */
+#powerup-note {
+  position: fixed;
+  left: 50%;
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 8px);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: calc(100vw - 32px);
+  padding: 0.45rem 1rem 0.45rem 0.55rem;
+  box-sizing: border-box;
+  border: 1px solid rgba(216, 178, 90, 0.7);
+  border-radius: 999px;
+  background: rgba(20, 16, 12, 0.78);
+  color: #f6eedb;
+  font-family: system-ui, sans-serif;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%);
+}
+
+#powerup-note .powerup-icon {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+}
+
+#powerup-note b {
+  display: block;
+  color: #ffd772;
+  font-size: 0.95rem;
+}
+
+#powerup-note span {
+  display: block;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+#powerup-note.show {
+  animation: powerup-note var(--note-time, 2.5s) ease-out forwards;
+}
+
+@keyframes powerup-note {
+  0% { opacity: 0; transform: translate(-50%, 10px); }
+  8%, 80% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+
 /* The aegis shattering: a gold flash, shards flying out */
 #aegis-flash {
   position: fixed;
@@ -1170,12 +1221,18 @@ body {
   height: 40px;
 }
 
-#shop .powerup-icon .gold { fill: #f2c454; stroke: #a8741c; stroke-width: 0.6; }
-#shop .powerup-icon .gold-line { fill: none; stroke: #f2c454; }
-#shop .powerup-icon .gold-dark { fill: #b07a22; }
-#shop .powerup-icon .gold-dark-line { fill: none; stroke: #b07a22; stroke-linecap: round; }
-#shop .powerup-icon .leather { fill: #8a5530; stroke: #4e2c16; stroke-width: 0.8; }
-#shop .powerup-icon .wing { fill: #f6f2e8; stroke: #b8b2a6; stroke-width: 0.6; }
+#shop .powerup-icon .gold,
+#powerup-note .powerup-icon .gold { fill: #f2c454; stroke: #a8741c; stroke-width: 0.6; }
+#shop .powerup-icon .gold-line,
+#powerup-note .powerup-icon .gold-line { fill: none; stroke: #f2c454; }
+#shop .powerup-icon .gold-dark,
+#powerup-note .powerup-icon .gold-dark { fill: #b07a22; }
+#shop .powerup-icon .gold-dark-line,
+#powerup-note .powerup-icon .gold-dark-line { fill: none; stroke: #b07a22; stroke-linecap: round; }
+#shop .powerup-icon .leather,
+#powerup-note .powerup-icon .leather { fill: #8a5530; stroke: #4e2c16; stroke-width: 0.8; }
+#shop .powerup-icon .wing,
+#powerup-note .powerup-icon .wing { fill: #f6f2e8; stroke: #b8b2a6; stroke-width: 0.6; }
 
 /* ---- Revive offer after a crash ---- */
 #revive {

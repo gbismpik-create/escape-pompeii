@@ -1,5 +1,5 @@
 import { SHOP } from './config.js';
-import { coinIcon, powerupIcon } from './ui.js';
+import { coinIcon, powerupIcon, POWERUP_NAMES } from './ui.js';
 import { powerupAt } from './wallet.js';
 
 // The shop, from the start screen: the wallet at the top, then three tabs
@@ -7,12 +7,6 @@ import { powerupAt } from './wallet.js';
 // fit a phone held upright without scrolling. It takes its own taps
 // (data-control), so nothing in it starts a run.
 
-const POWERUP_NAMES = {
-  magnet: ["Mercury's purse", 'Pulls in coins'],
-  double: ["Fortuna's favour", 'Double silver'],
-  aegis: ['Aegis of Minerva', 'Survives a crash'],
-  wings: ['Wings of Pegasus', 'Higher, longer jumps'],
-};
 const n = (x) => x.toLocaleString('en-US');
 const price = (p) => (p.gold ? `${coinIcon('gold')} ${n(p.gold)}` : `${coinIcon('silver')} ${n(p.silver)}`);
 // What a power-up does at a level, in a few words.

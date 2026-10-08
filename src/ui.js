@@ -354,8 +354,39 @@ export function shatterAegis(x, y) {
   }
 }
 
-// A power-up's icon on its own (the shop uses them).
+// A power-up's icon on its own (the shop and the pickup note use them).
 export const powerupIcon = (type) => `<svg class="powerup-icon" viewBox="0 0 36 36" aria-hidden="true">${POWERUP_ICONS[type]}</svg>`;
+
+// Each power-up's name and, in a few words, what it does.
+export const POWERUP_NAMES = {
+  magnet: ["Mercury's purse", 'Pulls in coins'],
+  double: ["Fortuna's favour", 'Double silver'],
+  aegis: ['Aegis of Minerva', 'Survives a crash'],
+  wings: ['Wings of Pegasus', 'Higher, longer jumps'],
+};
+
+// A power-up picked up: its name and what it gives, low on the screen for a
+// few seconds. at: what it does at the player's level (powerupAt in wallet.js).
+const powerupNote = document.createElement('div');
+powerupNote.id = 'powerup-note';
+powerupNote.setAttribute('aria-live', 'polite');
+document.body.appendChild(powerupNote);
+const NOTE_TEXT = {
+  magnet: (at) => `Coins fly to you for ${at.duration} s`,
+  double: (at) => `Silver coins count double for ${at.duration} s`,
+  aegis: (at) => (at.crashes > 1 ? `Survives the next ${at.crashes} crashes` : 'Survives your next crash'),
+  wings: (at) => `Higher, longer jumps for ${at.duration} s`,
+};
+export function showPowerupNote(type, at) {
+  powerupNote.innerHTML = `${powerupIcon(type)}<div><b>${POWERUP_NAMES[type][0]}</b><span>${NOTE_TEXT[type](at)}</span></div>`;
+  powerupNote.style.setProperty('--note-time', `${POWERUPS.noteTime}s`);
+  powerupNote.classList.remove('show');
+  void powerupNote.offsetWidth; // restart the fade
+  powerupNote.classList.add('show');
+}
+export function hidePowerupNote() {
+  powerupNote.classList.remove('show');
+}
 
 // ---- Revive: after a crash, pay gold to run on ----
 const revive = document.createElement('div');

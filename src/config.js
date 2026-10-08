@@ -884,6 +884,7 @@ export const POWERUPS = {
   clearAround: 4, // metres ahead and behind kept free of obstacles in its lane
   coinClear: 2.5, // metres from any coin
   drawDistance: 120,
+  noteTime: 2.5, // seconds the note naming a power-up just picked up stays on screen
   weights: { magnet: 1, double: 1, aegis: 1, wings: 1 }, // how often each comes
   // Mercury's purse: coins within `lanes` lanes and `reach` metres ahead fly to him.
   magnet: { model: 'Purse_Mercury', duration: 8, lanes: 3, reach: 14, pullSharpness: 9 },
