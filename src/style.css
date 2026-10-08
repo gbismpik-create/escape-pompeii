@@ -953,6 +953,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  width: max-content; /* at left: 50% it would otherwise wrap at half the screen */
   max-width: calc(100vw - 32px);
   padding: 0.45rem 1rem 0.45rem 0.55rem;
   box-sizing: border-box;
