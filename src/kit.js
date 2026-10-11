@@ -59,6 +59,23 @@ function gameMaterial(source, envMap) {
   }));
 }
 
+// A kit material in another look (look: { color, roughness, map }), e.g. an
+// obstacle that must stand out from the road it shares a material with.
+// map: false drops the painted texture so the colour shows as it is; the
+// normal map keeps the surface's relief.
+export function restyle(material, look) {
+  return gameMaterial({
+    name: `${material.name}:restyled`,
+    color: new THREE.Color(look.color ?? material.color),
+    map: look.map === false ? null : material.map,
+    normalMap: material.normalMap,
+    transparent: material.transparent,
+    opacity: material.opacity,
+    roughness: look.roughness ?? material.roughness ?? 1,
+    metalness: 0,
+  }, null);
+}
+
 // prefix: added to material names, so files whose materials share a name
 // (both kits have 'plaster') keep their own.
 function readPieces(gltf, materials, envMap, prefix = '') {

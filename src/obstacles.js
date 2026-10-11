@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LANES, TRACK, OBSTACLES, DISTRICTS } from './config.js';
 import { laneToX } from './lanes.js';
+import { restyle } from './kit.js';
 import { speedAt, MAX_SPEED_MULTIPLIER } from './speed.js';
 
 // Obstacles from the street kit. A row is either one piece across all
@@ -104,7 +105,7 @@ export function createObstacles(parent, chunkCount, kit, frameAt) {
     piece.hitbox = pieceHitbox(parts, piece);
     const capacity = chunkCount * rowsPerChunk * piece.perRow;
     piece.meshes = parts.map(({ geometry, material }) => {
-      const mesh = new THREE.InstancedMesh(geometry, material, capacity);
+      const mesh = new THREE.InstancedMesh(geometry, piece.look ? restyle(material, piece.look) : material, capacity);
       mesh.name = `obstacle:${name}`;
       mesh.castShadow = true;
       mesh.receiveShadow = true;

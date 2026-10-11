@@ -949,9 +949,11 @@ export const OBSTACLES = {
     // A shop awning torn down right across the street, its beam at head
     // height and the striped cloth hanging from it: slide under.
     FallenAwning: { move: 'slide', weight: 1 },
-    // The lava stepping stones Pompeians crossed the street on, one in each
-    // lane at kerb height (about 0.4 m): jump them.
-    SteppingStones: { move: 'jump', weight: 1 },
+    // The stepping stones Pompeians crossed the street on, one in each lane
+    // at kerb height (about 0.4 m): jump them. The real ones were lava like
+    // the paving, which made them hard to see coming, so here they are pale
+    // marble (look: their colour instead of the road's texture).
+    SteppingStones: { move: 'jump', weight: 1, look: { color: '#efe9de', roughness: 0.4, map: false } },
   },
   emptyLaneChance: 0.4, // chance that a lane in a row is left empty
   lane: {
