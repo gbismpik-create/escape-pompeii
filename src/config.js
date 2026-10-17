@@ -139,7 +139,7 @@ export const LEGIONARY = {
 // Each needs the animations Run, Jump, Slide, Stumble and Idle.
 export const CHARACTER = {
   hdModel: 'assets/legionary-hd.glb', // ~70k triangles: desktop
-  lowModel: 'assets/legionary.glb', // low-poly: phones and weaker devices
+  lowModel: null, // a low-poly file for phones (none yet: phones load the HD one)
   facing: Math.PI, // the models face +z; the game runs towards -z
   crossFade: 0.12, // seconds to blend between run / jump / slide
   stumbleFade: 0.06, // a quicker blend into the stumble
@@ -245,6 +245,9 @@ export const GAME = {
   // After a crash, ignore restart input for this long so a swipe that was
   // already in progress doesn't skip the game-over screen.
   restartDelay: 0.5,
+  // Leaving the app (or tab) mid-run pauses it; Continue counts down this
+  // many seconds before the run goes on.
+  resumeCountdown: 3,
 };
 
 // The scutum raised overhead (shield.js). Tap or E raises it; tapping
@@ -470,8 +473,9 @@ export const STUMBLE = {
 };
 
 export const DEBUG = {
-  // P jumps to the next eruption phase. Set to false before release.
-  phaseKey: true,
+  // P jumps to the next eruption phase: on the dev server only, never on
+  // the published game.
+  phaseKey: import.meta.env.DEV,
 };
 
 // Far away: the sky, Vesuvius and its eruption column (from the street

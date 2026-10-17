@@ -14,7 +14,7 @@ import { isLowEnd } from './device.js';
 // legionary, so the game always has a player.
 // envMap: reflections for the armour (see environment.js).
 export async function loadCharacter(envMap) {
-  const urls = isLowEnd() ? [CHARACTER.lowModel, CHARACTER.hdModel] : [CHARACTER.hdModel];
+  const urls = isLowEnd() && CHARACTER.lowModel ? [CHARACTER.lowModel, CHARACTER.hdModel] : [CHARACTER.hdModel];
   for (const url of urls) {
     try {
       return createCharacter(await loadGLTF(url), envMap);

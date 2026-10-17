@@ -1047,7 +1047,9 @@ body {
 
 #shop[hidden],
 #shop .panel[hidden],
-#revive[hidden] {
+#revive[hidden],
+#paused[hidden],
+#paused .continue[hidden] {
   display: none;
 }
 
@@ -1236,6 +1238,7 @@ body {
 #powerup-note .powerup-icon .wing { fill: #f6f2e8; stroke: #b8b2a6; stroke-width: 0.6; }
 
 /* ---- Revive offer after a crash ---- */
+#paused,
 #revive {
   position: fixed;
   inset: 0;
@@ -1249,6 +1252,7 @@ body {
   text-align: center;
 }
 
+#paused .card,
 #revive .card {
   display: flex;
   flex-direction: column;
@@ -1269,6 +1273,7 @@ body {
   opacity: 0.8;
 }
 
+#paused button,
 #revive button {
   display: flex;
   justify-content: center;
@@ -1318,4 +1323,24 @@ body {
 #revive .coin-icon {
   width: 20px;
   height: 20px;
+}
+
+#paused h2 {
+  margin: 0;
+}
+
+#paused .count {
+  margin: 0;
+  color: #ffd772;
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+#paused .count:empty {
+  display: none;
+}
+
+#paused {
+  z-index: 5; /* over a revive offer that was up when he left */
 }

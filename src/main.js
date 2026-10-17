@@ -18,7 +18,7 @@ import { speedAt } from './speed.js';
 import { consumeActions } from './input.js';
 import {
   updateDistance, showBest, showGameOver, hideGameOver, setEdgeGlow, setAshFade, setLoading, onMuteButton, showMuted,
-  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin, updatePowerups, shatterAegis, showRevive, showPowerupNote, hidePowerupNote,
+  updateStartSound, hideStart, setupSettings, updateShield, setJourney, showFinish, setupRunAgain, setCoins, flyCoin, updatePowerups, shatterAegis, showRevive, showPowerupNote, hidePowerupNote, showPaused, hidePaused,
   setupStartModes, showStart, setupMenuButtons, showMenuButtons, updateCompass, showRouteChange, showDistrict,
 } from './ui.js';
 import { createAudio } from './audio.js';
@@ -65,8 +65,9 @@ onMuteButton(toggleMute);
 // The settings panel pauses the game while it is open.
 let isPaused = false; // the sound settings are open
 let isShopOpen = false;
-// The game holds still: settings or the shop open, or a revive offered.
-const holding = () => isPaused || isShopOpen || isReviving;
+let isAway = false; // paused because he left the app mid-run (until Continue's countdown ends)
+// The game holds still: settings or the shop open, a revive offered, or paused.
+const holding = () => isPaused || isShopOpen || isReviving || isAway;
 setupSettings(audio.levels, {
   onChange: (levels) => audio.setLevels(levels),
   onOpenChange: (open) => (isPaused = open),
@@ -582,6 +583,8 @@ function recordPlace(name) {
 
 function restart() {
   hidePowerupNote();
+  hidePaused();
+  isAway = false;
   district = null;
   route = { points: [], places: [] };
   routeSampledAt = -Infinity;
@@ -757,6 +760,17 @@ function checkCollisions() {
   shake = STUMBLE.cameraShake;
   if (surge.stumble(runTime)) isCaught = true;
 }
+
+// Leaving the app mid-run (home button, another app, a call, another tab)
+// pauses it: coming back shows "Paused" and Continue counts down first.
+// (Leaving again during the countdown stops it: Continue shows again.)
+function pauseRun() {
+  if (!isStarted || isGameOver || isCaught) return;
+  isAway = true;
+  showPaused(GAME.resumeCountdown, () => (isAway = false));
+}
+document.addEventListener('visibilitychange', () => document.hidden && pauseRun());
+window.addEventListener('blur', pauseRun); // e.g. pulling down the phone's notifications
 
 // Loop
 const timer = new THREE.Timer();

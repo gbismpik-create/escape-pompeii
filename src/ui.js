@@ -388,6 +388,48 @@ export function hidePowerupNote() {
   powerupNote.classList.remove('show');
 }
 
+// ---- Paused: the player left the app mid-run ----
+// Continue counts down (3, 2, 1) so the run doesn't start under his thumb.
+const paused = document.createElement('div');
+paused.id = 'paused';
+paused.hidden = true;
+paused.dataset.control = '';
+paused.innerHTML = `
+  <div class="card">
+    <h2>Paused</h2>
+    <button type="button" class="continue">Continue</button>
+    <p class="count" aria-live="assertive"></p>
+  </div>`;
+document.body.appendChild(paused);
+let resumeTimer = null;
+export function showPaused(seconds, onResume) {
+  clearInterval(resumeTimer);
+  const button = paused.querySelector('.continue'), count = paused.querySelector('.count');
+  button.hidden = false;
+  count.textContent = '';
+  paused.hidden = false;
+  button.focus();
+  button.onclick = () => {
+    button.hidden = true;
+    let left = seconds;
+    count.textContent = left;
+    resumeTimer = setInterval(() => {
+      left--;
+      if (left > 0) {
+        count.textContent = left;
+        return;
+      }
+      clearInterval(resumeTimer);
+      paused.hidden = true;
+      onResume();
+    }, 1000);
+  };
+}
+export function hidePaused() {
+  clearInterval(resumeTimer);
+  paused.hidden = true;
+}
+
 // ---- Revive: after a crash, pay gold to run on ----
 const revive = document.createElement('div');
 revive.id = 'revive';
@@ -423,6 +465,8 @@ export function showRevive(reason, cost, have, seconds, onAnswer) {
     onAnswer(yes);
   };
   reviveTimer.onfinish = () => answer(false);
+  // Away from the app, the offer waits (its clock would run on otherwise).
+  document.onvisibilitychange = () => (document.hidden ? reviveTimer?.pause() : reviveTimer?.play());
   revive.querySelector('.yes').onclick = () => answer(true);
   revive.querySelector('.no').onclick = () => answer(false);
 }
